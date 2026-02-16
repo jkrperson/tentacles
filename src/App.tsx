@@ -29,14 +29,16 @@ function App() {
   const updateTerminalStatus = useTerminalStore((s) => s.updateTerminalStatus)
   const setActiveTerminal = useTerminalStore((s) => s.setActiveTerminal)
   const renameSession = useSessionStore((s) => s.renameSession)
+  const loadSavedSessions = useSessionStore((s) => s.loadSessions)
   const [homePath, setHomePath] = useState('/')
   const activeSessionRef = useRef(activeSessionId)
   activeSessionRef.current = activeSessionId
 
   useEffect(() => {
     loadSettings()
+    loadSavedSessions()
     window.electronAPI.app.getHomePath().then(setHomePath)
-  }, [loadSettings])
+  }, [loadSettings, loadSavedSessions])
 
   // Apply theme to DOM whenever it changes
   useEffect(() => {
@@ -187,6 +189,34 @@ function App() {
     }
   }, [sessionOrder.length, settings, addSession, setActiveProject, notify])
 
+  const handleNewSessionInWorktree = useCallback(async (projectPath: string, worktreeName?: string) => {
+    if (sessionOrder.length >= settings.maxSessions) {
+      notify('warning', 'Max agents reached', `Limit is ${settings.maxSessions}`)
+      return
+    }
+    try {
+      const { worktreePath, branch } = await window.electronAPI.git.worktree.create(projectPath, worktreeName)
+      const name = worktreeName || `Agent ${sessionOrder.length + 1}`
+      const { id, pid } = await window.electronAPI.session.create(name, worktreePath)
+      addSession({
+        id,
+        name,
+        cwd: worktreePath,
+        status: 'running',
+        createdAt: Date.now(),
+        hasUnread: false,
+        pid,
+        isWorktree: true,
+        worktreePath,
+        worktreeBranch: branch,
+        originalRepo: projectPath,
+      })
+      setActiveProject(projectPath)
+    } catch (err: any) {
+      notify('error', 'Failed to create worktree', err.message)
+    }
+  }, [sessionOrder.length, settings, addSession, setActiveProject, notify])
+
   const handleNewTerminal = useCallback(async () => {
     let cwd = activeProjectId
     if (!cwd) {
@@ -299,7 +329,7 @@ function App() {
         </span>
       </div>
       <div className="flex-1 min-h-0">
-        <Layout onNewSession={handleNewSession} onNewSessionInProject={handleNewSessionInProject} onNewTerminal={handleNewTerminal} />
+        <Layout onNewSession={handleNewSession} onNewSessionInProject={handleNewSessionInProject} onNewSessionInWorktree={handleNewSessionInWorktree} onNewTerminal={handleNewTerminal} />
       </div>
       <ToastContainer />
       <SettingsModal />

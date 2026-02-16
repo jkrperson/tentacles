@@ -7,8 +7,25 @@ export interface Session {
   status: SessionStatus
   createdAt: number
   hasUnread: boolean
+  archivedAt?: number
   pid?: number
   exitCode?: number | null
+  isWorktree?: boolean
+  worktreePath?: string
+  worktreeBranch?: string
+  originalRepo?: string
+}
+
+export interface SessionsFile {
+  sessions: Session[]
+  archived: Session[]
+  activeSessionId: string | null
+}
+
+export interface WorktreeInfo {
+  path: string
+  branch: string
+  commit: string
 }
 
 export interface FileNode {
@@ -32,12 +49,20 @@ export interface Project {
   addedAt: number
 }
 
+export type GitFileStatus = 'modified' | 'untracked' | 'added' | 'deleted' | 'renamed' | 'conflicted'
+
+export interface GitStatusResult {
+  branch: string
+  files: Array<{ absolutePath: string; status: GitFileStatus }>
+}
+
 export interface ProjectFileTreeState {
   nodes: FileNode[]
   expandedPaths: Set<string>
   selectedFilePath: string | null
   openFiles: string[]
   recentlyChangedPaths: Set<string>
+  gitStatuses: Map<string, GitFileStatus>
 }
 
 export type TerminalStatus = 'running' | 'exited'
@@ -105,6 +130,15 @@ export interface ElectronAPI {
     onData: (cb: (data: { id: string; data: string }) => void) => () => void
     onExit: (cb: (data: { id: string; exitCode: number }) => void) => () => void
   }
+  git: {
+    isRepo: (dirPath: string) => Promise<boolean>
+    status: (dirPath: string) => Promise<GitStatusResult>
+    worktree: {
+      create: (repoPath: string, name?: string) => Promise<{ worktreePath: string; branch: string }>
+      remove: (repoPath: string, worktreePath: string) => Promise<void>
+      list: (repoPath: string) => Promise<WorktreeInfo[]>
+    }
+  }
   dialog: {
     selectDirectory: () => Promise<string | null>
   }
@@ -113,5 +147,7 @@ export interface ElectronAPI {
     saveSettings: (settings: AppSettings) => Promise<void>
     getPlatform: () => Promise<string>
     getHomePath: () => Promise<string>
+    loadSessions: () => Promise<SessionsFile>
+    saveSessions: (data: SessionsFile) => Promise<void>
   }
 }

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Project, ProjectFileTreeState, FileNode } from '../types'
+import type { Project, ProjectFileTreeState, FileNode, GitFileStatus } from '../types'
 import { useSettingsStore } from './settingsStore'
 
 interface ProjectState {
@@ -22,10 +22,20 @@ interface ProjectState {
   removeFileTreeChangedPath: (projectId: string, path: string) => void
   updateFileTreeChildren: (projectId: string, parentPath: string, children: FileNode[]) => void
 
+  setGitStatuses: (projectId: string, files: Array<{ absolutePath: string; status: GitFileStatus }>) => void
+
   // Editor tab actions
   openFile: (projectId: string, path: string) => void
   closeFile: (projectId: string, path: string) => void
   closeOtherFiles: (projectId: string, path: string) => void
+}
+
+// Priority order for folder propagation (higher index = higher priority)
+const STATUS_PRIORITY: GitFileStatus[] = ['renamed', 'untracked', 'added', 'modified', 'deleted', 'conflicted']
+
+function higherPriorityStatus(a: GitFileStatus | undefined, b: GitFileStatus): GitFileStatus {
+  if (!a) return b
+  return STATUS_PRIORITY.indexOf(a) >= STATUS_PRIORITY.indexOf(b) ? a : b
 }
 
 function emptyFileTreeState(): ProjectFileTreeState {
@@ -35,6 +45,7 @@ function emptyFileTreeState(): ProjectFileTreeState {
     selectedFilePath: null,
     openFiles: [],
     recentlyChangedPaths: new Set(),
+    gitStatuses: new Map(),
   }
 }
 
@@ -194,6 +205,29 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         })
       const fileTreeCache = new Map(state.fileTreeCache)
       fileTreeCache.set(projectId, { ...cache, nodes: updateNodes(cache.nodes) })
+      return { fileTreeCache }
+    }),
+
+  setGitStatuses: (projectId, files) =>
+    set((state) => {
+      const cache = state.fileTreeCache.get(projectId)
+      if (!cache) return state
+      const gitStatuses = new Map<string, GitFileStatus>()
+      // Set file statuses
+      for (const { absolutePath, status } of files) {
+        gitStatuses.set(absolutePath, status)
+        // Propagate to parent folders up to project root
+        let dir = absolutePath.slice(0, absolutePath.lastIndexOf('/'))
+        while (dir.length >= projectId.length) {
+          const existing = gitStatuses.get(dir)
+          gitStatuses.set(dir, higherPriorityStatus(existing, status))
+          const parentEnd = dir.lastIndexOf('/')
+          if (parentEnd < 0) break
+          dir = dir.slice(0, parentEnd)
+        }
+      }
+      const fileTreeCache = new Map(state.fileTreeCache)
+      fileTreeCache.set(projectId, { ...cache, gitStatuses })
       return { fileTreeCache }
     }),
 

@@ -3,6 +3,7 @@
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
   "appId": "com.tentacles.app",
   "asar": true,
+  "npmRebuild": false,
   "productName": "Tentacles",
   "directories": {
     "output": "release/${version}"

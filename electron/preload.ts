@@ -53,6 +53,15 @@ const api: ElectronAPI = {
       return () => { ipcRenderer.removeListener('file:changed', listener) }
     },
   },
+  git: {
+    isRepo: (dirPath) => ipcRenderer.invoke('git:isRepo', dirPath),
+    status: (dirPath) => ipcRenderer.invoke('git:status', dirPath),
+    worktree: {
+      create: (repoPath, name?) => ipcRenderer.invoke('git:worktree:create', repoPath, name),
+      remove: (repoPath, worktreePath) => ipcRenderer.invoke('git:worktree:remove', repoPath, worktreePath),
+      list: (repoPath) => ipcRenderer.invoke('git:worktree:list', repoPath),
+    },
+  },
   dialog: {
     selectDirectory: () => ipcRenderer.invoke('dialog:selectDirectory'),
   },
@@ -61,6 +70,8 @@ const api: ElectronAPI = {
     saveSettings: (settings) => ipcRenderer.invoke('app:saveSettings', settings),
     getPlatform: () => ipcRenderer.invoke('app:getPlatform'),
     getHomePath: () => ipcRenderer.invoke('app:getHomePath'),
+    loadSessions: () => ipcRenderer.invoke('app:loadSessions'),
+    saveSessions: (data) => ipcRenderer.invoke('app:saveSessions', data),
   },
 }
 

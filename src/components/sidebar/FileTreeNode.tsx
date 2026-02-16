@@ -1,6 +1,15 @@
 import { memo, useCallback, useState } from 'react'
 import { useProjectStore } from '../../stores/projectStore'
-import type { FileNode } from '../../types'
+import type { FileNode, GitFileStatus } from '../../types'
+
+const GIT_STATUS_COLORS: Record<GitFileStatus, string> = {
+  modified: 'text-amber-300',
+  untracked: 'text-green-400',
+  added: 'text-green-400',
+  deleted: 'text-red-400',
+  conflicted: 'text-red-400',
+  renamed: 'text-green-400',
+}
 
 const EXT_COLORS: Record<string, string> = {
   ts: 'text-blue-400',
@@ -74,6 +83,10 @@ export const FileTreeNode = memo(function FileTreeNode({ node, depth }: { node: 
     const cache = activeProjectId ? s.fileTreeCache.get(activeProjectId) : null
     return cache?.recentlyChangedPaths.has(node.path) ?? false
   })
+  const gitStatus = useProjectStore((s) => {
+    const cache = activeProjectId ? s.fileTreeCache.get(activeProjectId) : null
+    return cache?.gitStatuses?.get(node.path) ?? null
+  })
 
   const [children, setChildren] = useState<FileNode[]>(node.children ?? [])
   const [loaded, setLoaded] = useState(false)
@@ -101,7 +114,7 @@ export const FileTreeNode = memo(function FileTreeNode({ node, depth }: { node: 
           isSelected
             ? 'bg-violet-500/10 text-zinc-200'
             : isChanged
-              ? 'bg-amber-500/5 text-amber-300'
+              ? 'bg-amber-500/5 text-zinc-400'
               : 'text-zinc-400 hover:bg-[var(--t-bg-hover)] hover:text-zinc-300'
         }`}
         style={{ paddingLeft: depth * 16 + 8 }}
@@ -119,7 +132,9 @@ export const FileTreeNode = memo(function FileTreeNode({ node, depth }: { node: 
             <FileIcon className={getExtColor(node.name)} />
           </>
         )}
-        <span className="truncate ml-0.5">{node.name}</span>
+        <span className={`truncate ml-0.5 ${
+          isSelected ? '' : gitStatus ? GIT_STATUS_COLORS[gitStatus] : ''
+        }`}>{node.name}</span>
       </div>
       {node.type === 'directory' && isExpanded && children.map((child) => (
         <FileTreeNode key={child.path} node={child} depth={depth + 1} />

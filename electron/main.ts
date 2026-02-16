@@ -5,6 +5,7 @@ import * as fs from 'node:fs'
 import { execSync } from 'node:child_process'
 import { PtyManager } from './ptyManager'
 import { FileWatcher } from './fileWatcher'
+import { GitManager } from './gitManager'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -29,10 +30,12 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
 
 const settingsPath = path.join(app.getPath('userData'), 'settings.json')
+const sessionsPath = path.join(app.getPath('userData'), 'sessions.json')
 
 let win: BrowserWindow | null = null
 const ptyManager = new PtyManager()
 const fileWatcher = new FileWatcher()
+const gitManager = new GitManager()
 
 function loadSettings() {
   try {
@@ -209,6 +212,27 @@ ipcMain.handle('dialog:selectDirectory', async () => {
   return result.canceled ? null : result.filePaths[0]
 })
 
+// --- Git IPC ---
+ipcMain.handle('git:isRepo', (_e, dirPath: string) => {
+  return gitManager.isRepo(dirPath)
+})
+
+ipcMain.handle('git:status', (_e, dirPath: string) => {
+  return gitManager.status(dirPath)
+})
+
+ipcMain.handle('git:worktree:create', (_e, repoPath: string, name?: string) => {
+  return gitManager.createWorktree(repoPath, name)
+})
+
+ipcMain.handle('git:worktree:remove', (_e, repoPath: string, worktreePath: string) => {
+  return gitManager.removeWorktree(repoPath, worktreePath)
+})
+
+ipcMain.handle('git:worktree:list', (_e, repoPath: string) => {
+  return gitManager.listWorktrees(repoPath)
+})
+
 // --- App IPC ---
 ipcMain.handle('app:getSettings', () => {
   return loadSettings()
@@ -216,6 +240,18 @@ ipcMain.handle('app:getSettings', () => {
 
 ipcMain.handle('app:saveSettings', (_e, settings: any) => {
   saveSettings(settings)
+})
+
+ipcMain.handle('app:loadSessions', () => {
+  try {
+    return JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
+  } catch {
+    return { sessions: [], archived: [], activeSessionId: null }
+  }
+})
+
+ipcMain.handle('app:saveSessions', (_e, data: any) => {
+  fs.writeFileSync(sessionsPath, JSON.stringify(data, null, 2))
 })
 
 ipcMain.handle('app:getPlatform', () => {

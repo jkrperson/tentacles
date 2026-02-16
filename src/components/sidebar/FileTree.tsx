@@ -1,6 +1,7 @@
-import { useEffect } from 'react'
+import { useEffect, useCallback, useRef } from 'react'
 import { useProjectStore } from '../../stores/projectStore'
 import { FileTreeNode } from './FileTreeNode'
+import type { GitFileStatus } from '../../types'
 
 interface FileTreeProps {
   onToggle: () => void
@@ -10,11 +11,21 @@ export function FileTree({ onToggle }: FileTreeProps) {
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
   const fileTreeCache = useProjectStore((s) => s.fileTreeCache)
   const setFileTreeNodes = useProjectStore((s) => s.setFileTreeNodes)
+  const setGitStatuses = useProjectStore((s) => s.setGitStatuses)
   const addFileTreeChangedPath = useProjectStore((s) => s.addFileTreeChangedPath)
   const removeFileTreeChangedPath = useProjectStore((s) => s.removeFileTreeChangedPath)
 
   const cache = activeProjectId ? fileTreeCache.get(activeProjectId) : null
   const nodes = cache?.nodes ?? []
+
+  const fetchGitStatus = useCallback((projectId: string) => {
+    window.electronAPI.git.status(projectId).then((result) => {
+      setGitStatuses(projectId, result.files as Array<{ absolutePath: string; status: GitFileStatus }>)
+    }).catch(() => {
+      // Not a git repo or git not available — clear statuses
+      setGitStatuses(projectId, [])
+    })
+  }, [setGitStatuses])
 
   // Load file tree + start watching when active project changes.
   // Watchers stay alive across switches (chokidar.watch is a no-op for
@@ -31,7 +42,16 @@ export function FileTree({ onToggle }: FileTreeProps) {
     window.electronAPI.file.watch(activeProjectId)
   }, [activeProjectId, setFileTreeNodes])
 
+  // Poll git status for the active project
+  useEffect(() => {
+    if (!activeProjectId) return
+    fetchGitStatus(activeProjectId)
+    const interval = setInterval(() => fetchGitStatus(activeProjectId), 3000)
+    return () => clearInterval(interval)
+  }, [activeProjectId, fetchGitStatus])
+
   // Listen for file change events, route to correct project via watchRoot
+  const gitRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     const unsub = window.electronAPI.file.onChanged((event) => {
       const projectId = event.watchRoot
@@ -48,9 +68,13 @@ export function FileTree({ onToggle }: FileTreeProps) {
           setFileTreeNodes(projectId, rootNodes)
         })
       }
+
+      // Debounced git status refresh on file changes
+      if (gitRefreshTimerRef.current) clearTimeout(gitRefreshTimerRef.current)
+      gitRefreshTimerRef.current = setTimeout(() => fetchGitStatus(projectId), 500)
     })
     return unsub
-  }, [addFileTreeChangedPath, removeFileTreeChangedPath, setFileTreeNodes])
+  }, [addFileTreeChangedPath, removeFileTreeChangedPath, setFileTreeNodes, fetchGitStatus])
 
   const dirName = activeProjectId?.split('/').pop() ?? ''
 

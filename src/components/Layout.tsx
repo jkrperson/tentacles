@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { FileTree } from './sidebar/FileTree'
+import { GitPanel } from './sidebar/GitPanel'
 import { TerminalView } from './terminal/TerminalView'
 import { TerminalBottomPanel } from './terminal/TerminalBottomPanel'
 import { EditorPanel } from './editor/EditorPanel'
@@ -9,16 +10,18 @@ import { useProjectStore } from '../stores/projectStore'
 interface LayoutProps {
   onNewSession: () => void
   onNewSessionInProject: (projectPath: string) => void
+  onNewSessionInWorktree: (projectPath: string, name?: string) => void
   onNewTerminal: () => void
 }
 
-export function Layout({ onNewSession, onNewSessionInProject, onNewTerminal }: LayoutProps) {
+export function Layout({ onNewSession, onNewSessionInProject, onNewSessionInWorktree, onNewTerminal }: LayoutProps) {
   const [leftWidth, setLeftWidth] = useState(240)
   const [rightWidth, setRightWidth] = useState(260)
   const [editorWidth, setEditorWidth] = useState(480)
   const [bottomHeight, setBottomHeight] = useState(220)
   const [bottomExpanded, setBottomExpanded] = useState(false)
   const [rightVisible, setRightVisible] = useState(true)
+  const [rightTab, setRightTab] = useState<'explorer' | 'git'>('explorer')
   const hasOpenFiles = useProjectStore((s) => {
     const apId = s.activeProjectId
     return apId ? (s.fileTreeCache.get(apId)?.openFiles.length ?? 0) > 0 : false
@@ -95,7 +98,7 @@ export function Layout({ onNewSession, onNewSessionInProject, onNewTerminal }: L
     <div className="flex h-full">
       {/* Left: Agent Sidebar */}
       <div className="flex-shrink-0 overflow-hidden" style={{ width: leftWidth }}>
-        <AgentSidebar onNewSession={onNewSession} onNewSessionInProject={onNewSessionInProject} />
+        <AgentSidebar onNewSession={onNewSession} onNewSessionInProject={onNewSessionInProject} onNewSessionInWorktree={onNewSessionInWorktree} />
       </div>
 
       <div className="group relative w-1 flex-shrink-0 cursor-col-resize"
@@ -156,9 +159,50 @@ export function Layout({ onNewSession, onNewSessionInProject, onNewTerminal }: L
             <div className="absolute inset-y-0 right-0 w-px bg-[var(--t-border)] group-hover:bg-violet-500/50 transition-colors" />
           </div>
 
-          {/* Right: File Explorer */}
-          <div className="flex-shrink-0 overflow-hidden" style={{ width: rightWidth }}>
-            <FileTree onToggle={() => setRightVisible(false)} />
+          {/* Right: Tabbed Sidebar */}
+          <div className="flex-shrink-0 overflow-hidden flex flex-col" style={{ width: rightWidth }}>
+            {/* Tab bar */}
+            <div className="flex items-center border-b border-[var(--t-border)] flex-shrink-0 bg-[var(--t-bg-surface)]">
+              <button
+                onClick={() => setRightTab('explorer')}
+                className={`flex items-center justify-center w-9 h-8 transition-colors ${
+                  rightTab === 'explorer'
+                    ? 'text-zinc-300 border-b-2 border-zinc-300'
+                    : 'text-zinc-600 hover:text-zinc-400'
+                }`}
+                title="Explorer"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M2 3h5l2 2h5v8H2V3z" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setRightTab('git')}
+                className={`flex items-center justify-center w-9 h-8 transition-colors ${
+                  rightTab === 'git'
+                    ? 'text-zinc-300 border-b-2 border-zinc-300'
+                    : 'text-zinc-600 hover:text-zinc-400'
+                }`}
+                title="Source Control"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                  <circle cx="5" cy="3.5" r="1.5"/>
+                  <circle cx="5" cy="12.5" r="1.5"/>
+                  <circle cx="11" cy="7" r="1.5"/>
+                  <path d="M5 5v6" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+                  <path d="M9.5 7C8 7 6.5 8 5 9.5" stroke="currentColor" strokeWidth="1.5" fill="none"/>
+                </svg>
+              </button>
+            </div>
+
+            {/* Panel content */}
+            <div className="flex-1 min-h-0 overflow-hidden">
+              {rightTab === 'explorer' ? (
+                <FileTree onToggle={() => setRightVisible(false)} />
+              ) : (
+                <GitPanel onToggle={() => setRightVisible(false)} />
+              )}
+            </div>
           </div>
         </>
       )}

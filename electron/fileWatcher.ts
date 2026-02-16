@@ -83,7 +83,7 @@ export class FileWatcher {
       const nodes: FileNode[] = []
 
       for (const entry of entries) {
-        if (entry.name.startsWith('.')) continue
+        if (entry.name === '.git') continue
         if (entry.name === 'node_modules') continue
         if (entry.name === 'dist' || entry.name === 'dist-electron') continue
         if (entry.name === 'build' || entry.name === 'coverage') continue
