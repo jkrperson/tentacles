@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState, useRef } from 'react'
+import { useEffect, useCallback, useRef } from 'react'
 import { Layout } from './components/Layout'
 import { ToastContainer } from './components/notifications/ToastContainer'
 import { SettingsModal } from './components/settings/SettingsModal'
@@ -33,14 +33,12 @@ function App() {
   const setStatusDetail = useSessionStore((s) => s.setStatusDetail)
   const restoreSession = useSessionStore((s) => s.restoreSession)
   const loadSavedSessions = useSessionStore((s) => s.loadSessions)
-  const [homePath, setHomePath] = useState('/')
   const activeSessionRef = useRef(activeSessionId)
   activeSessionRef.current = activeSessionId
 
   useEffect(() => {
     loadSettings()
     loadSavedSessions()
-    window.electronAPI.app.getHomePath().then(setHomePath)
   }, [loadSettings, loadSavedSessions])
 
   // Apply theme to DOM whenever it changes
@@ -92,7 +90,7 @@ function App() {
       }
     })
     return unsub
-  }, [renameSession, updateStatus])
+  }, [renameSession, updateStatus, notify])
 
   useEffect(() => {
     if (activeSessionId) {
@@ -180,10 +178,10 @@ function App() {
         pid,
       })
       addProject(cwd) // ensure project exists + activate
-    } catch (err: any) {
-      notify('error', 'Failed to spawn agent', err.message)
+    } catch (err: unknown) {
+      notify('error', 'Failed to spawn agent', err instanceof Error ? err.message : String(err))
     }
-  }, [sessionOrder.length, settings, activeProjectId, homePath, addSession, addProject, notify])
+  }, [sessionOrder.length, settings, activeProjectId, addSession, addProject, notify])
 
   const handleNewSessionInProject = useCallback(async (projectPath: string) => {
     if (sessionOrder.length >= settings.maxSessions) {
@@ -203,8 +201,8 @@ function App() {
         pid,
       })
       setActiveProject(projectPath)
-    } catch (err: any) {
-      notify('error', 'Failed to spawn agent', err.message)
+    } catch (err: unknown) {
+      notify('error', 'Failed to spawn agent', err instanceof Error ? err.message : String(err))
     }
   }, [sessionOrder.length, settings, addSession, setActiveProject, notify])
 
@@ -231,8 +229,8 @@ function App() {
         originalRepo: projectPath,
       })
       setActiveProject(projectPath)
-    } catch (err: any) {
-      notify('error', 'Failed to create worktree', err.message)
+    } catch (err: unknown) {
+      notify('error', 'Failed to create worktree', err instanceof Error ? err.message : String(err))
     }
   }, [sessionOrder.length, settings, addSession, setActiveProject, notify])
 
@@ -267,8 +265,8 @@ function App() {
         originalRepo: archived.originalRepo,
       })
       setActiveProject(archived.originalRepo ?? archived.cwd)
-    } catch (err: any) {
-      notify('error', 'Failed to resume session', err.message)
+    } catch (err: unknown) {
+      notify('error', 'Failed to resume session', err instanceof Error ? err.message : String(err))
     }
   }, [restoreSession, addSession, setActiveProject, notify])
 
@@ -292,8 +290,8 @@ function App() {
         createdAt: Date.now(),
         pid,
       })
-    } catch (err: any) {
-      notify('error', 'Failed to spawn terminal', err.message)
+    } catch (err: unknown) {
+      notify('error', 'Failed to spawn terminal', err instanceof Error ? err.message : String(err))
     }
   }, [terminalOrder.length, activeProjectId, addTerminal, addProject, notify])
 

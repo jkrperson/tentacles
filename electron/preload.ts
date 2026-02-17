@@ -1,5 +1,5 @@
 import { ipcRenderer, contextBridge } from 'electron'
-import type { ElectronAPI } from '../src/types'
+import type { ElectronAPI, FileChangeEvent } from '../src/types'
 
 const api: ElectronAPI = {
   session: {
@@ -59,7 +59,7 @@ const api: ElectronAPI = {
     unwatchDir: (dirPath) => ipcRenderer.invoke('file:unwatchDir', dirPath),
     unwatch: () => ipcRenderer.invoke('file:unwatch'),
     onChanged: (cb) => {
-      const listener = (_event: Electron.IpcRendererEvent, event: { eventType: string; path: string; watchRoot: string }) => cb(event as any)
+      const listener = (_event: Electron.IpcRendererEvent, event: FileChangeEvent) => cb(event)
       ipcRenderer.on('file:changed', listener)
       return () => { ipcRenderer.removeListener('file:changed', listener) }
     },

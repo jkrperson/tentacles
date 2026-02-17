@@ -46,7 +46,7 @@ function loadSettings() {
   }
 }
 
-function saveSettings(settings: any) {
+function saveSettings(settings: Record<string, unknown>) {
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
 }
 
@@ -122,7 +122,7 @@ ptyManager.onExit((id, exitCode) => {
   // Clean up hook resources for this session
   const hookInfo = sessionHookMap.get(id)
   if (hookInfo) {
-    try { hookInfo.watcher.close() } catch {}
+    try { hookInfo.watcher.close() } catch { /* already closed */ }
     cleanupHookFiles(hookInfo.hookId)
     sessionHookMap.delete(id)
   }
@@ -211,15 +211,21 @@ function waitForSessionId(outputPath: string, timeoutMs = 30000): Promise<string
 }
 
 function cleanupHookFiles(hookId: string) {
-  try { fs.unlinkSync(path.join(hooksDir, `${hookId}.json`)) } catch {}
-  try { fs.unlinkSync(path.join(hooksDir, `${hookId}.out`)) } catch {}
-  try { fs.unlinkSync(path.join(hooksDir, `${hookId}.status`)) } catch {}
+  try { fs.unlinkSync(path.join(hooksDir, `${hookId}.json`)) } catch { /* already deleted */ }
+  try { fs.unlinkSync(path.join(hooksDir, `${hookId}.out`)) } catch { /* already deleted */ }
+  try { fs.unlinkSync(path.join(hooksDir, `${hookId}.status`)) } catch { /* already deleted */ }
 }
 
-function deriveStatusDetail(event: any): string | null {
-  const hookName = event?.hook_event_name
-  const toolName = event?.tool_name
-  const toolInput = event?.tool_input
+interface HookEvent {
+  hook_event_name?: string
+  tool_name?: string
+  tool_input?: Record<string, string>
+}
+
+function deriveStatusDetail(event: HookEvent): string | null {
+  const hookName = event.hook_event_name
+  const toolName = event.tool_name
+  const toolInput = event.tool_input
 
   if (hookName === 'Stop') return null
 
@@ -316,7 +322,7 @@ function spawnWithHook(name: string, cwd: string, extraArgs: string[] = []): { i
       win?.webContents.send('session:claudeSessionId', { id: result.id, claudeSessionId })
     }
     // Only clean up the .out file — .json and .status are needed for the session lifetime
-    try { fs.unlinkSync(outputPath) } catch {}
+    try { fs.unlinkSync(outputPath) } catch { /* already deleted */ }
   })
 
   return result
@@ -435,7 +441,7 @@ ipcMain.handle('app:getSettings', () => {
   return loadSettings()
 })
 
-ipcMain.handle('app:saveSettings', (_e, settings: any) => {
+ipcMain.handle('app:saveSettings', (_e, settings: Record<string, unknown>) => {
   saveSettings(settings)
 })
 
@@ -447,7 +453,7 @@ ipcMain.handle('app:loadSessions', () => {
   }
 })
 
-ipcMain.handle('app:saveSessions', (_e, data: any) => {
+ipcMain.handle('app:saveSessions', (_e, data: Record<string, unknown>) => {
   fs.writeFileSync(sessionsPath, JSON.stringify(data, null, 2))
 })
 
@@ -479,7 +485,7 @@ app.on('will-quit', async () => {
 
   // Close all active status watchers
   for (const [, { watcher }] of sessionHookMap) {
-    try { watcher.close() } catch {}
+    try { watcher.close() } catch { /* already closed */ }
   }
   sessionHookMap.clear()
 
@@ -487,10 +493,10 @@ app.on('will-quit', async () => {
   try {
     if (fs.existsSync(hooksDir)) {
       for (const file of fs.readdirSync(hooksDir)) {
-        try { fs.unlinkSync(path.join(hooksDir, file)) } catch {}
+        try { fs.unlinkSync(path.join(hooksDir, file)) } catch { /* ignore */ }
       }
     }
-  } catch {}
+  } catch { /* ignore */ }
 })
 
 app.whenReady().then(createWindow)

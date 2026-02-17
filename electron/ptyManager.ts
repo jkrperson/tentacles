@@ -6,20 +6,30 @@ const pty = require('node-pty')
 
 type PtyKind = 'agent' | 'shell'
 
+interface PtyProcess {
+  pid: number
+  write(data: string): void
+  resize(cols: number, rows: number): void
+  kill(): void
+  onData(callback: (data: string) => void): void
+  onExit(callback: (e: { exitCode: number }) => void): void
+}
+
 interface ManagedPty {
   id: string
   name: string
   cwd: string
   pid: number
   kind: PtyKind
-  ptyProcess: any
+  ptyProcess: PtyProcess
 }
 
 type DataCallback = (id: string, data: string) => void
 type ExitCallback = (id: string, exitCode: number) => void
 
-// OSC 0 or 2: \x1b] (0|2) ; <title> (\x07 | \x1b\\)
-const OSC_TITLE_RE = /\x1b\](?:0|2);([^\x07\x1b]*?)(?:\x07|\x1b\\)/
+// OSC 0 or 2: ESC] (0|2) ; <title> (BEL | ESC\)
+// eslint-disable-next-line no-control-regex
+const OSC_TITLE_RE = /\u001b\](?:0|2);([^\u0007\u001b]*?)(?:\u0007|\u001b\\)/
 // Normalize braille spinner chars (U+2800–U+28FF) to a single char for dedup
 const BRAILLE_RE = /[\u2800-\u28FF]/g
 

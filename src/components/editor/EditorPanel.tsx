@@ -37,7 +37,7 @@ export function EditorPanel() {
   const monacoTheme = (themes[themeName] ?? themes.obsidian).monacoTheme
 
   const contentCache = useRef(new Map<string, CacheEntry>())
-  const editorRef = useRef<any>(null)
+  const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
 
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(false)

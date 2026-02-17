@@ -21,7 +21,7 @@ export interface FileNode {
 type ChangeCallback = (eventType: string, filePath: string, watchRoot: string) => void
 
 export class FileWatcher {
-  private watchers = new Map<string, any>()
+  private watchers = new Map<string, { close(): Promise<void> }>()
   private changeCb: ChangeCallback | null = null
   private debounceTimers = new Map<string, NodeJS.Timeout>()
 
