@@ -1,7 +1,17 @@
 {
   "name": "tentacles",
-  "private": true,
   "version": "0.0.0",
+  "description": "An IDE for orchestrating multiple Claude Code agents across your projects",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jkrperson/tentacles.git"
+  },
+  "homepage": "https://github.com/jkrperson/tentacles",
+  "bugs": {
+    "url": "https://github.com/jkrperson/tentacles/issues"
+  },
+  "author": "jkrperson",
   "type": "module",
   "scripts": {
     "postinstall": "CXXFLAGS='-Wno-missing-field-initializers' electron-rebuild -f -w node-pty",
