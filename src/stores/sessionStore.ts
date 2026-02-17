@@ -22,7 +22,10 @@ interface SessionState {
   deleteArchivedSession: (id: string) => void
   setActiveSession: (id: string | null) => void
   updateStatus: (id: string, status: SessionStatus, exitCode?: number | null) => void
+  setStatusDetail: (id: string, detail: string | null) => void
   setHasUnread: (id: string, hasUnread: boolean) => void
+  setClaudeSessionId: (id: string, claudeSessionId: string) => void
+  restoreSession: (id: string) => Session | null
   renameSession: (id: string, name: string) => void
   loadSessions: () => Promise<void>
   persistSessions: () => void
@@ -131,6 +134,15 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return { sessions }
     }),
 
+  setStatusDetail: (id, detail) =>
+    set((state) => {
+      const session = state.sessions.get(id)
+      if (!session) return state
+      const sessions = new Map(state.sessions)
+      sessions.set(id, { ...session, statusDetail: detail ?? undefined })
+      return { sessions }
+    }),
+
   setHasUnread: (id, hasUnread) =>
     set((state) => {
       const session = state.sessions.get(id)
@@ -139,6 +151,53 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       sessions.set(id, { ...session, hasUnread })
       return { sessions }
     }),
+
+  setClaudeSessionId: (id, claudeSessionId) =>
+    set((state) => {
+      // Check active sessions first
+      const session = state.sessions.get(id)
+      if (session) {
+        const sessions = new Map(state.sessions)
+        sessions.set(id, { ...session, claudeSessionId })
+        debouncedPersist(() => {
+          const data = serializeState(get())
+          window.electronAPI.app.saveSessions(data).catch(() => {})
+        })
+        return { sessions }
+      }
+      // Check archived sessions
+      const archived = state.archivedSessions.get(id)
+      if (archived) {
+        const archivedSessions = new Map(state.archivedSessions)
+        archivedSessions.set(id, { ...archived, claudeSessionId })
+        debouncedPersist(() => {
+          const data = serializeState(get())
+          window.electronAPI.app.saveSessions(data).catch(() => {})
+        })
+        return { archivedSessions }
+      }
+      return state
+    }),
+
+  restoreSession: (id) => {
+    const state = get()
+    const session = state.archivedSessions.get(id)
+    if (!session) return null
+
+    // Remove from archived
+    const archivedSessions = new Map(state.archivedSessions)
+    archivedSessions.delete(id)
+    const archivedOrder = state.archivedOrder.filter((sid) => sid !== id)
+
+    set({ archivedSessions, archivedOrder })
+
+    debouncedPersist(() => {
+      const data = serializeState(get())
+      window.electronAPI.app.saveSessions(data).catch(() => {})
+    })
+
+    return session
+  },
 
   renameSession: (id, name) =>
     set((state) => {

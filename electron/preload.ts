@@ -4,6 +4,7 @@ import type { ElectronAPI } from '../src/types'
 const api: ElectronAPI = {
   session: {
     create: (name, cwd) => ipcRenderer.invoke('session:create', name, cwd),
+    resume: (claudeSessionId, name, cwd) => ipcRenderer.invoke('session:resume', claudeSessionId, name, cwd),
     write: (id, data) => ipcRenderer.invoke('session:write', id, data),
     resize: (id, cols, rows) => ipcRenderer.invoke('session:resize', id, cols, rows),
     kill: (id) => ipcRenderer.invoke('session:kill', id),
@@ -22,6 +23,16 @@ const api: ElectronAPI = {
       const listener = (_event: Electron.IpcRendererEvent, data: { id: string; title: string }) => cb(data)
       ipcRenderer.on('session:title', listener)
       return () => { ipcRenderer.removeListener('session:title', listener) }
+    },
+    onClaudeSessionId: (cb) => {
+      const listener = (_event: Electron.IpcRendererEvent, data: { id: string; claudeSessionId: string }) => cb(data)
+      ipcRenderer.on('session:claudeSessionId', listener)
+      return () => { ipcRenderer.removeListener('session:claudeSessionId', listener) }
+    },
+    onStatusDetail: (cb) => {
+      const listener = (_event: Electron.IpcRendererEvent, data: { id: string; detail: string | null }) => cb(data)
+      ipcRenderer.on('session:statusDetail', listener)
+      return () => { ipcRenderer.removeListener('session:statusDetail', listener) }
     },
   },
   terminal: {

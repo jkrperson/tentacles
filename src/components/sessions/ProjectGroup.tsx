@@ -8,9 +8,10 @@ interface ProjectGroupProps {
   project: Project
   onNewSessionInProject: (projectPath: string) => void
   onNewSessionInWorktree: (projectPath: string, name?: string) => void
+  onResumeSession: (archivedSessionId: string) => void
 }
 
-export function ProjectGroup({ project, onNewSessionInProject, onNewSessionInWorktree }: ProjectGroupProps) {
+export function ProjectGroup({ project, onNewSessionInProject, onNewSessionInWorktree, onResumeSession }: ProjectGroupProps) {
   const sessions = useSessionStore((s) => s.sessions)
   const sessionOrder = useSessionStore((s) => s.sessionOrder)
   const activeSessionId = useSessionStore((s) => s.activeSessionId)
@@ -191,7 +192,15 @@ export function ProjectGroup({ project, onNewSessionInProject, onNewSessionInWor
                 <div>
                   {archivedForProject.map((id) => {
                     const session = archivedSessions.get(id)
-                    return session ? <SessionCard key={id} session={session} isActive={false} isArchived /> : null
+                    return session ? (
+                      <SessionCard
+                        key={id}
+                        session={session}
+                        isActive={false}
+                        isArchived
+                        onResume={session.claudeSessionId ? () => onResumeSession(id) : undefined}
+                      />
+                    ) : null
                   })}
                 </div>
               )}

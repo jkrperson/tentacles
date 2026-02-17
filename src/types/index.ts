@@ -7,6 +7,8 @@ export interface Session {
   status: SessionStatus
   createdAt: number
   hasUnread: boolean
+  claudeSessionId?: string
+  statusDetail?: string
   archivedAt?: number
   pid?: number
   exitCode?: number | null
@@ -105,6 +107,7 @@ export interface AppSettings {
 export interface ElectronAPI {
   session: {
     create: (name: string, cwd: string) => Promise<{ id: string; pid: number }>
+    resume: (claudeSessionId: string, name: string, cwd: string) => Promise<{ id: string; pid: number }>
     write: (id: string, data: string) => Promise<void>
     resize: (id: string, cols: number, rows: number) => Promise<void>
     kill: (id: string) => Promise<void>
@@ -112,6 +115,8 @@ export interface ElectronAPI {
     onData: (cb: (data: { id: string; data: string }) => void) => () => void
     onExit: (cb: (data: { id: string; exitCode: number }) => void) => () => void
     onTitle: (cb: (data: { id: string; title: string }) => void) => () => void
+    onClaudeSessionId: (cb: (data: { id: string; claudeSessionId: string }) => void) => () => void
+    onStatusDetail: (cb: (data: { id: string; detail: string | null }) => void) => () => void
   }
   file: {
     readDir: (dirPath: string) => Promise<FileNode[]>

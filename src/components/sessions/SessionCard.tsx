@@ -10,7 +10,7 @@ const STATUS_CONFIG: Record<string, { label: string; dotColor: string; textColor
   errored: { label: 'Errored', dotColor: 'bg-red-400', textColor: 'text-red-400' },
 }
 
-export const SessionCard = memo(function SessionCard({ session, isActive, isArchived }: { session: Session; isActive: boolean; isArchived?: boolean }) {
+export const SessionCard = memo(function SessionCard({ session, isActive, isArchived, onResume }: { session: Session; isActive: boolean; isArchived?: boolean; onResume?: () => void }) {
   const setActive = useSessionStore((s) => s.setActiveSession)
   const removeSession = useSessionStore((s) => s.removeSession)
   const deleteArchivedSession = useSessionStore((s) => s.deleteArchivedSession)
@@ -48,7 +48,17 @@ export const SessionCard = memo(function SessionCard({ session, isActive, isArch
             <span className="w-1.5 h-1.5 rounded-full bg-violet-400 flex-shrink-0" />
           )}
         </div>
-        <div className={`text-[11px] mt-0.5 ${config.textColor}`}>{config.label}</div>
+        <div className={`text-[11px] mt-0.5 truncate ${
+          !isArchived && session.statusDetail
+            ? session.statusDetail.startsWith('Needs permission')
+              ? 'text-amber-400'
+              : session.statusDetail === 'Thinking...'
+                ? 'text-emerald-400/60 italic'
+                : 'text-emerald-400'
+            : config.textColor
+        }`}>
+          {!isArchived && session.statusDetail ? session.statusDetail : config.label}
+        </div>
         {session.isWorktree && session.worktreeBranch && (
           <div className="mt-1">
             <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded ${isArchived ? 'bg-zinc-500/10 text-zinc-600' : 'bg-violet-500/20 text-violet-300'}`}>
@@ -60,6 +70,22 @@ export const SessionCard = memo(function SessionCard({ session, isActive, isArch
           </div>
         )}
       </div>
+
+      {/* Resume button on hover (archived cards with claudeSessionId) */}
+      {isArchived && onResume && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onResume()
+          }}
+          className="absolute right-8 top-2 opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-emerald-400 transition-opacity p-0.5"
+          title="Resume session"
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M4 2.5a.5.5 0 0 1 .77-.42l9 5.5a.5.5 0 0 1 0 .84l-9 5.5A.5.5 0 0 1 4 13.5v-11z"/>
+          </svg>
+        </button>
+      )}
 
       {/* Remove / Delete button on hover */}
       <button

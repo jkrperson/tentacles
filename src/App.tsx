@@ -29,6 +29,9 @@ function App() {
   const updateTerminalStatus = useTerminalStore((s) => s.updateTerminalStatus)
   const setActiveTerminal = useTerminalStore((s) => s.setActiveTerminal)
   const renameSession = useSessionStore((s) => s.renameSession)
+  const setClaudeSessionId = useSessionStore((s) => s.setClaudeSessionId)
+  const setStatusDetail = useSessionStore((s) => s.setStatusDetail)
+  const restoreSession = useSessionStore((s) => s.restoreSession)
   const loadSavedSessions = useSessionStore((s) => s.loadSessions)
   const [homePath, setHomePath] = useState('/')
   const activeSessionRef = useRef(activeSessionId)
@@ -112,6 +115,22 @@ function App() {
     })
     return unsub
   }, [updateStatus, notify])
+
+  // Capture Claude CLI session ID for resume support
+  useEffect(() => {
+    const unsub = window.electronAPI.session.onClaudeSessionId(({ id, claudeSessionId }) => {
+      setClaudeSessionId(id, claudeSessionId)
+    })
+    return unsub
+  }, [setClaudeSessionId])
+
+  // Listen for detailed status updates from hook events
+  useEffect(() => {
+    const unsub = window.electronAPI.session.onStatusDetail(({ id, detail }) => {
+      setStatusDetail(id, detail)
+    })
+    return unsub
+  }, [setStatusDetail])
 
   // Switch active terminal when project changes
   useEffect(() => {
@@ -216,6 +235,42 @@ function App() {
       notify('error', 'Failed to create worktree', err.message)
     }
   }, [sessionOrder.length, settings, addSession, setActiveProject, notify])
+
+  const handleResumeSession = useCallback(async (archivedSessionId: string) => {
+    const archived = restoreSession(archivedSessionId)
+    if (!archived) {
+      notify('error', 'Cannot resume', 'Session not found in archive')
+      return
+    }
+    if (!archived.claudeSessionId) {
+      notify('warning', 'Cannot resume', 'No Claude session ID available')
+      return
+    }
+    try {
+      const { id, pid } = await window.electronAPI.session.resume(
+        archived.claudeSessionId,
+        archived.name,
+        archived.cwd,
+      )
+      addSession({
+        id,
+        name: archived.name,
+        cwd: archived.cwd,
+        status: 'running',
+        createdAt: Date.now(),
+        hasUnread: false,
+        pid,
+        claudeSessionId: archived.claudeSessionId,
+        isWorktree: archived.isWorktree,
+        worktreePath: archived.worktreePath,
+        worktreeBranch: archived.worktreeBranch,
+        originalRepo: archived.originalRepo,
+      })
+      setActiveProject(archived.originalRepo ?? archived.cwd)
+    } catch (err: any) {
+      notify('error', 'Failed to resume session', err.message)
+    }
+  }, [restoreSession, addSession, setActiveProject, notify])
 
   const handleNewTerminal = useCallback(async () => {
     let cwd = activeProjectId
@@ -329,7 +384,7 @@ function App() {
         </span>
       </div>
       <div className="flex-1 min-h-0">
-        <Layout onNewSession={handleNewSession} onNewSessionInProject={handleNewSessionInProject} onNewSessionInWorktree={handleNewSessionInWorktree} onNewTerminal={handleNewTerminal} />
+        <Layout onNewSession={handleNewSession} onNewSessionInProject={handleNewSessionInProject} onNewSessionInWorktree={handleNewSessionInWorktree} onNewTerminal={handleNewTerminal} onResumeSession={handleResumeSession} />
       </div>
       <ToastContainer />
       <SettingsModal />

@@ -52,8 +52,8 @@ export class PtyManager {
     this.onShellExitCb = cb
   }
 
-  create(name: string, cwd: string, claudeCliPath = 'claude'): { id: string; pid: number } {
-    return this._spawn(name, cwd, claudeCliPath, [], 'agent')
+  create(name: string, cwd: string, claudeCliPath = 'claude', extraArgs: string[] = []): { id: string; pid: number } {
+    return this._spawn(name, cwd, claudeCliPath, extraArgs, 'agent')
   }
 
   createShell(name: string, cwd: string): { id: string; pid: number } {

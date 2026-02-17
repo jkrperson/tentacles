@@ -9,9 +9,10 @@ interface AgentSidebarProps {
   onNewSession: () => void
   onNewSessionInProject: (projectPath: string) => void
   onNewSessionInWorktree: (projectPath: string, name?: string) => void
+  onResumeSession: (archivedSessionId: string) => void
 }
 
-export function AgentSidebar({ onNewSession, onNewSessionInProject, onNewSessionInWorktree }: AgentSidebarProps) {
+export function AgentSidebar({ onNewSession, onNewSessionInProject, onNewSessionInWorktree, onResumeSession }: AgentSidebarProps) {
   const sessionOrder = useSessionStore((s) => s.sessionOrder)
   const toggleSettings = useSettingsStore((s) => s.toggleSettings)
   const projects = useProjectStore((s) => s.projects)
@@ -165,6 +166,7 @@ export function AgentSidebar({ onNewSession, onNewSessionInProject, onNewSession
               project={project}
               onNewSessionInProject={onNewSessionInProject}
               onNewSessionInWorktree={onNewSessionInWorktree}
+              onResumeSession={onResumeSession}
             />
           )
         })}

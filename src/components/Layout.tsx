@@ -12,9 +12,10 @@ interface LayoutProps {
   onNewSessionInProject: (projectPath: string) => void
   onNewSessionInWorktree: (projectPath: string, name?: string) => void
   onNewTerminal: () => void
+  onResumeSession: (archivedSessionId: string) => void
 }
 
-export function Layout({ onNewSession, onNewSessionInProject, onNewSessionInWorktree, onNewTerminal }: LayoutProps) {
+export function Layout({ onNewSession, onNewSessionInProject, onNewSessionInWorktree, onNewTerminal, onResumeSession }: LayoutProps) {
   const [leftWidth, setLeftWidth] = useState(240)
   const [rightWidth, setRightWidth] = useState(260)
   const [editorWidth, setEditorWidth] = useState(480)
@@ -98,7 +99,7 @@ export function Layout({ onNewSession, onNewSessionInProject, onNewSessionInWork
     <div className="flex h-full">
       {/* Left: Agent Sidebar */}
       <div className="flex-shrink-0 overflow-hidden" style={{ width: leftWidth }}>
-        <AgentSidebar onNewSession={onNewSession} onNewSessionInProject={onNewSessionInProject} onNewSessionInWorktree={onNewSessionInWorktree} />
+        <AgentSidebar onNewSession={onNewSession} onNewSessionInProject={onNewSessionInProject} onNewSessionInWorktree={onNewSessionInWorktree} onResumeSession={onResumeSession} />
       </div>
 
       <div className="group relative w-1 flex-shrink-0 cursor-col-resize"

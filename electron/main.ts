@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import * as path from 'node:path'
 import * as fs from 'node:fs'
 import { execSync } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { PtyManager } from './ptyManager'
 import { FileWatcher } from './fileWatcher'
 import { GitManager } from './gitManager'
@@ -117,6 +118,17 @@ ptyManager.onTitle((id, title) => {
 
 ptyManager.onExit((id, exitCode) => {
   lastTitleStatus.delete(id)
+
+  // Clean up hook resources for this session
+  const hookInfo = sessionHookMap.get(id)
+  if (hookInfo) {
+    try { hookInfo.watcher.close() } catch {}
+    cleanupHookFiles(hookInfo.hookId)
+    sessionHookMap.delete(id)
+  }
+
+  // Clear statusDetail before sending exit
+  win?.webContents.send('session:statusDetail', { id, detail: null })
   win?.webContents.send('session:exit', { id, exitCode })
 
   const settings = loadSettings()
@@ -128,9 +140,194 @@ ptyManager.onExit((id, exitCode) => {
   }
 })
 
-ipcMain.handle('session:create', (_e, name: string, cwd: string) => {
+// --- Hook-based Claude session ID capture ---
+const hooksDir = path.join(app.getPath('userData'), 'hooks')
+
+function ensureHooksDir() {
+  if (!fs.existsSync(hooksDir)) {
+    fs.mkdirSync(hooksDir, { recursive: true })
+  }
+}
+
+function writeHookSettings(hookId: string): { settingsPath: string; outputPath: string; statusPath: string } {
+  ensureHooksDir()
+  const outputPath = path.join(hooksDir, `${hookId}.out`)
+  const statusPath = path.join(hooksDir, `${hookId}.status`)
+  const settingsPath = path.join(hooksDir, `${hookId}.json`)
+
+  const statusCmd = `sh -c 'cat > ${JSON.stringify(statusPath)}'`
+  const settings = {
+    hooks: {
+      SessionStart: [
+        {
+          hooks: [{ type: 'command' as const, command: `sh -c 'cat > ${JSON.stringify(outputPath)}'` }],
+        },
+      ],
+      PreToolUse: [
+        { hooks: [{ type: 'command' as const, command: statusCmd }] },
+      ],
+      PostToolUse: [
+        { hooks: [{ type: 'command' as const, command: statusCmd }] },
+      ],
+      Stop: [
+        { hooks: [{ type: 'command' as const, command: statusCmd }] },
+      ],
+      PermissionRequest: [
+        { hooks: [{ type: 'command' as const, command: statusCmd }] },
+      ],
+    },
+  }
+
+  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
+  return { settingsPath, outputPath, statusPath }
+}
+
+function waitForSessionId(outputPath: string, timeoutMs = 30000): Promise<string | null> {
+  return new Promise((resolve) => {
+    const start = Date.now()
+    const poll = () => {
+      if (Date.now() - start > timeoutMs) {
+        resolve(null)
+        return
+      }
+      try {
+        if (fs.existsSync(outputPath)) {
+          const raw = fs.readFileSync(outputPath, 'utf-8').trim()
+          if (raw) {
+            const parsed = JSON.parse(raw)
+            if (parsed.session_id) {
+              resolve(parsed.session_id)
+              return
+            }
+          }
+        }
+      } catch {
+        // file not ready yet or malformed
+      }
+      setTimeout(poll, 200)
+    }
+    poll()
+  })
+}
+
+function cleanupHookFiles(hookId: string) {
+  try { fs.unlinkSync(path.join(hooksDir, `${hookId}.json`)) } catch {}
+  try { fs.unlinkSync(path.join(hooksDir, `${hookId}.out`)) } catch {}
+  try { fs.unlinkSync(path.join(hooksDir, `${hookId}.status`)) } catch {}
+}
+
+function deriveStatusDetail(event: any): string | null {
+  const hookName = event?.hook_event_name
+  const toolName = event?.tool_name
+  const toolInput = event?.tool_input
+
+  if (hookName === 'Stop') return null
+
+  if (hookName === 'PermissionRequest') {
+    return toolName ? `Needs permission: ${toolName}` : 'Needs permission'
+  }
+
+  if (hookName === 'PostToolUse') return 'Thinking...'
+
+  if (hookName === 'PreToolUse') {
+    if (toolName === 'Bash') {
+      return toolInput?.description || 'Running command'
+    }
+    if (toolName === 'Edit') {
+      const file = toolInput?.file_path
+      return file ? `Editing ${path.basename(file)}` : 'Editing file'
+    }
+    if (toolName === 'Write') {
+      const file = toolInput?.file_path
+      return file ? `Writing ${path.basename(file)}` : 'Writing file'
+    }
+    if (toolName === 'Read') {
+      const file = toolInput?.file_path
+      return file ? `Reading ${path.basename(file)}` : 'Reading file'
+    }
+    if (toolName === 'Grep') return 'Searching code'
+    if (toolName === 'Glob') return 'Finding files'
+    if (toolName === 'Task') {
+      const subagent = toolInput?.subagent_type
+      return subagent ? `Running ${subagent}` : 'Running subagent'
+    }
+    if (toolName === 'WebFetch') return 'Fetching web page'
+    if (toolName === 'WebSearch') return 'Searching web'
+    if (toolName?.startsWith('mcp__')) {
+      const segments = toolName.split('__')
+      const toolSegment = segments[segments.length - 1] || toolName
+      return `Using ${toolSegment}`
+    }
+    return toolName ? `Using ${toolName}` : 'Working...'
+  }
+
+  return null
+}
+
+// Track hook resources per PTY session for cleanup
+const sessionHookMap = new Map<string, { hookId: string; watcher: fs.FSWatcher }>()
+
+function watchStatusFile(statusPath: string, ptyId: string): fs.FSWatcher | null {
+  try {
+    // Create the file so fs.watch has something to watch
+    if (!fs.existsSync(statusPath)) {
+      fs.writeFileSync(statusPath, '')
+    }
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
+    const watcher = fs.watch(statusPath, () => {
+      // Debounce rapid hook fires (PreToolUse→PostToolUse churn)
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        try {
+          const raw = fs.readFileSync(statusPath, 'utf-8').trim()
+          if (!raw) return
+          const event = JSON.parse(raw)
+          const detail = deriveStatusDetail(event)
+          win?.webContents.send('session:statusDetail', { id: ptyId, detail })
+        } catch {
+          // file not ready or malformed JSON
+        }
+      }, 150)
+    })
+    return watcher
+  } catch {
+    return null
+  }
+}
+
+function spawnWithHook(name: string, cwd: string, extraArgs: string[] = []): { id: string; pid: number } {
   const settings = loadSettings()
-  return ptyManager.create(name, cwd, settings.claudeCliPath || 'claude')
+  const claudeCliPath = settings.claudeCliPath || 'claude'
+  const hookId = randomUUID()
+  const { settingsPath, outputPath, statusPath } = writeHookSettings(hookId)
+
+  const args = [...extraArgs, '--settings', settingsPath]
+  const result = ptyManager.create(name, cwd, claudeCliPath, args)
+
+  // Start watching the status file for hook events
+  const watcher = watchStatusFile(statusPath, result.id)
+  if (watcher) {
+    sessionHookMap.set(result.id, { hookId, watcher })
+  }
+
+  // Async: wait for session ID, send to renderer, cleanup .out only
+  waitForSessionId(outputPath).then((claudeSessionId) => {
+    if (claudeSessionId) {
+      win?.webContents.send('session:claudeSessionId', { id: result.id, claudeSessionId })
+    }
+    // Only clean up the .out file — .json and .status are needed for the session lifetime
+    try { fs.unlinkSync(outputPath) } catch {}
+  })
+
+  return result
+}
+
+ipcMain.handle('session:create', (_e, name: string, cwd: string) => {
+  return spawnWithHook(name, cwd)
+})
+
+ipcMain.handle('session:resume', (_e, claudeSessionId: string, name: string, cwd: string) => {
+  return spawnWithHook(name, cwd, ['--resume', claudeSessionId])
 })
 
 ipcMain.handle('session:write', (_e, id: string, data: string) => {
@@ -279,6 +476,21 @@ app.on('activate', () => {
 app.on('will-quit', async () => {
   ptyManager.killAll()
   await fileWatcher.unwatch()
+
+  // Close all active status watchers
+  for (const [, { watcher }] of sessionHookMap) {
+    try { watcher.close() } catch {}
+  }
+  sessionHookMap.clear()
+
+  // Clean up leftover hook files
+  try {
+    if (fs.existsSync(hooksDir)) {
+      for (const file of fs.readdirSync(hooksDir)) {
+        try { fs.unlinkSync(path.join(hooksDir, file)) } catch {}
+      }
+    }
+  } catch {}
 })
 
 app.whenReady().then(createWindow)
