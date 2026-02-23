@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto'
 import { PtyManager } from './ptyManager'
 import { FileWatcher } from './fileWatcher'
 import { GitManager } from './gitManager'
+import { LspManager } from './lspManager'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -37,6 +38,7 @@ let win: BrowserWindow | null = null
 const ptyManager = new PtyManager()
 const fileWatcher = new FileWatcher()
 const gitManager = new GitManager()
+const lspManager = new LspManager()
 
 function loadSettings() {
   try {
@@ -122,7 +124,7 @@ ptyManager.onExit((id, exitCode) => {
   // Clean up hook resources for this session
   const hookInfo = sessionHookMap.get(id)
   if (hookInfo) {
-    try { hookInfo.watcher.close() } catch { /* already closed */ }
+    clearInterval(hookInfo.pollTimer)
     cleanupHookFiles(hookInfo.hookId)
     sessionHookMap.delete(id)
   }
@@ -271,34 +273,38 @@ function deriveStatusDetail(event: HookEvent): string | null {
 }
 
 // Track hook resources per PTY session for cleanup
-const sessionHookMap = new Map<string, { hookId: string; watcher: fs.FSWatcher }>()
+// Uses polling instead of fs.watch to avoid holding a file descriptor per session
+const sessionHookMap = new Map<string, { hookId: string; pollTimer: ReturnType<typeof setInterval> }>()
 
-function watchStatusFile(statusPath: string, ptyId: string): fs.FSWatcher | null {
-  try {
-    // Create the file so fs.watch has something to watch
-    if (!fs.existsSync(statusPath)) {
-      fs.writeFileSync(statusPath, '')
-    }
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null
-    const watcher = fs.watch(statusPath, () => {
-      // Debounce rapid hook fires (PreToolUse→PostToolUse churn)
-      if (debounceTimer) clearTimeout(debounceTimer)
-      debounceTimer = setTimeout(() => {
-        try {
-          const raw = fs.readFileSync(statusPath, 'utf-8').trim()
-          if (!raw) return
-          const event = JSON.parse(raw)
-          const detail = deriveStatusDetail(event)
-          win?.webContents.send('session:statusDetail', { id: ptyId, detail })
-        } catch {
-          // file not ready or malformed JSON
-        }
-      }, 150)
-    })
-    return watcher
-  } catch {
-    return null
+function pollStatusFile(statusPath: string, ptyId: string): ReturnType<typeof setInterval> {
+  // Create the file so the poll has something to read
+  if (!fs.existsSync(statusPath)) {
+    fs.writeFileSync(statusPath, '')
   }
+  let lastContent = ''
+  return setInterval(() => {
+    try {
+      const raw = fs.readFileSync(statusPath, 'utf-8').trim()
+      if (!raw || raw === lastContent) return
+      lastContent = raw
+      const event = JSON.parse(raw)
+      const detail = deriveStatusDetail(event)
+      win?.webContents.send('session:statusDetail', { id: ptyId, detail })
+    } catch {
+      // file not ready or malformed JSON
+    }
+  }, 200)
+}
+
+/** Remove all files in the hooks directory (best-effort). */
+function cleanupAllHookFiles() {
+  try {
+    if (fs.existsSync(hooksDir)) {
+      for (const file of fs.readdirSync(hooksDir)) {
+        try { fs.unlinkSync(path.join(hooksDir, file)) } catch { /* ignore */ }
+      }
+    }
+  } catch { /* ignore */ }
 }
 
 function spawnWithHook(name: string, cwd: string, extraArgs: string[] = []): { id: string; pid: number } {
@@ -310,11 +316,9 @@ function spawnWithHook(name: string, cwd: string, extraArgs: string[] = []): { i
   const args = [...extraArgs, '--settings', settingsPath]
   const result = ptyManager.create(name, cwd, claudeCliPath, args)
 
-  // Start watching the status file for hook events
-  const watcher = watchStatusFile(statusPath, result.id)
-  if (watcher) {
-    sessionHookMap.set(result.id, { hookId, watcher })
-  }
+  // Poll the status file for hook events (polling avoids holding an FD open)
+  const pollTimer = pollStatusFile(statusPath, result.id)
+  sessionHookMap.set(result.id, { hookId, pollTimer })
 
   // Async: wait for session ID, send to renderer, cleanup .out only
   waitForSessionId(outputPath).then((claudeSessionId) => {
@@ -436,6 +440,23 @@ ipcMain.handle('git:worktree:list', (_e, repoPath: string) => {
   return gitManager.listWorktrees(repoPath)
 })
 
+// --- LSP IPC ---
+ipcMain.handle('lsp:start', async (_e, languageId: string, projectRoot: string) => {
+  return lspManager.start(languageId, projectRoot)
+})
+
+ipcMain.handle('lsp:stop', (_e, languageId: string, projectRoot: string) => {
+  lspManager.stop(languageId, projectRoot)
+})
+
+ipcMain.handle('lsp:status', (_e, languageId: string, projectRoot: string) => {
+  return lspManager.status(languageId, projectRoot)
+})
+
+ipcMain.handle('lsp:listAvailable', () => {
+  return lspManager.listAvailable()
+})
+
 // --- App IPC ---
 ipcMain.handle('app:getSettings', () => {
   return loadSettings()
@@ -481,22 +502,21 @@ app.on('activate', () => {
 
 app.on('will-quit', async () => {
   ptyManager.killAll()
+  lspManager.stopAll()
   await fileWatcher.unwatch()
 
-  // Close all active status watchers
-  for (const [, { watcher }] of sessionHookMap) {
-    try { watcher.close() } catch { /* already closed */ }
+  // Stop all status file polling timers
+  for (const [, { pollTimer }] of sessionHookMap) {
+    clearInterval(pollTimer)
   }
   sessionHookMap.clear()
 
   // Clean up leftover hook files
-  try {
-    if (fs.existsSync(hooksDir)) {
-      for (const file of fs.readdirSync(hooksDir)) {
-        try { fs.unlinkSync(path.join(hooksDir, file)) } catch { /* ignore */ }
-      }
-    }
-  } catch { /* ignore */ }
+  cleanupAllHookFiles()
 })
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  // Clean up stale hook files from previous sessions/crashes
+  cleanupAllHookFiles()
+  createWindow()
+})

@@ -102,9 +102,21 @@ export interface AppSettings {
   terminalFontFamily: string
   projectPaths: string[]
   theme: string
+  enabledLspLanguages: string[]
+}
+
+export interface LspServerStatus {
+  running: boolean
+  port: number | null
 }
 
 export interface ElectronAPI {
+  lsp: {
+    start: (languageId: string, projectRoot: string) => Promise<{ port: number }>
+    stop: (languageId: string, projectRoot: string) => Promise<void>
+    status: (languageId: string, projectRoot: string) => Promise<LspServerStatus>
+    listAvailable: () => Promise<Record<string, boolean>>
+  }
   session: {
     create: (name: string, cwd: string) => Promise<{ id: string; pid: number }>
     resume: (claudeSessionId: string, name: string, cwd: string) => Promise<{ id: string; pid: number }>

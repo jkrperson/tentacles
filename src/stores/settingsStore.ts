@@ -12,6 +12,7 @@ const defaultSettings: AppSettings = {
   terminalFontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace",
   projectPaths: [],
   theme: 'obsidian',
+  enabledLspLanguages: [],
 }
 
 interface SettingsState {

@@ -1,7 +1,9 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
-import Editor, { type OnMount } from '@monaco-editor/react'
+import Editor, { useMonaco, type OnMount } from '@monaco-editor/react'
 import { useProjectStore } from '../../stores/projectStore'
 import { useSettingsStore } from '../../stores/settingsStore'
+import { useLspStore } from '../../stores/lspStore'
+import { useLspClient } from '../../hooks/useLspClient'
 import { themes } from '../../themes'
 import { EditorTabBar } from './EditorTabBar'
 
@@ -10,6 +12,15 @@ const EXT_TO_LANG: Record<string, string> = {
   json: 'json', md: 'markdown', css: 'css', html: 'html', py: 'python',
   rs: 'rust', go: 'go', yaml: 'yaml', yml: 'yaml', toml: 'toml',
   sh: 'shell', bash: 'shell', zsh: 'shell', sql: 'sql', svg: 'xml', xml: 'xml',
+}
+
+/** Maps Monaco language IDs to LSP server language IDs */
+const LSP_LANGUAGE_MAP: Record<string, string> = {
+  typescript: 'typescript',
+  javascript: 'typescript', // typescript-language-server handles JS too
+  python: 'python',
+  rust: 'rust',
+  go: 'go',
 }
 
 function getLang(filePath: string): string {
@@ -33,8 +44,11 @@ export function EditorPanel() {
     return apId ? s.fileTreeCache.get(apId)?.openFiles ?? [] : []
   })
   const closeFile = useProjectStore((s) => s.closeFile)
+  const openFile = useProjectStore((s) => s.openFile)
   const themeName = useSettingsStore((s) => s.settings.theme)
+  const enabledLspLanguages = useSettingsStore((s) => s.settings.enabledLspLanguages)
   const monacoTheme = (themes[themeName] ?? themes.obsidian).monacoTheme
+  const monaco = useMonaco()
 
   const contentCache = useRef(new Map<string, CacheEntry>())
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
@@ -43,6 +57,68 @@ export function EditorPanel() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [dirtyFiles, setDirtyFiles] = useState<Set<string>>(new Set())
+
+  // --- LSP Integration ---
+  const currentLang = selectedFilePath ? getLang(selectedFilePath) : 'plaintext'
+  const lspLanguageId = LSP_LANGUAGE_MAP[currentLang] ?? null
+  const lspEnabled = lspLanguageId !== null && enabledLspLanguages.includes(lspLanguageId)
+  const startServer = useLspStore((s) => s.startServer)
+  const getServerPort = useLspStore((s) => s.getServerPort)
+  const [lspPort, setLspPort] = useState<number | null>(null)
+
+  // Auto-start LSP server when a supported file is opened and LSP is enabled
+  useEffect(() => {
+    if (!lspEnabled || !lspLanguageId || !activeProjectId) {
+      setLspPort(null)
+      return
+    }
+    // Check if already running
+    const existingPort = getServerPort(lspLanguageId, activeProjectId)
+    if (existingPort) {
+      setLspPort(existingPort)
+      return
+    }
+    // Start the server
+    let cancelled = false
+    startServer(lspLanguageId, activeProjectId).then((port) => {
+      if (!cancelled) setLspPort(port)
+    })
+    return () => { cancelled = true }
+  }, [lspEnabled, lspLanguageId, activeProjectId, startServer, getServerPort])
+
+  // Disable Monaco's built-in TS/JS diagnostics when LSP is active
+  useEffect(() => {
+    if (!monaco) return
+    // Access typescript defaults via bracket notation — the types mark these as deprecated
+    // but they still exist and are the only way to control built-in TS diagnostics
+    const ts = monaco.languages.typescript as Record<string, unknown>
+    const tsDefaults = ts.typescriptDefaults as { setDiagnosticsOptions: (opts: Record<string, boolean>) => void } | undefined
+    const jsDefaults = ts.javascriptDefaults as { setDiagnosticsOptions: (opts: Record<string, boolean>) => void } | undefined
+    if (!tsDefaults || !jsDefaults) return
+
+    const suppress = lspEnabled && (currentLang === 'typescript' || currentLang === 'javascript')
+    const opts = { noSemanticValidation: suppress, noSyntaxValidation: suppress }
+    tsDefaults.setDiagnosticsOptions(opts)
+    jsDefaults.setDiagnosticsOptions(opts)
+  }, [monaco, lspEnabled, currentLang])
+
+  // Callback for go-to-definition cross-file jumps
+  const handleOpenFile = useCallback((path: string) => {
+    if (activeProjectId) {
+      openFile(activeProjectId, path)
+    }
+  }, [activeProjectId, openFile])
+
+  // Wire up the LSP client hook
+  useLspClient({
+    port: lspEnabled ? lspPort : null,
+    languageId: lspLanguageId ?? 'plaintext',
+    projectRoot: activeProjectId ?? '',
+    filePath: selectedFilePath,
+    monaco,
+    editor: editorRef.current,
+    openFile: handleOpenFile,
+  })
 
   // Fetch file content when a tab is activated (if not cached)
   useEffect(() => {
@@ -105,6 +181,8 @@ export function EditorPanel() {
         next.delete(selectedFilePath)
         return next
       })
+      // Notify LSP that the document was saved
+      window.dispatchEvent(new CustomEvent('lsp:didSave', { detail: { filePath: selectedFilePath } }))
     } catch {
       // Save failed — stays dirty
     } finally {

@@ -76,6 +76,12 @@ const api: ElectronAPI = {
   dialog: {
     selectDirectory: () => ipcRenderer.invoke('dialog:selectDirectory'),
   },
+  lsp: {
+    start: (languageId, projectRoot) => ipcRenderer.invoke('lsp:start', languageId, projectRoot),
+    stop: (languageId, projectRoot) => ipcRenderer.invoke('lsp:stop', languageId, projectRoot),
+    status: (languageId, projectRoot) => ipcRenderer.invoke('lsp:status', languageId, projectRoot),
+    listAvailable: () => ipcRenderer.invoke('lsp:listAvailable'),
+  },
   app: {
     getSettings: () => ipcRenderer.invoke('app:getSettings'),
     saveSettings: (settings) => ipcRenderer.invoke('app:saveSettings', settings),

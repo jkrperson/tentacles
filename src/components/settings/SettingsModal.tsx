@@ -4,6 +4,7 @@ import type { AppSettings } from '../../types'
 import { themes } from '../../themes'
 
 const themeKeys = Object.keys(themes) as string[]
+const LSP_LANGUAGES = ['typescript', 'python', 'rust', 'go'] as const
 
 export function SettingsModal() {
   const isOpen = useSettingsStore((s) => s.isSettingsOpen)
@@ -11,9 +12,13 @@ export function SettingsModal() {
   const currentSettings = useSettingsStore((s) => s.settings)
   const saveSettings = useSettingsStore((s) => s.saveSettings)
   const [draft, setDraft] = useState<AppSettings>(currentSettings)
+  const [availableLsps, setAvailableLsps] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
-    if (isOpen) setDraft(currentSettings)
+    if (isOpen) {
+      setDraft(currentSettings)
+      window.electronAPI.lsp.listAvailable().then(setAvailableLsps).catch(() => {})
+    }
   }, [isOpen, currentSettings])
 
   const handleSave = useCallback(async () => {
@@ -109,6 +114,44 @@ export function SettingsModal() {
             <input type="number" min={8} max={24} value={draft.terminalFontSize}
               onChange={(e) => setDraft((d) => ({ ...d, terminalFontSize: parseInt(e.target.value) || 13 }))}
               className={inputClass} />
+          </div>
+
+          <div>
+            <label className="block text-[11px] text-zinc-500 mb-1.5 uppercase tracking-wider">Language Servers</label>
+            <div className="space-y-1.5">
+              {LSP_LANGUAGES.map((lang) => {
+                const installed = availableLsps[lang] ?? false
+                const enabled = draft.enabledLspLanguages?.includes(lang) ?? false
+                return (
+                  <div key={lang} className="flex items-center justify-between py-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[13px] text-zinc-300 capitalize">{lang}</span>
+                      {!installed && (
+                        <span className="text-[10px] text-zinc-600 px-1.5 py-0.5 rounded bg-zinc-800/50">Not installed</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setDraft((d) => {
+                          const current = d.enabledLspLanguages ?? []
+                          const next = enabled
+                            ? current.filter((l) => l !== lang)
+                            : [...current, lang]
+                          return { ...d, enabledLspLanguages: next }
+                        })
+                      }}
+                      disabled={!installed}
+                      className={`w-9 h-5 rounded-full transition-colors relative ${
+                        !installed ? 'opacity-40 cursor-not-allowed bg-[var(--t-border-input)]' :
+                        enabled ? 'bg-[var(--t-accent)]' : 'bg-[var(--t-border-input)]'
+                      }`}
+                    >
+                      <div className={`w-3.5 h-3.5 bg-white rounded-full absolute top-[3px] transition-all ${enabled ? 'left-[18px]' : 'left-[3px]'}`} />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
           </div>
 
           <div className="flex items-center justify-between py-1">
