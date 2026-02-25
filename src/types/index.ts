@@ -52,10 +52,37 @@ export interface Project {
 }
 
 export type GitFileStatus = 'modified' | 'untracked' | 'added' | 'deleted' | 'renamed' | 'conflicted'
+export type GitIndexStatus = 'added' | 'modified' | 'deleted' | 'renamed' | 'none'
+export type GitWorkTreeStatus = 'modified' | 'deleted' | 'untracked' | 'none'
+
+export interface GitFileDetail {
+  absolutePath: string
+  status: GitFileStatus            // combined (compat)
+  indexStatus: GitIndexStatus
+  workTreeStatus: GitWorkTreeStatus
+}
 
 export interface GitStatusResult {
   branch: string
   files: Array<{ absolutePath: string; status: GitFileStatus }>
+}
+
+export interface GitStatusDetailResult {
+  branch: string
+  upstream: string | null
+  ahead: number
+  behind: number
+  files: GitFileDetail[]
+}
+
+export interface DiffViewState {
+  filePath: string
+  staged: boolean
+}
+
+export interface GitBranchInfo {
+  branches: string[]
+  current: string
 }
 
 export interface ProjectFileTreeState {
@@ -65,6 +92,12 @@ export interface ProjectFileTreeState {
   openFiles: string[]
   recentlyChangedPaths: Set<string>
   gitStatuses: Map<string, GitFileStatus>
+  gitDetailedFiles: GitFileDetail[]
+  gitBranch: string
+  gitUpstream: string | null
+  gitAhead: number
+  gitBehind: number
+  activeDiff: DiffViewState | null
 }
 
 export type TerminalStatus = 'running' | 'exited'
@@ -149,7 +182,18 @@ export interface ElectronAPI {
   }
   git: {
     isRepo: (dirPath: string) => Promise<boolean>
-    status: (dirPath: string) => Promise<GitStatusResult>
+    status: (dirPath: string) => Promise<GitStatusDetailResult>
+    stage: (repoPath: string, paths: string[]) => Promise<void>
+    unstage: (repoPath: string, paths: string[]) => Promise<void>
+    commit: (repoPath: string, message: string) => Promise<{ hash: string }>
+    push: (repoPath: string) => Promise<void>
+    pull: (repoPath: string) => Promise<void>
+    branches: (repoPath: string) => Promise<GitBranchInfo>
+    switchBranch: (repoPath: string, branch: string) => Promise<void>
+    createBranch: (repoPath: string, name: string, checkout?: boolean) => Promise<void>
+    stash: (repoPath: string, message?: string) => Promise<void>
+    stashPop: (repoPath: string) => Promise<void>
+    showFile: (repoPath: string, ref: string, filePath: string) => Promise<string>
     worktree: {
       create: (repoPath: string, name?: string) => Promise<{ worktreePath: string; branch: string }>
       remove: (repoPath: string, worktreePath: string) => Promise<void>

@@ -124,9 +124,9 @@ ptyManager.onExit((id, exitCode) => {
   // Clean up hook resources for this session
   const hookInfo = sessionHookMap.get(id)
   if (hookInfo) {
-    clearInterval(hookInfo.pollTimer)
     cleanupHookFiles(hookInfo.hookId)
     sessionHookMap.delete(id)
+    // Shared poll timer stops itself when the map is empty
   }
 
   // Clear statusDetail before sending exit
@@ -272,28 +272,40 @@ function deriveStatusDetail(event: HookEvent): string | null {
   return null
 }
 
-// Track hook resources per PTY session for cleanup
-// Uses polling instead of fs.watch to avoid holding a file descriptor per session
-const sessionHookMap = new Map<string, { hookId: string; pollTimer: ReturnType<typeof setInterval> }>()
+// Track hook resources per PTY session for cleanup.
+// A single shared interval polls all status files to avoid FD exhaustion (EMFILE).
+const sessionHookMap = new Map<string, { hookId: string; statusPath: string; lastContent: string }>()
+let sharedPollTimer: ReturnType<typeof setInterval> | null = null
 
-function pollStatusFile(statusPath: string, ptyId: string): ReturnType<typeof setInterval> {
-  // Create the file so the poll has something to read
+function startSharedPoll() {
+  if (sharedPollTimer) return
+  sharedPollTimer = setInterval(() => {
+    for (const [ptyId, info] of sessionHookMap) {
+      try {
+        const raw = fs.readFileSync(info.statusPath, 'utf-8').trim()
+        if (!raw || raw === info.lastContent) continue
+        info.lastContent = raw
+        const event = JSON.parse(raw)
+        const detail = deriveStatusDetail(event)
+        win?.webContents.send('session:statusDetail', { id: ptyId, detail })
+      } catch {
+        // file not ready or malformed JSON
+      }
+    }
+    // Stop polling when no sessions remain
+    if (sessionHookMap.size === 0) {
+      clearInterval(sharedPollTimer!)
+      sharedPollTimer = null
+    }
+  }, 500)
+}
+
+function registerStatusPoll(statusPath: string, ptyId: string) {
   if (!fs.existsSync(statusPath)) {
     fs.writeFileSync(statusPath, '')
   }
-  let lastContent = ''
-  return setInterval(() => {
-    try {
-      const raw = fs.readFileSync(statusPath, 'utf-8').trim()
-      if (!raw || raw === lastContent) return
-      lastContent = raw
-      const event = JSON.parse(raw)
-      const detail = deriveStatusDetail(event)
-      win?.webContents.send('session:statusDetail', { id: ptyId, detail })
-    } catch {
-      // file not ready or malformed JSON
-    }
-  }, 200)
+  sessionHookMap.set(ptyId, { hookId: '', statusPath, lastContent: '' })
+  startSharedPoll()
 }
 
 /** Remove all files in the hooks directory (best-effort). */
@@ -316,9 +328,10 @@ function spawnWithHook(name: string, cwd: string, extraArgs: string[] = []): { i
   const args = [...extraArgs, '--settings', settingsPath]
   const result = ptyManager.create(name, cwd, claudeCliPath, args)
 
-  // Poll the status file for hook events (polling avoids holding an FD open)
-  const pollTimer = pollStatusFile(statusPath, result.id)
-  sessionHookMap.set(result.id, { hookId, pollTimer })
+  // Register this session's status file with the shared poller
+  registerStatusPoll(statusPath, result.id)
+  // Store the hookId for cleanup
+  sessionHookMap.get(result.id)!.hookId = hookId
 
   // Async: wait for session ID, send to renderer, cleanup .out only
   waitForSessionId(outputPath).then((claudeSessionId) => {
@@ -440,6 +453,50 @@ ipcMain.handle('git:worktree:list', (_e, repoPath: string) => {
   return gitManager.listWorktrees(repoPath)
 })
 
+ipcMain.handle('git:stage', (_e, repoPath: string, paths: string[]) => {
+  return gitManager.stage(repoPath, paths)
+})
+
+ipcMain.handle('git:unstage', (_e, repoPath: string, paths: string[]) => {
+  return gitManager.unstage(repoPath, paths)
+})
+
+ipcMain.handle('git:commit', (_e, repoPath: string, message: string) => {
+  return gitManager.commit(repoPath, message)
+})
+
+ipcMain.handle('git:push', (_e, repoPath: string) => {
+  return gitManager.push(repoPath)
+})
+
+ipcMain.handle('git:pull', (_e, repoPath: string) => {
+  return gitManager.pull(repoPath)
+})
+
+ipcMain.handle('git:branches', (_e, repoPath: string) => {
+  return gitManager.listBranches(repoPath)
+})
+
+ipcMain.handle('git:switchBranch', (_e, repoPath: string, branch: string) => {
+  return gitManager.switchBranch(repoPath, branch)
+})
+
+ipcMain.handle('git:createBranch', (_e, repoPath: string, name: string, checkout?: boolean) => {
+  return gitManager.createBranch(repoPath, name, checkout)
+})
+
+ipcMain.handle('git:stash', (_e, repoPath: string, message?: string) => {
+  return gitManager.stash(repoPath, message)
+})
+
+ipcMain.handle('git:stashPop', (_e, repoPath: string) => {
+  return gitManager.stashPop(repoPath)
+})
+
+ipcMain.handle('git:showFile', (_e, repoPath: string, ref: string, filePath: string) => {
+  return gitManager.showFile(repoPath, ref, filePath)
+})
+
 // --- LSP IPC ---
 ipcMain.handle('lsp:start', async (_e, languageId: string, projectRoot: string) => {
   return lspManager.start(languageId, projectRoot)
@@ -505,9 +562,10 @@ app.on('will-quit', async () => {
   lspManager.stopAll()
   await fileWatcher.unwatch()
 
-  // Stop all status file polling timers
-  for (const [, { pollTimer }] of sessionHookMap) {
-    clearInterval(pollTimer)
+  // Stop the shared status file polling timer
+  if (sharedPollTimer) {
+    clearInterval(sharedPollTimer)
+    sharedPollTimer = null
   }
   sessionHookMap.clear()
 

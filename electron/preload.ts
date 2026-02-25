@@ -67,6 +67,17 @@ const api: ElectronAPI = {
   git: {
     isRepo: (dirPath) => ipcRenderer.invoke('git:isRepo', dirPath),
     status: (dirPath) => ipcRenderer.invoke('git:status', dirPath),
+    stage: (repoPath, paths) => ipcRenderer.invoke('git:stage', repoPath, paths),
+    unstage: (repoPath, paths) => ipcRenderer.invoke('git:unstage', repoPath, paths),
+    commit: (repoPath, message) => ipcRenderer.invoke('git:commit', repoPath, message),
+    push: (repoPath) => ipcRenderer.invoke('git:push', repoPath),
+    pull: (repoPath) => ipcRenderer.invoke('git:pull', repoPath),
+    branches: (repoPath) => ipcRenderer.invoke('git:branches', repoPath),
+    switchBranch: (repoPath, branch) => ipcRenderer.invoke('git:switchBranch', repoPath, branch),
+    createBranch: (repoPath, name, checkout) => ipcRenderer.invoke('git:createBranch', repoPath, name, checkout),
+    stash: (repoPath, message) => ipcRenderer.invoke('git:stash', repoPath, message),
+    stashPop: (repoPath) => ipcRenderer.invoke('git:stashPop', repoPath),
+    showFile: (repoPath, ref, filePath) => ipcRenderer.invoke('git:showFile', repoPath, ref, filePath),
     worktree: {
       create: (repoPath, name?) => ipcRenderer.invoke('git:worktree:create', repoPath, name),
       remove: (repoPath, worktreePath) => ipcRenderer.invoke('git:worktree:remove', repoPath, worktreePath),

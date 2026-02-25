@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Project, ProjectFileTreeState, FileNode, GitFileStatus } from '../types'
+import type { Project, ProjectFileTreeState, FileNode, GitFileStatus, GitStatusDetailResult, DiffViewState } from '../types'
 import { useSettingsStore } from './settingsStore'
 
 interface ProjectState {
@@ -22,7 +22,8 @@ interface ProjectState {
   removeFileTreeChangedPath: (projectId: string, path: string) => void
   updateFileTreeChildren: (projectId: string, parentPath: string, children: FileNode[]) => void
 
-  setGitStatuses: (projectId: string, files: Array<{ absolutePath: string; status: GitFileStatus }>) => void
+  setGitStatuses: (projectId: string, result: GitStatusDetailResult) => void
+  setActiveDiff: (projectId: string, diff: DiffViewState | null) => void
 
   // Editor tab actions
   openFile: (projectId: string, path: string) => void
@@ -46,6 +47,12 @@ function emptyFileTreeState(): ProjectFileTreeState {
     openFiles: [],
     recentlyChangedPaths: new Set(),
     gitStatuses: new Map(),
+    gitDetailedFiles: [],
+    gitBranch: '',
+    gitUpstream: null,
+    gitAhead: 0,
+    gitBehind: 0,
+    activeDiff: null,
   }
 }
 
@@ -208,16 +215,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return { fileTreeCache }
     }),
 
-  setGitStatuses: (projectId, files) =>
+  setGitStatuses: (projectId, result) =>
     set((state) => {
       const cache = state.fileTreeCache.get(projectId)
       if (!cache) return state
       const gitStatuses = new Map<string, GitFileStatus>()
-      // Set file statuses
-      for (const { absolutePath, status } of files) {
-        gitStatuses.set(absolutePath, status)
+      // Set file statuses from combined status for tree coloring
+      for (const file of result.files) {
+        const status = file.status as GitFileStatus
+        gitStatuses.set(file.absolutePath, status)
         // Propagate to parent folders up to project root
-        let dir = absolutePath.slice(0, absolutePath.lastIndexOf('/'))
+        let dir = file.absolutePath.slice(0, file.absolutePath.lastIndexOf('/'))
         while (dir.length >= projectId.length) {
           const existing = gitStatuses.get(dir)
           gitStatuses.set(dir, higherPriorityStatus(existing, status))
@@ -227,7 +235,24 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         }
       }
       const fileTreeCache = new Map(state.fileTreeCache)
-      fileTreeCache.set(projectId, { ...cache, gitStatuses })
+      fileTreeCache.set(projectId, {
+        ...cache,
+        gitStatuses,
+        gitDetailedFiles: result.files,
+        gitBranch: result.branch,
+        gitUpstream: result.upstream,
+        gitAhead: result.ahead,
+        gitBehind: result.behind,
+      })
+      return { fileTreeCache }
+    }),
+
+  setActiveDiff: (projectId, diff) =>
+    set((state) => {
+      const cache = state.fileTreeCache.get(projectId)
+      if (!cache) return state
+      const fileTreeCache = new Map(state.fileTreeCache)
+      fileTreeCache.set(projectId, { ...cache, activeDiff: diff })
       return { fileTreeCache }
     }),
 

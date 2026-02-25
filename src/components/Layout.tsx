@@ -25,7 +25,10 @@ export function Layout({ onNewSession, onNewSessionInProject, onNewSessionInWork
   const [rightTab, setRightTab] = useState<'explorer' | 'git'>('explorer')
   const hasOpenFiles = useProjectStore((s) => {
     const apId = s.activeProjectId
-    return apId ? (s.fileTreeCache.get(apId)?.openFiles.length ?? 0) > 0 : false
+    if (!apId) return false
+    const cache = s.fileTreeCache.get(apId)
+    if (!cache) return false
+    return cache.openFiles.length > 0 || cache.activeDiff !== null
   })
 
   const dragging = useRef<'left' | 'right' | 'editor' | 'bottom' | null>(null)

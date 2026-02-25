@@ -1,5 +1,7 @@
 # Tentacles — Claude Code Orchestrator
 
+**Linear Project**: [Tentacles](https://linear.app/heyeva/project/tentacles-f94a79714103)
+
 ## Tech Stack
 - **Runtime**: Electron 30 + React 18 + TypeScript
 - **Build**: Vite + vite-plugin-electron

@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useRef } from 'react'
 import { useProjectStore } from '../../stores/projectStore'
 import { FileTreeNode } from './FileTreeNode'
-import type { GitFileStatus } from '../../types'
+import type { GitStatusDetailResult } from '../../types'
 
 interface FileTreeProps {
   onToggle: () => void
@@ -20,10 +20,10 @@ export function FileTree({ onToggle }: FileTreeProps) {
 
   const fetchGitStatus = useCallback((projectId: string) => {
     window.electronAPI.git.status(projectId).then((result) => {
-      setGitStatuses(projectId, result.files as Array<{ absolutePath: string; status: GitFileStatus }>)
+      setGitStatuses(projectId, result as GitStatusDetailResult)
     }).catch(() => {
       // Not a git repo or git not available — clear statuses
-      setGitStatuses(projectId, [])
+      setGitStatuses(projectId, { branch: '', upstream: null, ahead: 0, behind: 0, files: [] })
     })
   }, [setGitStatuses])
 
