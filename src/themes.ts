@@ -100,7 +100,7 @@ export const themes: Record<string, ThemeDefinition> = {
     termBrightCyan: '#22d3ee',
     termBrightWhite: '#fafafa',
 
-    monacoTheme: 'vs-dark',
+    monacoTheme: 'tentacles-obsidian',
   },
 
   midnight: {
@@ -147,7 +147,7 @@ export const themes: Record<string, ThemeDefinition> = {
     termBrightCyan: '#67e8f9',
     termBrightWhite: '#f1f5f9',
 
-    monacoTheme: 'vs-dark',
+    monacoTheme: 'tentacles-midnight',
   },
 
   ember: {
@@ -194,7 +194,7 @@ export const themes: Record<string, ThemeDefinition> = {
     termBrightCyan: '#22d3ee',
     termBrightWhite: '#faf5f0',
 
-    monacoTheme: 'vs-dark',
+    monacoTheme: 'tentacles-ember',
   },
 
   dawn: {
@@ -241,7 +241,7 @@ export const themes: Record<string, ThemeDefinition> = {
     termBrightCyan: '#06b6d4',
     termBrightWhite: '#ffffff',
 
-    monacoTheme: 'vs',
+    monacoTheme: 'tentacles-dawn',
 
     zincOverrides: {
       '50': '#1c1917',
@@ -302,6 +302,75 @@ export function applyThemeToDOM(theme: ThemeDefinition) {
     for (const shade of shades) {
       root.style.removeProperty(`--color-zinc-${shade}`)
     }
+  }
+}
+
+/**
+ * Generates a Monaco editor theme definition that matches the app theme.
+ * Uses `inherit: true` so syntax highlighting rules come from the base theme,
+ * while editor chrome colors (background, gutters, selections, etc.) match the app.
+ */
+export function getMonacoThemeData(theme: ThemeDefinition): {
+  base: 'vs' | 'vs-dark'
+  inherit: boolean
+  rules: Array<{ token: string; foreground?: string; background?: string; fontStyle?: string }>
+  colors: Record<string, string>
+} {
+  const isDark = !theme.zincOverrides
+  const selectionBg = theme.accent + '33' // ~20% alpha
+  const inactiveSelectionBg = theme.accent + '1a' // ~10% alpha
+  const highlightBg = theme.accent + '15'
+
+  return {
+    base: isDark ? 'vs-dark' : 'vs',
+    inherit: true,
+    rules: [],
+    colors: {
+      'editor.background': theme.bgBase,
+      'editor.foreground': theme.textPrimary,
+      'editor.lineHighlightBackground': theme.bgHover,
+      'editor.selectionBackground': selectionBg,
+      'editor.inactiveSelectionBackground': inactiveSelectionBg,
+      'editor.selectionHighlightBackground': highlightBg,
+      'editor.wordHighlightBackground': highlightBg,
+      'editor.wordHighlightStrongBackground': highlightBg,
+      'editor.findMatchBackground': theme.accent + '40',
+      'editor.findMatchHighlightBackground': theme.accent + '22',
+      'editorCursor.foreground': theme.accent,
+      'editorLineNumber.foreground': theme.textFaint,
+      'editorLineNumber.activeForeground': theme.textSecondary,
+      'editorGutter.background': theme.bgBase,
+      'editorIndentGuide.background': theme.border,
+      'editorIndentGuide.activeBackground': theme.borderInput,
+      'editorWidget.background': theme.bgElevated,
+      'editorWidget.border': theme.border,
+      'editorBracketMatch.background': theme.accent + '22',
+      'editorBracketMatch.border': theme.accent + '55',
+      'editorOverviewRuler.border': theme.border,
+      'scrollbar.shadow': '#00000000',
+      'scrollbarSlider.background': theme.scrollbar + '80',
+      'scrollbarSlider.hoverBackground': theme.scrollbarHover,
+      'scrollbarSlider.activeBackground': theme.scrollbarHover,
+      'list.hoverBackground': theme.bgHover,
+      'list.activeSelectionBackground': theme.bgActive,
+      'list.activeSelectionForeground': theme.textPrimary,
+      'list.inactiveSelectionBackground': theme.bgActive,
+      'list.focusBackground': theme.bgHover,
+      'list.highlightForeground': theme.accent,
+      'input.background': theme.bgSurface,
+      'input.border': theme.borderInput,
+      'input.foreground': theme.textPrimary,
+      'inputOption.activeBorder': theme.accent,
+      'dropdown.background': theme.bgElevated,
+      'dropdown.border': theme.border,
+      'dropdown.foreground': theme.textPrimary,
+      'peekViewEditor.background': theme.bgSurface,
+      'peekViewResult.background': theme.bgElevated,
+      'peekViewTitle.background': theme.bgElevated,
+      'peekViewEditor.matchHighlightBackground': theme.accent + '33',
+      'diffEditor.insertedTextBackground': isDark ? '#22c55e18' : '#16a34a18',
+      'diffEditor.removedTextBackground': isDark ? '#ef444418' : '#dc262618',
+    },
   }
 }
 
