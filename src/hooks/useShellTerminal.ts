@@ -2,6 +2,7 @@ import { useRef, useCallback, useEffect } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
+import { Unicode11Addon } from '@xterm/addon-unicode11'
 import '@xterm/xterm/css/xterm.css'
 import { useSettingsStore } from '../stores/settingsStore'
 import { themes, getTerminalTheme } from '../themes'
@@ -14,6 +15,8 @@ interface UseShellTerminalOptions {
 export function useShellTerminal({ terminalId, isActive }: UseShellTerminalOptions) {
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<{ terminal: Terminal; fitAddon: FitAddon } | null>(null)
+  const writeBufferRef = useRef<string[]>([])
+  const rafRef = useRef<number>(0)
   const settings = useSettingsStore((s) => s.settings)
 
   useEffect(() => {
@@ -26,11 +29,15 @@ export function useShellTerminal({ terminalId, isActive }: UseShellTerminalOptio
       fontFamily: settings.terminalFontFamily,
       theme: getTerminalTheme(themes[settings.theme] ?? themes.obsidian),
       allowProposedApi: true,
+      scrollback: 10000,
     })
 
     const fitAddon = new FitAddon()
     terminal.loadAddon(fitAddon)
     terminal.loadAddon(new WebLinksAddon())
+    const unicodeAddon = new Unicode11Addon()
+    terminal.loadAddon(unicodeAddon)
+    terminal.unicode.activeVersion = '11'
 
     terminal.onData((data) => {
       window.electronAPI.terminal.write(terminalId, data)
@@ -61,6 +68,8 @@ export function useShellTerminal({ terminalId, isActive }: UseShellTerminalOptio
     setTimeout(fit, 150)
 
     return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      writeBufferRef.current = []
       terminal.dispose()
       termRef.current = null
     }
@@ -73,6 +82,7 @@ export function useShellTerminal({ terminalId, isActive }: UseShellTerminalOptio
     termRef.current.terminal.options.theme = getTerminalTheme(theme)
   }, [settings.theme])
 
+  // Refit + repaint when becoming active; track container resizes
   useEffect(() => {
     if (!isActive) return
     const entry = termRef.current
@@ -86,7 +96,11 @@ export function useShellTerminal({ terminalId, isActive }: UseShellTerminalOptio
       } catch { /* ignore */ }
     }
 
-    requestAnimationFrame(doFit)
+    // Force full repaint — fixes rendering artifacts from writes while hidden
+    requestAnimationFrame(() => {
+      doFit()
+      entry.terminal.refresh(0, entry.terminal.rows - 1)
+    })
     setTimeout(doFit, 50)
 
     const ro = new ResizeObserver(() => requestAnimationFrame(doFit))
@@ -95,8 +109,20 @@ export function useShellTerminal({ terminalId, isActive }: UseShellTerminalOptio
     return () => ro.disconnect()
   }, [isActive, terminalId])
 
+  // Batched writes — coalesces rapid IPC data into single xterm.write() per frame
   const writeData = useCallback((data: string) => {
-    termRef.current?.terminal.write(data)
+    writeBufferRef.current.push(data)
+    if (rafRef.current === 0) {
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = 0
+        const term = termRef.current?.terminal
+        if (!term) return
+        const chunks = writeBufferRef.current
+        if (chunks.length === 0) return
+        writeBufferRef.current = []
+        term.write(chunks.length === 1 ? chunks[0] : chunks.join(''))
+      })
+    }
   }, [])
 
   return { containerRef, writeData }

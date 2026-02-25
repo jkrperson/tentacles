@@ -1,5 +1,7 @@
 import { createRequire } from 'node:module'
 import { randomUUID } from 'node:crypto'
+import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
 
 const require = createRequire(import.meta.url)
 const pty = require('node-pty')
@@ -33,6 +35,21 @@ const OSC_TITLE_RE = /\u001b\](?:0|2);([^\u0007\u001b]*?)(?:\u0007|\u001b\\)/
 // Normalize braille spinner chars (U+2800–U+28FF) to a single char for dedup
 const BRAILLE_RE = /[\u2800-\u28FF]/g
 
+/** Resolve a usable shell binary, preferring $SHELL but falling back to known paths. */
+function resolveShell(): string {
+  const candidates = [
+    process.env.SHELL,
+    '/bin/zsh',
+    '/bin/bash',
+    '/bin/sh',
+  ]
+  for (const sh of candidates) {
+    if (sh && existsSync(sh)) return sh
+  }
+  // Last resort — let the OS search PATH
+  return '/bin/sh'
+}
+
 export class PtyManager {
   private ptys = new Map<string, ManagedPty>()
   private onDataCb: DataCallback | null = null
@@ -41,6 +58,10 @@ export class PtyManager {
   private onShellDataCb: DataCallback | null = null
   private onShellExitCb: ExitCallback | null = null
   private lastTitles = new Map<string, string>()
+
+  // Data coalescing — buffers rapid PTY output and flushes once per tick
+  private dataBuffers = new Map<string, string>()
+  private flushScheduled = new Set<string>()
 
   onData(cb: DataCallback) {
     this.onDataCb = cb
@@ -63,12 +84,34 @@ export class PtyManager {
   }
 
   create(name: string, cwd: string, claudeCliPath = 'claude', extraArgs: string[] = []): { id: string; pid: number } {
-    return this._spawn(name, cwd, claudeCliPath, extraArgs, 'agent')
+    const safeCwd = existsSync(cwd) ? cwd : homedir()
+    return this._spawn(name, safeCwd, claudeCliPath, extraArgs, 'agent')
   }
 
   createShell(name: string, cwd: string): { id: string; pid: number } {
-    const userShell = process.env.SHELL || '/bin/zsh'
-    return this._spawn(name, cwd, userShell, ['--login'], 'shell')
+    const shell = resolveShell()
+    const safeCwd = existsSync(cwd) ? cwd : homedir()
+    return this._spawn(name, safeCwd, shell, ['--login'], 'shell')
+  }
+
+  /** Buffer data for an id and schedule a flush via setImmediate.
+   *  Coalesces bursts of small PTY chunks into fewer, larger IPC sends. */
+  private emitData(id: string, data: string, cb: DataCallback | null) {
+    if (!cb) return
+    const prev = this.dataBuffers.get(id)
+    this.dataBuffers.set(id, prev ? prev + data : data)
+
+    if (!this.flushScheduled.has(id)) {
+      this.flushScheduled.add(id)
+      setImmediate(() => {
+        this.flushScheduled.delete(id)
+        const buffered = this.dataBuffers.get(id)
+        if (buffered) {
+          this.dataBuffers.delete(id)
+          cb(id, buffered)
+        }
+      })
+    }
   }
 
   private _spawn(name: string, cwd: string, command: string, args: string[], kind: PtyKind): { id: string; pid: number } {
@@ -87,10 +130,10 @@ export class PtyManager {
 
     ptyProcess.onData((data: string) => {
       if (kind === 'shell') {
-        this.onShellDataCb?.(id, data)
+        this.emitData(id, data, this.onShellDataCb)
       } else {
-        this.onDataCb?.(id, data)
-        // Parse OSC title sequences from agent output
+        this.emitData(id, data, this.onDataCb)
+        // Parse OSC title sequences from agent output (per-chunk for responsiveness)
         const match = data.match(OSC_TITLE_RE)
         if (match) {
           const title = match[1]
@@ -112,6 +155,8 @@ export class PtyManager {
       }
       this.ptys.delete(id)
       this.lastTitles.delete(id)
+      this.dataBuffers.delete(id)
+      this.flushScheduled.delete(id)
     })
 
     return { id, pid: ptyProcess.pid }
