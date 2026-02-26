@@ -1,5 +1,6 @@
 import { memo, useEffect } from 'react'
 import { useShellTerminal } from '../../hooks/useShellTerminal'
+import { registerTerminalWriter } from '../../dataRouter'
 
 interface ShellTerminalPanelProps {
   terminalId: string
@@ -10,10 +11,7 @@ export const ShellTerminalPanel = memo(function ShellTerminalPanel({ terminalId,
   const { containerRef, writeData } = useShellTerminal({ terminalId, isActive })
 
   useEffect(() => {
-    const unsub = window.electronAPI.terminal.onData(({ id, data }) => {
-      if (id === terminalId) writeData(data)
-    })
-    return unsub
+    return registerTerminalWriter(terminalId, writeData)
   }, [terminalId, writeData])
 
   return (

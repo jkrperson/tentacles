@@ -1,5 +1,6 @@
 import { memo, useEffect } from 'react'
 import { useTerminal } from '../../hooks/useTerminal'
+import { registerSessionWriter } from '../../dataRouter'
 
 interface TerminalPanelProps {
   sessionId: string
@@ -10,10 +11,7 @@ export const TerminalPanel = memo(function TerminalPanel({ sessionId, isActive }
   const { containerRef, writeData } = useTerminal({ sessionId, isActive })
 
   useEffect(() => {
-    const unsub = window.electronAPI.session.onData(({ id, data }) => {
-      if (id === sessionId) writeData(data)
-    })
-    return unsub
+    return registerSessionWriter(sessionId, writeData)
   }, [sessionId, writeData])
 
   return (

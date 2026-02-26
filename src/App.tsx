@@ -8,6 +8,7 @@ import { useNotificationStore } from './stores/notificationStore'
 import { useProjectStore } from './stores/projectStore'
 import { useTerminalStore } from './stores/terminalStore'
 import { themes, applyThemeToDOM } from './themes'
+import { initDataRouter } from './dataRouter'
 
 function App() {
   const setHasUnread = useSessionStore((s) => s.setHasUnread)
@@ -52,14 +53,14 @@ function App() {
     if (settingsLoaded) loadProjects()
   }, [settingsLoaded, loadProjects])
 
-  // Mark incoming data as unread
+  // Initialize the single-listener data router for all terminal panels.
+  // Also handles marking inactive sessions as unread.
   useEffect(() => {
-    const unsub = window.electronAPI.session.onData(({ id }) => {
+    return initDataRouter((id) => {
       if (id !== activeSessionRef.current) {
         setHasUnread(id, true)
       }
     })
-    return unsub
   }, [setHasUnread])
 
   // Listen for OSC title changes — detect status from leading symbol + rename sessions
