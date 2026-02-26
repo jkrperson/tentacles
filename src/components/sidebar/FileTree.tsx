@@ -28,7 +28,7 @@ export function FileTree({ onToggle }: FileTreeProps) {
   }, [setGitStatuses])
 
   // Load file tree + start watching when active project changes.
-  // Watchers stay alive across switches (chokidar.watch is a no-op for
+  // Watchers stay alive across switches (watch is a no-op for
   // already-watched dirs) to avoid expensive teardown/setup on every switch.
   useEffect(() => {
     if (!activeProjectId) return
@@ -46,7 +46,7 @@ export function FileTree({ onToggle }: FileTreeProps) {
   useEffect(() => {
     if (!activeProjectId) return
     fetchGitStatus(activeProjectId)
-    const interval = setInterval(() => fetchGitStatus(activeProjectId), 3000)
+    const interval = setInterval(() => fetchGitStatus(activeProjectId), 15000)
     return () => clearInterval(interval)
   }, [activeProjectId, fetchGitStatus])
 
