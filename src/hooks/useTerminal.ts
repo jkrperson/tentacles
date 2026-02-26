@@ -17,7 +17,9 @@ export function useTerminal({ sessionId, isActive }: UseTerminalOptions) {
   const termRef = useRef<{ terminal: Terminal; fitAddon: FitAddon } | null>(null)
   const writeBufferRef = useRef<string[]>([])
   const rafRef = useRef<number>(0)
-  const settings = useSettingsStore((s) => s.settings)
+  const theme = useSettingsStore((s) => s.settings.theme)
+  const terminalFontSize = useSettingsStore((s) => s.settings.terminalFontSize)
+  const terminalFontFamily = useSettingsStore((s) => s.settings.terminalFontFamily)
 
   // Create terminal and attach to container
   useEffect(() => {
@@ -26,9 +28,9 @@ export function useTerminal({ sessionId, isActive }: UseTerminalOptions) {
 
     const terminal = new Terminal({
       cursorBlink: true,
-      fontSize: settings.terminalFontSize,
-      fontFamily: settings.terminalFontFamily,
-      theme: getTerminalTheme(themes[settings.theme] ?? themes.obsidian),
+      fontSize: terminalFontSize,
+      fontFamily: terminalFontFamily,
+      theme: getTerminalTheme(themes[theme] ?? themes.obsidian),
       allowProposedApi: true,
       scrollback: 10000,
     })
@@ -80,9 +82,9 @@ export function useTerminal({ sessionId, isActive }: UseTerminalOptions) {
   // Update theme on live terminals when theme setting changes
   useEffect(() => {
     if (!termRef.current) return
-    const theme = themes[settings.theme] ?? themes.obsidian
-    termRef.current.terminal.options.theme = getTerminalTheme(theme)
-  }, [settings.theme])
+    const themeObj = themes[theme] ?? themes.obsidian
+    termRef.current.terminal.options.theme = getTerminalTheme(themeObj)
+  }, [theme])
 
   // Refit + repaint when becoming active; track container resizes
   useEffect(() => {
