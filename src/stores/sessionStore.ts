@@ -138,8 +138,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set((state) => {
       const session = state.sessions.get(id)
       if (!session) return state
+      const normalized = detail ?? undefined
+      if (session.statusDetail === normalized) return state
       const sessions = new Map(state.sessions)
-      sessions.set(id, { ...session, statusDetail: detail ?? undefined })
+      sessions.set(id, { ...session, statusDetail: normalized })
       return { sessions }
     }),
 
