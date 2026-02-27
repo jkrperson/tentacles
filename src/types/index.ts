@@ -143,6 +143,13 @@ export interface LspServerStatus {
   port: number | null
 }
 
+export interface UpdaterStatus {
+  status: 'checking' | 'available' | 'up-to-date' | 'downloading' | 'ready' | 'error'
+  version?: string
+  percent?: number
+  message?: string
+}
+
 export interface ElectronAPI {
   lsp: {
     start: (languageId: string, projectRoot: string) => Promise<{ port: number }>
@@ -203,7 +210,14 @@ export interface ElectronAPI {
   dialog: {
     selectDirectory: () => Promise<string | null>
   }
+  updater: {
+    check: () => Promise<void>
+    download: () => Promise<void>
+    install: () => Promise<void>
+    onStatus: (cb: (status: UpdaterStatus) => void) => () => void
+  }
   app: {
+    getVersion: () => Promise<string>
     getSettings: () => Promise<AppSettings>
     saveSettings: (settings: AppSettings) => Promise<void>
     getPlatform: () => Promise<string>

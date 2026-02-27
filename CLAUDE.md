@@ -9,7 +9,7 @@
 - **State**: Zustand (4 stores: session, fileTree, settings, notification)
 - **Terminal**: @xterm/xterm + node-pty
 - **Editor**: Monaco (read-only viewer via @monaco-editor/react)
-- **File watching**: chokidar
+- **File watching**: native `fs.watch({ recursive: true })`
 - **Package manager**: bun
 
 ## Project Structure
@@ -30,7 +30,7 @@ src/
 - Use `import type` in preload scripts (erased at compile time)
 - IPC channels follow `domain:action` naming (e.g., `session:create`, `file:readDir`)
 - All IPC listeners return unsubscribe functions
-- node-pty and chokidar are externalized from Vite's main process bundle
+- node-pty and ws are externalized from Vite's main process bundle
 - Terminal instances persist across tab switches (hidden via `display:none`, never disposed)
 
 ## Best Practices
@@ -52,7 +52,7 @@ src/
 
 ### Builds
 - Run `bun run build` (`tsc && vite build && electron-builder`) to verify the full pipeline before releases
-- Keep native dependencies (node-pty, chokidar) externalized in Vite config to avoid bundling issues
+- Keep native dependencies (node-pty) externalized in Vite config to avoid bundling issues
 - Ensure `electron-rebuild` runs after installing/updating native modules (`bun run postinstall`)
 - Test packaged builds on target platforms — dev mode can mask missing assets or incorrect paths
 

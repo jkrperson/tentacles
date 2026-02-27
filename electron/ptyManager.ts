@@ -177,8 +177,19 @@ export class PtyManager {
   kill(id: string) {
     const managed = this.ptys.get(id)
     if (managed) {
+      const pid = managed.pid
       managed.ptyProcess.kill()
-      this.ptys.delete(id)
+      // Don't delete from map here — let the onExit callback handle cleanup.
+      // If the process doesn't exit within 5s, force-kill to prevent zombie FD leaks.
+      setTimeout(() => {
+        if (this.ptys.has(id)) {
+          try { process.kill(pid, 'SIGKILL') } catch { /* already dead */ }
+          this.ptys.delete(id)
+          this.lastTitles.delete(id)
+          this.dataBuffers.delete(id)
+          this.flushScheduled.delete(id)
+        }
+      }, 5000)
     }
   }
 

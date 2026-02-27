@@ -1,5 +1,5 @@
 import { ipcRenderer, contextBridge } from 'electron'
-import type { ElectronAPI, FileChangeEvent } from '../src/types'
+import type { ElectronAPI, FileChangeEvent, UpdaterStatus } from '../src/types'
 
 const api: ElectronAPI = {
   session: {
@@ -93,7 +93,18 @@ const api: ElectronAPI = {
     status: (languageId, projectRoot) => ipcRenderer.invoke('lsp:status', languageId, projectRoot),
     listAvailable: () => ipcRenderer.invoke('lsp:listAvailable'),
   },
+  updater: {
+    check: () => ipcRenderer.invoke('updater:check'),
+    download: () => ipcRenderer.invoke('updater:download'),
+    install: () => ipcRenderer.invoke('updater:install'),
+    onStatus: (cb: (status: UpdaterStatus) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, data: UpdaterStatus) => cb(data)
+      ipcRenderer.on('updater:status', listener)
+      return () => { ipcRenderer.removeListener('updater:status', listener) }
+    },
+  },
   app: {
+    getVersion: () => ipcRenderer.invoke('app:getVersion'),
     getSettings: () => ipcRenderer.invoke('app:getSettings'),
     saveSettings: (settings) => ipcRenderer.invoke('app:saveSettings', settings),
     getPlatform: () => ipcRenderer.invoke('app:getPlatform'),

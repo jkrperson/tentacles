@@ -8,8 +8,23 @@ import { PtyManager } from './ptyManager'
 import { FileWatcher } from './fileWatcher'
 import { GitManager } from './gitManager'
 import { LspManager } from './lspManager'
+import { initAutoUpdater } from './updater'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+// Raise macOS file descriptor limit — GUI apps launched from Finder default to 256,
+// which is easily exhausted by PTYs + file watchers + child processes.
+if (process.platform === 'darwin' || process.platform === 'linux') {
+  try {
+    const raw = execSync('ulimit -n', { encoding: 'utf-8', timeout: 2000 }).trim()
+    const current = parseInt(raw, 10)
+    if (current < 4096) {
+      // Try to raise the soft limit via a login shell (inherits the new limit back to us
+      // only if we re-exec, so we just log a warning for now and rely on reduced FD usage).
+      console.warn(`[tentacles] Low file descriptor limit: ${current}. Recommend running 'ulimit -n 10240' before launching.`)
+    }
+  } catch { /* ignore */ }
+}
 
 // Fix PATH when launched from Finder/desktop launcher
 // macOS .app bundles and Linux AppImages get a minimal system PATH,
@@ -83,6 +98,7 @@ function createWindow() {
     win.webContents.openDevTools()
   } else {
     win.loadFile(path.join(RENDERER_DIST, 'index.html'))
+    initAutoUpdater(win)
   }
 }
 
@@ -124,6 +140,7 @@ ptyManager.onExit((id, exitCode) => {
   // Clean up hook resources for this session
   const hookInfo = sessionHookMap.get(id)
   if (hookInfo) {
+    hookInfo.abortCtrl?.abort() // Cancel waitForSessionId polling
     cleanupHookFiles(hookInfo.hookId)
     sessionHookMap.delete(id)
     // Shared poll timer stops itself when the map is empty
@@ -184,11 +201,11 @@ function writeHookSettings(hookId: string): { settingsPath: string; outputPath: 
   return { settingsPath, outputPath, statusPath }
 }
 
-function waitForSessionId(outputPath: string, timeoutMs = 30000): Promise<string | null> {
+function waitForSessionId(outputPath: string, signal?: AbortSignal, timeoutMs = 30000): Promise<string | null> {
   return new Promise((resolve) => {
     const start = Date.now()
     const poll = () => {
-      if (Date.now() - start > timeoutMs) {
+      if (signal?.aborted || Date.now() - start > timeoutMs) {
         resolve(null)
         return
       }
@@ -274,7 +291,7 @@ function deriveStatusDetail(event: HookEvent): string | null {
 
 // Track hook resources per PTY session for cleanup.
 // A single shared interval polls all status files to avoid FD exhaustion (EMFILE).
-const sessionHookMap = new Map<string, { hookId: string; statusPath: string; lastContent: string }>()
+const sessionHookMap = new Map<string, { hookId: string; statusPath: string; lastContent: string; abortCtrl?: AbortController }>()
 let sharedPollTimer: ReturnType<typeof setInterval> | null = null
 
 function startSharedPoll() {
@@ -330,11 +347,14 @@ function spawnWithHook(name: string, cwd: string, extraArgs: string[] = []): { i
 
   // Register this session's status file with the shared poller
   registerStatusPoll(statusPath, result.id)
-  // Store the hookId for cleanup
-  sessionHookMap.get(result.id)!.hookId = hookId
+  // Store the hookId and abort controller for cleanup
+  const abortCtrl = new AbortController()
+  const entry = sessionHookMap.get(result.id)!
+  entry.hookId = hookId
+  entry.abortCtrl = abortCtrl
 
   // Async: wait for session ID, send to renderer, cleanup .out only
-  waitForSessionId(outputPath).then((claudeSessionId) => {
+  waitForSessionId(outputPath, abortCtrl.signal).then((claudeSessionId) => {
     if (claudeSessionId) {
       win?.webContents.send('session:claudeSessionId', { id: result.id, claudeSessionId })
     }
@@ -533,6 +553,10 @@ ipcMain.handle('app:loadSessions', () => {
 
 ipcMain.handle('app:saveSessions', (_e, data: Record<string, unknown>) => {
   fs.writeFileSync(sessionsPath, JSON.stringify(data, null, 2))
+})
+
+ipcMain.handle('app:getVersion', () => {
+  return app.getVersion()
 })
 
 ipcMain.handle('app:getPlatform', () => {

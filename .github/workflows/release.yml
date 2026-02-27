@@ -34,8 +34,14 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Build and package
-        run: bun run build
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Build renderer and main process
+        run: bunx tsc && bunx vite build
+
+      - name: Package with electron-builder
+        run: bunx electron-builder --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -45,8 +51,13 @@ jobs:
           name: release-${{ matrix.platform }}
           path: |
             release/**/*.dmg
+            release/**/*.zip
+            release/**/*.blockmap
             release/**/*.AppImage
             release/**/*.exe
+            release/**/latest-mac.yml
+            release/**/latest-linux.yml
+            release/**/latest.yml
 
   publish:
     needs: build

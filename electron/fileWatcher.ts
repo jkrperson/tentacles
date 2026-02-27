@@ -1,16 +1,26 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
-const IGNORED = [
-  '**/node_modules/**',
-  '**/.git/**',
-  '**/dist/**',
-  '**/dist-electron/**',
-  '**/.DS_Store',
-  '**/.*',
-  '**/build/**',
-  '**/coverage/**',
-]
+const IGNORED_SEGMENTS = new Set([
+  'node_modules',
+  '.git',
+  'dist',
+  'dist-electron',
+  '.DS_Store',
+  'build',
+  'coverage',
+])
+
+/** Returns true if any path segment matches an ignored name or starts with '.' */
+function isIgnored(relativePath: string): boolean {
+  const segments = relativePath.split(path.sep)
+  for (const seg of segments) {
+    if (IGNORED_SEGMENTS.has(seg)) return true
+    // Dotfiles/dotdirs (but not '.' or '..')
+    if (seg.startsWith('.') && seg !== '.' && seg !== '..') return true
+  }
+  return false
+}
 
 export interface FileNode {
   name: string
@@ -21,7 +31,7 @@ export interface FileNode {
 type ChangeCallback = (eventType: string, filePath: string, watchRoot: string) => void
 
 export class FileWatcher {
-  private watchers = new Map<string, { close(): Promise<void> }>()
+  private watchers = new Map<string, fs.FSWatcher>()
   private changeCb: ChangeCallback | null = null
   private debounceTimers = new Map<string, NodeJS.Timeout>()
 
@@ -33,39 +43,61 @@ export class FileWatcher {
     // If already watching this path, no-op
     if (this.watchers.has(dirPath)) return
 
-    const chokidar = await import('chokidar')
-    const watcher = chokidar.watch(dirPath, {
-      ignored: IGNORED,
-      ignoreInitial: true,
-      depth: 3,
-      persistent: true,
-      awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 100 },
-    })
+    try {
+      // Native recursive watch: uses FSEvents on macOS (1 FD for entire tree),
+      // ReadDirectoryChangesW on Windows, inotify on Linux (Node 19.1+).
+      const watcher = fs.watch(dirPath, { recursive: true }, (eventType, filename) => {
+        if (!filename) return
+        if (isIgnored(filename)) return
 
-    const notify = (eventType: string, filePath: string) => {
-      const key = `${dirPath}:${filePath}`
-      const existing = this.debounceTimers.get(key)
-      if (existing) clearTimeout(existing)
-      this.debounceTimers.set(key, setTimeout(() => {
-        this.debounceTimers.delete(key)
-        this.changeCb?.(eventType, filePath, dirPath)
-      }, 300))
+        const fullPath = path.join(dirPath, filename)
+        this.debouncedNotify(dirPath, fullPath, eventType)
+      })
+
+      watcher.on('error', (err: NodeJS.ErrnoException) => {
+        // EPERM/EACCES can happen when directories are deleted while being watched
+        if (err.code === 'EPERM' || err.code === 'EACCES') return
+        console.error(`[FileWatcher] error watching ${dirPath}:`, err.message)
+      })
+
+      this.watchers.set(dirPath, watcher)
+    } catch (err) {
+      console.error(`[FileWatcher] failed to watch ${dirPath}:`, err)
     }
+  }
 
-    watcher
-      .on('add', (p: string) => notify('add', p))
-      .on('change', (p: string) => notify('change', p))
-      .on('unlink', (p: string) => notify('unlink', p))
-      .on('addDir', (p: string) => notify('addDir', p))
-      .on('unlinkDir', (p: string) => notify('unlinkDir', p))
+  private debouncedNotify(dirPath: string, fullPath: string, fsEventType: string) {
+    const key = `${dirPath}:${fullPath}`
+    const existing = this.debounceTimers.get(key)
+    if (existing) clearTimeout(existing)
 
-    this.watchers.set(dirPath, watcher)
+    this.debounceTimers.set(key, setTimeout(() => {
+      this.debounceTimers.delete(key)
+
+      // Determine the actual event type by checking if the path exists
+      let eventType: string
+      try {
+        const stat = fs.statSync(fullPath)
+        if (fsEventType === 'rename') {
+          // 'rename' + exists = newly created
+          eventType = stat.isDirectory() ? 'addDir' : 'add'
+        } else {
+          // 'change' = content modified
+          eventType = 'change'
+        }
+      } catch {
+        // Path doesn't exist = deleted
+        eventType = fsEventType === 'rename' ? 'unlink' : 'unlink'
+      }
+
+      this.changeCb?.(eventType, fullPath, dirPath)
+    }, 300))
   }
 
   async unwatchDir(dirPath: string) {
     const watcher = this.watchers.get(dirPath)
     if (watcher) {
-      await watcher.close()
+      watcher.close()
       this.watchers.delete(dirPath)
     }
     // Clean up debounce timers for this dir
@@ -108,7 +140,7 @@ export class FileWatcher {
 
   async unwatch() {
     for (const watcher of this.watchers.values()) {
-      await watcher.close()
+      watcher.close()
     }
     this.watchers.clear()
     for (const timer of this.debounceTimers.values()) {

@@ -14,7 +14,7 @@ export default defineConfig({
         vite: {
           build: {
             rollupOptions: {
-              external: ['node-pty', 'chokidar', 'ws'],
+              external: ['node-pty', 'ws', 'electron-updater'],
             },
           },
         },

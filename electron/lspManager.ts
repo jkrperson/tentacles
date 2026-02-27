@@ -124,20 +124,29 @@ export class LspManager {
     return { port }
   }
 
+  private closeServer(server: LspServer): void {
+    // Close all connected WebSocket clients first to release their FDs
+    try {
+      server.wss.clients.forEach((client: InstanceType<typeof WebSocket>) => {
+        try { client.terminate() } catch { /* ignore */ }
+      })
+    } catch { /* ignore */ }
+    try { server.process.kill() } catch { /* already dead */ }
+    try { server.wss.close() } catch { /* already closed */ }
+  }
+
   stop(languageId: string, projectRoot: string): void {
     const key = serverKey(languageId, projectRoot)
     const server = this.servers.get(key)
     if (!server) return
 
-    try { server.process.kill() } catch { /* already dead */ }
-    try { server.wss.close() } catch { /* already closed */ }
+    this.closeServer(server)
     this.servers.delete(key)
   }
 
   stopAll(): void {
     for (const [key, server] of this.servers) {
-      try { server.process.kill() } catch { /* already dead */ }
-      try { server.wss.close() } catch { /* already closed */ }
+      this.closeServer(server)
       this.servers.delete(key)
     }
   }

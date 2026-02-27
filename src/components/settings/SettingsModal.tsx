@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useSettingsStore } from '../../stores/settingsStore'
-import type { AppSettings } from '../../types'
+import type { AppSettings, UpdaterStatus } from '../../types'
 import { themes } from '../../themes'
 
 const themeKeys = Object.keys(themes) as string[]
@@ -13,6 +13,8 @@ export function SettingsModal() {
   const saveSettings = useSettingsStore((s) => s.saveSettings)
   const [draft, setDraft] = useState<AppSettings>(currentSettings)
   const [availableLsps, setAvailableLsps] = useState<Record<string, boolean>>({})
+  const [updateStatus, setUpdateStatus] = useState<UpdaterStatus | null>(null)
+  const [appVersion, setAppVersion] = useState('0.0.1')
 
   useEffect(() => {
     if (isOpen) {
@@ -20,6 +22,11 @@ export function SettingsModal() {
       window.electronAPI.lsp.listAvailable().then(setAvailableLsps).catch(() => {})
     }
   }, [isOpen, currentSettings])
+
+  useEffect(() => {
+    window.electronAPI.app.getVersion().then(setAppVersion).catch(() => {})
+    return window.electronAPI.updater.onStatus(setUpdateStatus)
+  }, [])
 
   const handleSave = useCallback(async () => {
     await saveSettings(draft)
@@ -172,6 +179,48 @@ export function SettingsModal() {
             >
               <div className={`w-3.5 h-3.5 bg-white rounded-full absolute top-[3px] transition-all ${draft.soundEnabled ? 'left-[18px]' : 'left-[3px]'}`} />
             </button>
+          </div>
+
+          <div>
+            <label className="block text-[11px] text-zinc-500 mb-1.5 uppercase tracking-wider">Updates</label>
+            <div className="flex items-center justify-between">
+              <span className="text-[13px] text-zinc-400">
+                {!updateStatus || updateStatus.status === 'up-to-date'
+                  ? `v${appVersion} — Up to date`
+                  : updateStatus.status === 'checking'
+                    ? 'Checking for updates...'
+                    : updateStatus.status === 'available'
+                      ? `v${updateStatus.version} available`
+                      : updateStatus.status === 'downloading'
+                        ? `Downloading... ${Math.round(updateStatus.percent ?? 0)}%`
+                        : updateStatus.status === 'ready'
+                          ? 'Update ready — restart to apply'
+                          : `Update error: ${updateStatus.message ?? 'unknown'}`}
+              </span>
+              {updateStatus?.status === 'available' ? (
+                <button
+                  onClick={() => window.electronAPI.updater.download()}
+                  className="px-3 py-1 text-[12px] bg-[var(--t-accent)] hover:bg-[var(--t-accent-hover)] text-white rounded-md transition-colors"
+                >
+                  Download
+                </button>
+              ) : updateStatus?.status === 'ready' ? (
+                <button
+                  onClick={() => window.electronAPI.updater.install()}
+                  className="px-3 py-1 text-[12px] bg-green-600 hover:bg-green-500 text-white rounded-md transition-colors"
+                >
+                  Restart
+                </button>
+              ) : (
+                <button
+                  onClick={() => window.electronAPI.updater.check()}
+                  disabled={updateStatus?.status === 'checking' || updateStatus?.status === 'downloading'}
+                  className="px-3 py-1 text-[12px] text-zinc-400 hover:text-zinc-200 border border-[var(--t-border-input)] hover:border-[var(--t-border-input-hover)] rounded-md transition-colors disabled:opacity-40"
+                >
+                  Check
+                </button>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex justify-end gap-2 px-5 py-4 border-t border-[var(--t-border)]">
