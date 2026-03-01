@@ -104,6 +104,7 @@ export function useTerminal({ sessionId, isActive }: UseTerminalOptions) {
     requestAnimationFrame(() => {
       doFit()
       entry.terminal.refresh(0, entry.terminal.rows - 1)
+      entry.terminal.focus()
     })
     setTimeout(doFit, 50)
 
