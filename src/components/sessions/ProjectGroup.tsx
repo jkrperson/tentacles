@@ -15,7 +15,9 @@ export function ProjectGroup({ project, onNewSessionInProject, onNewSessionInWor
   const sessions = useSessionStore((s) => s.sessions)
   const sessionOrder = useSessionStore((s) => s.sessionOrder)
   const activeSessionId = useSessionStore((s) => s.activeSessionId)
+  const setActiveSession = useSessionStore((s) => s.setActiveSession)
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
+  const setActiveProject = useProjectStore((s) => s.setActiveProject)
   const removeProject = useProjectStore((s) => s.removeProject)
   const archivedSessions = useSessionStore((s) => s.archivedSessions)
   const archivedOrder = useSessionStore((s) => s.archivedOrder)
@@ -93,9 +95,21 @@ export function ProjectGroup({ project, onNewSessionInProject, onNewSessionInWor
             <path d="M6.3 3.3a1 1 0 0 1 1.4 0l4 4a1 1 0 0 1 0 1.4l-4 4a1 1 0 0 1-1.4-1.4L9.58 8 6.3 4.7a1 1 0 0 1 0-1.4z"/>
           </svg>
         </button>
-        <span className="text-[11px] font-semibold text-zinc-400 truncate flex-1" title={project.path}>
+        <button
+          onClick={() => {
+            setActiveProject(project.path)
+            // Switch to the first active session in this project
+            const firstSession = sessionOrder.find((id) => {
+              const s = sessions.get(id)
+              return s?.cwd === project.path || s?.originalRepo === project.path
+            })
+            if (firstSession) setActiveSession(firstSession)
+          }}
+          className="text-[11px] font-semibold text-zinc-400 hover:text-zinc-200 truncate flex-1 text-left transition-colors"
+          title={project.path}
+        >
           {project.name}
-        </span>
+        </button>
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
           {isRepo && (
             <button
