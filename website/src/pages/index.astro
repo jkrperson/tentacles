@@ -1,0 +1,148 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+const features = [
+  {
+    icon: '🐙',
+    title: 'Multiple agents at once',
+    description: 'Spawn as many Claude agents as you need, each running in its own terminal. See all their output side-by-side.',
+  },
+  {
+    icon: '📁',
+    title: 'Project organization',
+    description: 'Group agents by project. Switch between projects and each one keeps its own agents, file tree, and editor tabs.',
+  },
+  {
+    icon: '🌳',
+    title: 'Git worktrees',
+    description: 'Spin up an agent in an isolated git worktree with one click. Each agent gets its own branch so they don\'t step on each other.',
+  },
+  {
+    icon: '📡',
+    title: 'Real-time status',
+    description: 'See exactly what each agent is doing: reading files, running commands, editing code, thinking, or waiting for input.',
+  },
+  {
+    icon: '🔄',
+    title: 'Session resume',
+    description: 'Closed an agent by accident? Resume any past session with full conversation history intact.',
+  },
+  {
+    icon: '🗂️',
+    title: 'Built-in file explorer',
+    description: 'Browse your project files with real-time updates as agents make changes. Git status indicators show what\'s modified.',
+  },
+  {
+    icon: '✏️',
+    title: 'Code editor',
+    description: 'Open and edit files in a tabbed Monaco editor with syntax highlighting.',
+  },
+  {
+    icon: '💻',
+    title: 'Shell terminals',
+    description: 'Open regular shell terminals alongside your agents for manual commands.',
+  },
+  {
+    icon: '🔔',
+    title: 'Desktop notifications',
+    description: 'Get notified when an agent finishes or needs your attention.',
+  },
+  {
+    icon: '🎨',
+    title: 'Themes',
+    description: 'Four built-in themes: Obsidian, Midnight, Ember, and Dawn. Make it yours.',
+  },
+];
+---
+
+<Layout title="Tentacles — Claude Code Orchestrator">
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <img src="/favicon.svg" alt="Tentacles" class="hero-logo" />
+      <h1>Tentacles</h1>
+      <p>An IDE for orchestrating multiple Claude Code agents across your projects — manage sessions, browse files, edit code, and track changes, all in one window.</p>
+      <div class="hero-buttons">
+        <a href="https://github.com/jkrperson/tentacles" class="btn btn-primary">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          GitHub
+        </a>
+        <a href="#getting-started" class="btn btn-secondary">
+          Get Started
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="features">
+    <div class="container">
+      <h2 class="section-title">Features</h2>
+      <p class="section-subtitle">Everything you need to manage multiple Claude Code agents.</p>
+      <div class="features-grid">
+        {features.map((feature) => (
+          <div class="feature-card">
+            <span class="feature-icon">{feature.icon}</span>
+            <h3>{feature.title}</h3>
+            <p>{feature.description}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- Getting Started -->
+  <section class="getting-started" id="getting-started">
+    <div class="container">
+      <h2 class="section-title">Getting Started</h2>
+      <p class="section-subtitle">Up and running in under a minute.</p>
+      <div class="steps">
+        <div class="step">
+          <span class="step-number">1</span>
+          <div class="step-content">
+            <h3>Prerequisites</h3>
+            <p>Install <a href="https://bun.sh">Bun</a>, <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code CLI</a>, and Git.</p>
+          </div>
+        </div>
+        <div class="step">
+          <span class="step-number">2</span>
+          <div class="step-content">
+            <h3>Clone and install</h3>
+            <p>Clone the repository and install dependencies with bun.</p>
+          </div>
+        </div>
+        <div class="step">
+          <span class="step-number">3</span>
+          <div class="step-content">
+            <h3>Run</h3>
+            <p>Start the dev server and start orchestrating your agents.</p>
+          </div>
+        </div>
+      </div>
+      <div class="code-block">
+        <code>
+          <span class="comment"># Clone the repo</span><br />
+          git clone https://github.com/jkrperson/tentacles.git<br />
+          cd tentacles<br /><br />
+          <span class="comment"># Install and run</span><br />
+          bun install<br />
+          bun run dev
+        </code>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <nav class="footer-links">
+        <a href="https://github.com/jkrperson/tentacles">GitHub</a>
+        <a href="https://github.com/jkrperson/tentacles/issues">Issues</a>
+        <a href="https://github.com/jkrperson/tentacles/blob/main/LICENSE">Apache 2.0 License</a>
+      </nav>
+      <p class="footer-copy">Tentacles &mdash; orchestrate your Claude Code agents.</p>
+    </div>
+  </footer>
+
+</Layout>

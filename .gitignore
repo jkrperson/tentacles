@@ -25,5 +25,10 @@ release
 *.sln
 *.sw?
 
+# Website
+website/node_modules/
+website/dist/
+website/.astro/
+
 # Git worktrees
 .worktrees/

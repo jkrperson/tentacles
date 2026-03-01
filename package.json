@@ -19,7 +19,9 @@
     "build": "tsc && vite build && electron-builder",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "website:dev": "cd website && bun run dev",
+    "website:build": "cd website && bun run build"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
