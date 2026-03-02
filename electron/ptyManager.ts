@@ -112,7 +112,7 @@ export class PtyManager {
     this.onShellExitCb = cb
   }
 
-  create(name: string, cwd: string, command = 'claude', args: string[] = []): { id: string; pid: number; tmuxSessionName?: string } {
+  create(name: string, cwd: string, command = 'claude', args: string[] = [], env?: Record<string, string>): { id: string; pid: number; tmuxSessionName?: string } {
     const safeCwd = existsSync(cwd) ? cwd : homedir()
     if (this.tmuxAvailable) {
       const tmuxName = makeTmuxName(safeCwd)
@@ -123,9 +123,9 @@ export class PtyManager {
         ';', 'set-option', 'set-titles-string', '#{pane_title}',
         ';', 'set-option', 'default-terminal', 'xterm-256color',
         ';', 'set-option', '-a', 'terminal-overrides', ',xterm-256color:Tc',
-      ], 'agent', tmuxName)
+      ], 'agent', tmuxName, env)
     }
-    return this._spawn(name, safeCwd, command, args, 'agent')
+    return this._spawn(name, safeCwd, command, args, 'agent', undefined, env)
   }
 
   /** Re-attach to an existing tmux agent session. Returns null if the session is dead. */
@@ -194,7 +194,7 @@ export class PtyManager {
     }
   }
 
-  private _spawn(name: string, cwd: string, command: string, args: string[], kind: PtyKind, tmuxSessionName?: string): { id: string; pid: number; tmuxSessionName?: string } {
+  private _spawn(name: string, cwd: string, command: string, args: string[], kind: PtyKind, tmuxSessionName?: string, extraEnv?: Record<string, string>): { id: string; pid: number; tmuxSessionName?: string } {
     const id = randomUUID()
 
     const ptyProcess = pty.spawn(command, args, {
@@ -202,7 +202,7 @@ export class PtyManager {
       cols: 120,
       rows: 30,
       cwd,
-      env: { ...process.env, TERM: 'xterm-256color' },
+      env: { ...process.env, TERM: 'xterm-256color', ...extraEnv },
     })
 
     const managed: ManagedPty = { id, name, cwd, pid: ptyProcess.pid, kind, ptyProcess, tmuxSessionName }

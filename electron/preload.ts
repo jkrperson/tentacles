@@ -35,6 +35,11 @@ const api: ElectronAPI = {
       ipcRenderer.on('session:statusDetail', listener)
       return () => { ipcRenderer.removeListener('session:statusDetail', listener) }
     },
+    onAgentStatus: (cb) => {
+      const listener = (_event: Electron.IpcRendererEvent, data: { id: string; status: 'running' | 'idle' }) => cb(data)
+      ipcRenderer.on('session:agentStatus', listener)
+      return () => { ipcRenderer.removeListener('session:agentStatus', listener) }
+    },
   },
   terminal: {
     create: (name, cwd) => ipcRenderer.invoke('terminal:create', name, cwd),

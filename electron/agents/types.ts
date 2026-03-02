@@ -4,6 +4,7 @@ export interface SpawnConfig {
   command: string
   args: string[]
   cwd: string
+  env?: Record<string, string>
 }
 
 export interface HookSetup {
@@ -11,6 +12,7 @@ export interface HookSetup {
   hookId: string
   statusPath: string
   outputPath?: string
+  env?: Record<string, string>
   cleanup: () => void
 }
 
@@ -34,4 +36,6 @@ export interface AgentAdapter {
   parseStatusDetail?(event: unknown): string | null
 
   parseSessionId?(output: unknown): string | null
+
+  parseStatus?(event: unknown): 'running' | 'idle' | null
 }

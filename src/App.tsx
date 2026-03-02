@@ -135,6 +135,21 @@ function App() {
     return unsub
   }, [setStatusDetail])
 
+  // Listen for agent status changes from hook events (e.g. Codex idle on turn-complete)
+  useEffect(() => {
+    const unsub = window.electronAPI.session.onAgentStatus(({ id, status }) => {
+      const session = useSessionStore.getState().sessions.get(id)
+      if (!session || session.status === 'completed' || session.status === 'errored') return
+      if (session.status !== status) {
+        updateStatus(id, status)
+        if (status === 'idle') {
+          notify('info', `${session.name} is waiting`, 'Agent is waiting for input', id)
+        }
+      }
+    })
+    return unsub
+  }, [updateStatus, notify])
+
   // Switch active terminal when project changes
   useEffect(() => {
     const { terminals, terminalOrder: tOrder, activeTerminalId } = useTerminalStore.getState()

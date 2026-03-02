@@ -179,6 +179,7 @@ export interface ElectronAPI {
     onTitle: (cb: (data: { id: string; title: string }) => void) => () => void
     onClaudeSessionId: (cb: (data: { id: string; claudeSessionId: string }) => void) => () => void
     onStatusDetail: (cb: (data: { id: string; detail: string | null }) => void) => () => void
+    onAgentStatus: (cb: (data: { id: string; status: 'running' | 'idle' }) => void) => () => void
   }
   file: {
     readDir: (dirPath: string) => Promise<FileNode[]>

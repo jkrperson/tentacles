@@ -11,6 +11,7 @@ import { GitManager } from './gitManager'
 import { LspManager } from './lspManager'
 import { initAutoUpdater } from './updater'
 import { getAdapter } from './agents/registry'
+import { cleanupCodexConfig } from './agents/codex'
 import type { AgentType } from './agents/types'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -209,6 +210,7 @@ ptyManager.onExit((id, exitCode) => {
     // Preserve hook files if the tmux session is still alive (app quit — will reattach on restart)
     const tmuxAlive = hookInfo.tmuxSessionName && ptyManager.hasTmuxSession(hookInfo.tmuxSessionName)
     if (!tmuxAlive) {
+      hookInfo.hookCleanup?.()
       cleanupHookFiles(hookInfo.hookId)
     }
     sessionHookMap.delete(id)
@@ -268,7 +270,7 @@ function cleanupHookFiles(hookId: string) {
 
 // Track hook resources per PTY session for cleanup.
 // A single shared interval polls all status files to avoid FD exhaustion (EMFILE).
-const sessionHookMap = new Map<string, { hookId: string; statusPath: string; lastContent: string; abortCtrl?: AbortController; tmuxSessionName?: string; agentType: AgentType }>()
+const sessionHookMap = new Map<string, { hookId: string; statusPath: string; lastContent: string; abortCtrl?: AbortController; tmuxSessionName?: string; agentType: AgentType; hookCleanup?: () => void }>()
 let sharedPollTimer: ReturnType<typeof setInterval> | null = null
 
 function startSharedPoll() {
@@ -283,6 +285,12 @@ function startSharedPoll() {
         const adapter = getAdapter(info.agentType)
         const detail = adapter.parseStatusDetail?.(event) ?? null
         sendToRenderer('session:statusDetail', { id: ptyId, detail })
+
+        // Emit agent status changes (e.g. Codex idle on agent-turn-complete)
+        const status = adapter.parseStatus?.(event) ?? null
+        if (status) {
+          sendToRenderer('session:agentStatus', { id: ptyId, status })
+        }
       } catch {
         // file not ready or malformed JSON
       }
@@ -334,7 +342,11 @@ function spawnAgent(name: string, cwd: string, agentType: AgentType, resumeId?: 
     extraArgs,
   })
 
-  const result = ptyManager.create(name, spawnConfig.cwd, spawnConfig.command, spawnConfig.args)
+  // Merge hook env (e.g. TENTACLES_HOOK_ID for Codex) into spawn config env
+  const mergedEnv = { ...spawnConfig.env, ...hookSetup?.env }
+  const hasEnv = Object.keys(mergedEnv).length > 0
+
+  const result = ptyManager.create(name, spawnConfig.cwd, spawnConfig.command, spawnConfig.args, hasEnv ? mergedEnv : undefined)
 
   // Register hook-based polling only if the adapter set up hooks
   if (hookSetup) {
@@ -343,6 +355,7 @@ function spawnAgent(name: string, cwd: string, agentType: AgentType, resumeId?: 
     const entry = sessionHookMap.get(result.id)!
     entry.hookId = hookId
     entry.abortCtrl = abortCtrl
+    entry.hookCleanup = hookSetup.cleanup
 
     // Async: wait for session ID, send to renderer, cleanup .out only
     if (hookSetup.outputPath) {
@@ -642,6 +655,9 @@ app.on('will-quit', async () => {
   ptyManager.killAll()
   lspManager.stopAll()
   await fileWatcher.unwatch()
+
+  // Restore Codex config.toml notify setting
+  cleanupCodexConfig()
 
   // Stop the shared status file polling timer
   if (sharedPollTimer) {
