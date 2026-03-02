@@ -220,11 +220,50 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     try {
       const data: SessionsFile = await window.electronAPI.app.loadSessions()
 
+      const sessions = new Map<string, Session>()
+      const sessionOrder: string[] = []
       const archivedSessions = new Map<string, Session>()
       const archivedOrder: string[] = []
 
-      // Previously active sessions become archived (PTY is gone after restart)
-      for (const s of data.sessions) {
+      // Try to reattach tmux-backed sessions; archive the rest
+      for (const rawSession of data.sessions) {
+        // Migration: ensure agentType exists for sessions saved before multi-agent support
+        const s = { ...rawSession, agentType: rawSession.agentType ?? 'claude' as const }
+        if (s.tmuxSessionName) {
+          try {
+            const result = await window.electronAPI.session.reattach(
+              s.tmuxSessionName,
+              s.hookId || '',
+              s.name,
+              s.cwd,
+            )
+            if (result) {
+              // Determine initial status from pane title (✳ prefix = idle, Claude Code only)
+              const isIdle = s.agentType === 'claude' && result.paneTitle
+                ? (result.paneTitle.codePointAt(0) === 0x2733)
+                : false
+              const initialStatus: SessionStatus = isIdle ? 'idle' : 'running'
+
+              // Use recoveredClaudeSessionId as fallback if we didn't persist one
+              const claudeSessionId = s.claudeSessionId || result.recoveredClaudeSessionId
+
+              const restored: Session = {
+                ...s,
+                id: result.id,
+                pid: result.pid,
+                status: initialStatus,
+                statusDetail: result.initialStatusDetail ?? undefined,
+                claudeSessionId,
+                hasUnread: false,
+              }
+              sessions.set(restored.id, restored)
+              sessionOrder.push(restored.id)
+              continue
+            }
+          } catch { /* reattach failed */ }
+        }
+
+        // Archive if not reattachable
         const archived: Session = {
           ...s,
           status: s.status === 'running' || s.status === 'idle' ? 'completed' : s.status,
@@ -236,12 +275,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       }
 
       // Load previously archived sessions
-      for (const s of data.archived) {
+      for (const rawArchived of data.archived) {
+        const s = { ...rawArchived, agentType: rawArchived.agentType ?? 'claude' as const }
         archivedSessions.set(s.id, { ...s, hasUnread: false })
         archivedOrder.push(s.id)
       }
 
-      set({ archivedSessions, archivedOrder })
+      set({
+        sessions,
+        sessionOrder,
+        activeSessionId: sessionOrder[0] ?? null,
+        archivedSessions,
+        archivedOrder,
+      })
     } catch {
       // No saved sessions — nothing to load
     }

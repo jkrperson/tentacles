@@ -2,6 +2,8 @@ import { createRequire } from 'node:module'
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
+import { basename } from 'node:path'
+import { execSync } from 'node:child_process'
 
 const require = createRequire(import.meta.url)
 const pty = require('node-pty')
@@ -24,6 +26,7 @@ interface ManagedPty {
   pid: number
   kind: PtyKind
   ptyProcess: PtyProcess
+  tmuxSessionName?: string
 }
 
 type DataCallback = (id: string, data: string) => void
@@ -50,6 +53,17 @@ function resolveShell(): string {
   return '/bin/sh'
 }
 
+/** Generate a tmux session name: tentacles-<project>-<shortid> */
+function makeTmuxName(cwd: string): string {
+  const project = basename(cwd)
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 20)
+  return `tentacles-${project || 'session'}-${randomUUID().slice(0, 8)}`
+}
+
 export class PtyManager {
   private ptys = new Map<string, ManagedPty>()
   private onDataCb: DataCallback | null = null
@@ -62,6 +76,21 @@ export class PtyManager {
   // Data coalescing — buffers rapid PTY output and flushes once per tick
   private dataBuffers = new Map<string, string>()
   private flushScheduled = new Set<string>()
+
+  readonly tmuxAvailable: boolean
+
+  constructor() {
+    this.tmuxAvailable = PtyManager.detectTmux()
+  }
+
+  private static detectTmux(): boolean {
+    try {
+      execSync('which tmux', { timeout: 2000, stdio: 'ignore' })
+      return true
+    } catch {
+      return false
+    }
+  }
 
   onData(cb: DataCallback) {
     this.onDataCb = cb
@@ -83,15 +112,66 @@ export class PtyManager {
     this.onShellExitCb = cb
   }
 
-  create(name: string, cwd: string, claudeCliPath = 'claude', extraArgs: string[] = []): { id: string; pid: number } {
+  create(name: string, cwd: string, command = 'claude', args: string[] = []): { id: string; pid: number; tmuxSessionName?: string } {
     const safeCwd = existsSync(cwd) ? cwd : homedir()
-    return this._spawn(name, safeCwd, claudeCliPath, extraArgs, 'agent')
+    if (this.tmuxAvailable) {
+      const tmuxName = makeTmuxName(safeCwd)
+      return this._spawn(name, safeCwd, 'tmux', [
+        '-u', 'new-session', '-s', tmuxName, command, ...args,
+        ';', 'set-option', 'status', 'off',
+        ';', 'set-option', 'set-titles', 'on',
+        ';', 'set-option', 'set-titles-string', '#{pane_title}',
+        ';', 'set-option', 'default-terminal', 'xterm-256color',
+        ';', 'set-option', '-a', 'terminal-overrides', ',xterm-256color:Tc',
+      ], 'agent', tmuxName)
+    }
+    return this._spawn(name, safeCwd, command, args, 'agent')
+  }
+
+  /** Re-attach to an existing tmux agent session. Returns null if the session is dead. */
+  reattachAgent(name: string, cwd: string, tmuxSessionName: string): { id: string; pid: number; tmuxSessionName: string } | null {
+    if (!this.hasTmuxSession(tmuxSessionName)) return null
+    const safeCwd = existsSync(cwd) ? cwd : homedir()
+    const result = this._spawn(name, safeCwd, 'tmux', ['-u', 'attach-session', '-t', tmuxSessionName], 'agent', tmuxSessionName)
+    return { id: result.id, pid: result.pid, tmuxSessionName }
   }
 
   createShell(name: string, cwd: string): { id: string; pid: number } {
-    const shell = resolveShell()
     const safeCwd = existsSync(cwd) ? cwd : homedir()
+    const shell = resolveShell()
     return this._spawn(name, safeCwd, shell, ['--login'], 'shell')
+  }
+
+  hasTmuxSession(name: string): boolean {
+    try {
+      execSync(`tmux has-session -t ${name}`, { timeout: 2000, stdio: 'ignore' })
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /** Query the pane title for a tmux session. Returns null if the session is dead or title is empty. */
+  getTmuxPaneTitle(tmuxSessionName: string): string | null {
+    try {
+      const title = execSync(`tmux display-message -t ${tmuxSessionName} -p '#{pane_title}'`, { encoding: 'utf-8', timeout: 2000 }).trim()
+      return title || null
+    } catch {
+      return null
+    }
+  }
+
+  /** Kill orphaned tentacles tmux sessions that don't match any persisted terminal. */
+  cleanupOrphanedSessions(activeTmuxNames: Set<string>) {
+    if (!this.tmuxAvailable) return
+    try {
+      const output = execSync("tmux list-sessions -F '#{session_name}'", { encoding: 'utf-8', timeout: 2000 })
+      for (const name of output.trim().split('\n')) {
+        if (name.startsWith('tentacles-') && !activeTmuxNames.has(name)) {
+          try { execSync(`tmux kill-session -t ${name}`, { timeout: 2000 }) } catch { /* already dead */ }
+        }
+      }
+    } catch { /* no tmux server running */ }
   }
 
   /** Buffer data for an id and schedule a flush via setImmediate.
@@ -114,7 +194,7 @@ export class PtyManager {
     }
   }
 
-  private _spawn(name: string, cwd: string, command: string, args: string[], kind: PtyKind): { id: string; pid: number } {
+  private _spawn(name: string, cwd: string, command: string, args: string[], kind: PtyKind, tmuxSessionName?: string): { id: string; pid: number; tmuxSessionName?: string } {
     const id = randomUUID()
 
     const ptyProcess = pty.spawn(command, args, {
@@ -125,7 +205,7 @@ export class PtyManager {
       env: { ...process.env, TERM: 'xterm-256color' },
     })
 
-    const managed: ManagedPty = { id, name, cwd, pid: ptyProcess.pid, kind, ptyProcess }
+    const managed: ManagedPty = { id, name, cwd, pid: ptyProcess.pid, kind, ptyProcess, tmuxSessionName }
     this.ptys.set(id, managed)
 
     ptyProcess.onData((data: string) => {
@@ -159,7 +239,7 @@ export class PtyManager {
       this.flushScheduled.delete(id)
     })
 
-    return { id, pid: ptyProcess.pid }
+    return { id, pid: ptyProcess.pid, tmuxSessionName }
   }
 
   write(id: string, data: string) {
@@ -191,6 +271,17 @@ export class PtyManager {
         }
       }, 5000)
     }
+  }
+
+  /** Kill a terminal and its tmux session (for explicit tab close). */
+  killWithTmux(id: string) {
+    const managed = this.ptys.get(id)
+    if (managed?.tmuxSessionName) {
+      try {
+        execSync(`tmux kill-session -t ${managed.tmuxSessionName}`, { timeout: 2000 })
+      } catch { /* already dead */ }
+    }
+    this.kill(id)
   }
 
   list() {

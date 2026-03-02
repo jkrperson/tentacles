@@ -1,4 +1,5 @@
 export type SessionStatus = 'running' | 'idle' | 'completed' | 'errored'
+export type AgentType = 'claude' | 'codex' | 'opencode'
 
 export interface Session {
   id: string
@@ -7,6 +8,7 @@ export interface Session {
   status: SessionStatus
   createdAt: number
   hasUnread: boolean
+  agentType: AgentType
   claudeSessionId?: string
   statusDetail?: string
   archivedAt?: number
@@ -16,6 +18,8 @@ export interface Session {
   worktreePath?: string
   worktreeBranch?: string
   originalRepo?: string
+  tmuxSessionName?: string
+  hookId?: string
 }
 
 export interface SessionsFile {
@@ -127,7 +131,10 @@ export interface AppNotification {
 export interface AppSettings {
   maxSessions: number
   defaultProjectPath: string
+  defaultAgent: AgentType
   claudeCliPath: string
+  codexCliPath: string
+  opencodeCliPath: string
   desktopNotifications: boolean
   soundEnabled: boolean
   idleThresholdMs: number
@@ -136,6 +143,8 @@ export interface AppSettings {
   projectPaths: string[]
   theme: string
   enabledLspLanguages: string[]
+  scrollSpeed: number
+  enableMediaPanel: boolean
 }
 
 export interface LspServerStatus {
@@ -158,8 +167,9 @@ export interface ElectronAPI {
     listAvailable: () => Promise<Record<string, boolean>>
   }
   session: {
-    create: (name: string, cwd: string) => Promise<{ id: string; pid: number }>
-    resume: (claudeSessionId: string, name: string, cwd: string) => Promise<{ id: string; pid: number }>
+    create: (name: string, cwd: string, agentType?: AgentType) => Promise<{ id: string; pid: number; tmuxSessionName?: string; hookId: string }>
+    resume: (claudeSessionId: string, name: string, cwd: string, agentType?: AgentType) => Promise<{ id: string; pid: number; tmuxSessionName?: string; hookId: string }>
+    reattach: (tmuxSessionName: string, hookId: string, name: string, cwd: string) => Promise<{ id: string; pid: number; tmuxSessionName: string; paneTitle?: string; initialStatusDetail?: string | null; recoveredClaudeSessionId?: string } | null>
     write: (id: string, data: string) => Promise<void>
     resize: (id: string, cols: number, rows: number) => Promise<void>
     kill: (id: string) => Promise<void>

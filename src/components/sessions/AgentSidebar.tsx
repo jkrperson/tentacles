@@ -4,15 +4,23 @@ import { useSettingsStore } from '../../stores/settingsStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { useNotificationStore } from '../../stores/notificationStore'
 import { ProjectGroup } from './ProjectGroup'
+import type { AgentType } from '../../types'
+
+const AGENT_OPTIONS: { id: AgentType; label: string }[] = [
+  { id: 'claude', label: 'Claude Code' },
+  { id: 'codex', label: 'Codex CLI' },
+  { id: 'opencode', label: 'opencode' },
+]
 
 interface AgentSidebarProps {
-  onNewSession: () => void
-  onNewSessionInProject: (projectPath: string) => void
-  onNewSessionInWorktree: (projectPath: string, name?: string) => void
+  onNewSession: (agentType?: AgentType) => void
+  onNewSessionInProject: (projectPath: string, agentType?: AgentType) => void
+  onNewSessionInWorktree: (projectPath: string, name?: string, agentType?: AgentType) => void
   onResumeSession: (archivedSessionId: string) => void
+  defaultAgent: AgentType
 }
 
-export function AgentSidebar({ onNewSession, onNewSessionInProject, onNewSessionInWorktree, onResumeSession }: AgentSidebarProps) {
+export function AgentSidebar({ onNewSession, onNewSessionInProject, onNewSessionInWorktree, onResumeSession, defaultAgent }: AgentSidebarProps) {
   const sessionOrder = useSessionStore((s) => s.sessionOrder)
   const toggleSettings = useSettingsStore((s) => s.toggleSettings)
   const projects = useProjectStore((s) => s.projects)
@@ -94,7 +102,7 @@ export function AgentSidebar({ onNewSession, onNewSessionInProject, onNewSession
       <div className="p-3 flex-shrink-0 space-y-2">
         <div className="relative flex" ref={dropdownRef}>
           <button
-            onClick={onNewSession}
+            onClick={() => onNewSession()}
             className="flex-1 py-2 px-3 bg-[var(--t-accent)] hover:bg-[var(--t-accent-hover)] text-white text-[13px] font-medium rounded-l-lg transition-colors"
           >
             New Agent
@@ -111,16 +119,32 @@ export function AgentSidebar({ onNewSession, onNewSessionInProject, onNewSession
           {dropdownOpen && (
             <div className="absolute top-full left-0 right-0 mt-1 py-1 bg-[var(--t-bg-elevated)] border border-[var(--t-border)] rounded-lg shadow-xl z-50">
               {!showNameInput ? (
-                <button
-                  onClick={handleWorktreeClick}
-                  disabled={!activeIsRepo}
-                  className="w-full px-3 py-1.5 text-left text-[12px] text-zinc-300 hover:bg-[var(--t-bg-hover)] disabled:text-zinc-600 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                >
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" className="flex-shrink-0">
-                    <path d="M11.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zm-2.25.75a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6A2.5 2.5 0 0 1 3.5 6v-.628a2.25 2.25 0 1 1 1.5 0V6a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-.628A2.251 2.251 0 0 1 9.5 3.25zM4.25 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zM8 11.878v-1.25a.75.75 0 0 0-1.5 0v1.25a2.25 2.25 0 1 0 1.5 0zM7.25 13a.75.75 0 1 1 .001 1.501A.75.75 0 0 1 7.25 13z"/>
-                  </svg>
-                  New Agent in Worktree
-                </button>
+                <>
+                  {/* Agent type options */}
+                  {AGENT_OPTIONS.filter((a) => a.id !== defaultAgent).map((agent) => (
+                    <button
+                      key={agent.id}
+                      onClick={() => { setDropdownOpen(false); onNewSession(agent.id) }}
+                      className="w-full px-3 py-1.5 text-left text-[12px] text-zinc-300 hover:bg-[var(--t-bg-hover)] transition-colors flex items-center gap-2"
+                    >
+                      <span className="w-4 text-center text-[10px] font-bold text-zinc-500 flex-shrink-0">
+                        {agent.id === 'claude' ? 'C' : agent.id === 'codex' ? 'X' : 'O'}
+                      </span>
+                      New {agent.label} Agent
+                    </button>
+                  ))}
+                  <div className="border-t border-[var(--t-border)] my-1" />
+                  <button
+                    onClick={handleWorktreeClick}
+                    disabled={!activeIsRepo}
+                    className="w-full px-3 py-1.5 text-left text-[12px] text-zinc-300 hover:bg-[var(--t-bg-hover)] disabled:text-zinc-600 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" className="flex-shrink-0">
+                      <path d="M11.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zm-2.25.75a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6A2.5 2.5 0 0 1 3.5 6v-.628a2.25 2.25 0 1 1 1.5 0V6a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-.628A2.251 2.251 0 0 1 9.5 3.25zM4.25 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zM8 11.878v-1.25a.75.75 0 0 0-1.5 0v1.25a2.25 2.25 0 1 0 1.5 0zM7.25 13a.75.75 0 1 1 .001 1.501A.75.75 0 0 1 7.25 13z"/>
+                    </svg>
+                    New Agent in Worktree
+                  </button>
+                </>
               ) : (
                 <div className="px-2 py-1.5">
                   <label className="text-[11px] text-zinc-500 mb-1 block">Worktree name</label>

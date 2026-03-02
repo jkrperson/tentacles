@@ -1,7 +1,13 @@
 import { memo } from 'react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useProjectStore } from '../../stores/projectStore'
-import type { Session } from '../../types'
+import type { AgentType, Session } from '../../types'
+
+const AGENT_BADGE: Record<AgentType, { letter: string; color: string }> = {
+  claude: { letter: 'C', color: 'bg-orange-500/20 text-orange-300' },
+  codex: { letter: 'X', color: 'bg-green-500/20 text-green-300' },
+  opencode: { letter: 'O', color: 'bg-blue-500/20 text-blue-300' },
+}
 
 const STATUS_CONFIG: Record<string, { label: string; dotColor: string; textColor: string }> = {
   running: { label: 'Running', dotColor: 'bg-emerald-400', textColor: 'text-emerald-400' },
@@ -41,9 +47,16 @@ export const SessionCard = memo(function SessionCard({ session, isActive, isArch
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <span className={`text-[13px] font-medium truncate ${isArchived ? 'text-zinc-500' : isActive ? 'text-zinc-100' : 'text-zinc-300'}`}>
-            {session.name}
-          </span>
+          <div className="flex items-center gap-1.5 min-w-0">
+            {session.agentType !== 'claude' && (
+              <span className={`inline-flex items-center justify-center w-4 h-4 rounded text-[9px] font-bold flex-shrink-0 ${AGENT_BADGE[session.agentType]?.color ?? ''}`}>
+                {AGENT_BADGE[session.agentType]?.letter ?? '?'}
+              </span>
+            )}
+            <span className={`text-[13px] font-medium truncate ${isArchived ? 'text-zinc-500' : isActive ? 'text-zinc-100' : 'text-zinc-300'}`}>
+              {session.name}
+            </span>
+          </div>
           {!isArchived && session.hasUnread && !isActive && (
             <span className="w-1.5 h-1.5 rounded-full bg-violet-400 flex-shrink-0" />
           )}

@@ -1,28 +1,35 @@
 import { useState, useRef, useCallback } from 'react'
 import { FileTree } from './sidebar/FileTree'
 import { GitPanel } from './sidebar/GitPanel'
+import { MediaPanel } from './sidebar/MediaPanel'
 import { TerminalView } from './terminal/TerminalView'
 import { TerminalBottomPanel } from './terminal/TerminalBottomPanel'
 import { EditorPanel } from './editor/EditorPanel'
 import { AgentSidebar } from './sessions/AgentSidebar'
 import { useProjectStore } from '../stores/projectStore'
+import { useSettingsStore } from '../stores/settingsStore'
+import type { AgentType } from '../types'
 
 interface LayoutProps {
-  onNewSession: () => void
-  onNewSessionInProject: (projectPath: string) => void
-  onNewSessionInWorktree: (projectPath: string, name?: string) => void
+  onNewSession: (agentType?: AgentType) => void
+  onNewSessionInProject: (projectPath: string, agentType?: AgentType) => void
+  onNewSessionInWorktree: (projectPath: string, name?: string, agentType?: AgentType) => void
   onNewTerminal: () => void
   onResumeSession: (archivedSessionId: string) => void
+  defaultAgent: AgentType
 }
 
-export function Layout({ onNewSession, onNewSessionInProject, onNewSessionInWorktree, onNewTerminal, onResumeSession }: LayoutProps) {
+export function Layout({ onNewSession, onNewSessionInProject, onNewSessionInWorktree, onNewTerminal, onResumeSession, defaultAgent }: LayoutProps) {
+  const enableMediaPanel = useSettingsStore((s) => s.settings.enableMediaPanel)
   const [leftWidth, setLeftWidth] = useState(240)
   const [rightWidth, setRightWidth] = useState(260)
   const [editorWidth, setEditorWidth] = useState(480)
   const [bottomHeight, setBottomHeight] = useState(220)
+  const [mediaPanelHeight, setMediaPanelHeight] = useState(250)
   const [bottomExpanded, setBottomExpanded] = useState(false)
   const [rightVisible, setRightVisible] = useState(true)
   const [rightTab, setRightTab] = useState<'explorer' | 'git'>('explorer')
+  const [isDragging, setIsDragging] = useState(false)
   const hasOpenFiles = useProjectStore((s) => {
     const apId = s.activeProjectId
     if (!apId) return false
@@ -31,7 +38,7 @@ export function Layout({ onNewSession, onNewSessionInProject, onNewSessionInWork
     return cache.openFiles.length > 0 || cache.activeDiff !== null
   })
 
-  const dragging = useRef<'left' | 'right' | 'editor' | 'bottom' | null>(null)
+  const dragging = useRef<'left' | 'right' | 'editor' | 'bottom' | 'mediaSplit' | null>(null)
   const startX = useRef(0)
   const startY = useRef(0)
   const startWidth = useRef(0)
@@ -39,6 +46,7 @@ export function Layout({ onNewSession, onNewSessionInProject, onNewSessionInWork
 
   const onHorizontalMouseDown = useCallback((side: 'left' | 'right' | 'editor', e: React.MouseEvent) => {
     dragging.current = side
+    setIsDragging(true)
     startX.current = e.clientX
     startWidth.current = side === 'left' ? leftWidth : side === 'editor' ? editorWidth : rightWidth
 
@@ -56,6 +64,7 @@ export function Layout({ onNewSession, onNewSessionInProject, onNewSessionInWork
 
     const onMouseUp = () => {
       dragging.current = null
+      setIsDragging(false)
       document.removeEventListener('mousemove', onMouseMove)
       document.removeEventListener('mouseup', onMouseUp)
       document.body.style.cursor = ''
@@ -70,6 +79,7 @@ export function Layout({ onNewSession, onNewSessionInProject, onNewSessionInWork
 
   const onBottomMouseDown = useCallback((e: React.MouseEvent) => {
     dragging.current = 'bottom'
+    setIsDragging(true)
     startY.current = e.clientY
     startHeight.current = bottomHeight
 
@@ -81,6 +91,7 @@ export function Layout({ onNewSession, onNewSessionInProject, onNewSessionInWork
 
     const onMouseUp = () => {
       dragging.current = null
+      setIsDragging(false)
       document.removeEventListener('mousemove', onMouseMove)
       document.removeEventListener('mouseup', onMouseUp)
       document.body.style.cursor = ''
@@ -93,6 +104,33 @@ export function Layout({ onNewSession, onNewSessionInProject, onNewSessionInWork
     document.body.style.userSelect = 'none'
   }, [bottomHeight])
 
+  const onMediaSplitMouseDown = useCallback((e: React.MouseEvent) => {
+    dragging.current = 'mediaSplit'
+    setIsDragging(true)
+    startY.current = e.clientY
+    startHeight.current = mediaPanelHeight
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (dragging.current !== 'mediaSplit') return
+      const delta = startY.current - ev.clientY
+      setMediaPanelHeight(Math.max(100, Math.min(500, startHeight.current + delta)))
+    }
+
+    const onMouseUp = () => {
+      dragging.current = null
+      setIsDragging(false)
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+    document.body.style.cursor = 'row-resize'
+    document.body.style.userSelect = 'none'
+  }, [mediaPanelHeight])
+
   const handleNewTerminal = useCallback(() => {
     setBottomExpanded(true)
     onNewTerminal()
@@ -102,7 +140,7 @@ export function Layout({ onNewSession, onNewSessionInProject, onNewSessionInWork
     <div className="flex h-full">
       {/* Left: Agent Sidebar */}
       <div className="flex-shrink-0 overflow-hidden" style={{ width: leftWidth }}>
-        <AgentSidebar onNewSession={onNewSession} onNewSessionInProject={onNewSessionInProject} onNewSessionInWorktree={onNewSessionInWorktree} onResumeSession={onResumeSession} />
+        <AgentSidebar onNewSession={onNewSession} onNewSessionInProject={onNewSessionInProject} onNewSessionInWorktree={onNewSessionInWorktree} onResumeSession={onResumeSession} defaultAgent={defaultAgent} />
       </div>
 
       <div className="group relative w-1 flex-shrink-0 cursor-col-resize"
@@ -207,6 +245,25 @@ export function Layout({ onNewSession, onNewSessionInProject, onNewSessionInWork
                 <GitPanel onToggle={() => setRightVisible(false)} />
               )}
             </div>
+
+            {/* Media Panel */}
+            {enableMediaPanel && (
+              <>
+                <div
+                  className="group relative h-1 flex-shrink-0 cursor-row-resize"
+                  onMouseDown={onMediaSplitMouseDown}
+                >
+                  <div className="absolute inset-x-0 -top-1 -bottom-1" />
+                  <div className="absolute inset-x-0 top-0 h-px bg-[var(--t-border)] group-hover:bg-violet-500/50 transition-colors" />
+                </div>
+                <div className="flex-shrink-0 overflow-hidden relative" style={{ height: mediaPanelHeight }}>
+                  {isDragging && (
+                    <div className="absolute inset-0 z-10" />
+                  )}
+                  <MediaPanel />
+                </div>
+              </>
+            )}
           </div>
         </>
       )}

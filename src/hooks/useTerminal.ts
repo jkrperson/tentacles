@@ -20,6 +20,9 @@ export function useTerminal({ sessionId, isActive }: UseTerminalOptions) {
   const theme = useSettingsStore((s) => s.settings.theme)
   const terminalFontSize = useSettingsStore((s) => s.settings.terminalFontSize)
   const terminalFontFamily = useSettingsStore((s) => s.settings.terminalFontFamily)
+  const scrollSpeed = useSettingsStore((s) => s.settings.scrollSpeed)
+  const scrollSpeedRef = useRef(scrollSpeed)
+  useEffect(() => { scrollSpeedRef.current = scrollSpeed }, [scrollSpeed])
 
   // Create terminal and attach to container
   useEffect(() => {
@@ -61,6 +64,34 @@ export function useTerminal({ sessionId, isActive }: UseTerminalOptions) {
     terminal.open(el)
     termRef.current = { terminal, fitAddon }
 
+    // Intercept wheel events and replay them N times based on scroll speed.
+    // This works in both viewport-scroll mode and mouse-reporting mode (tmux).
+    let syntheticWheel = false
+    const handleWheel = (e: WheelEvent) => {
+      if (syntheticWheel) return
+      const speed = scrollSpeedRef.current
+      if (speed <= 1) return
+
+      e.preventDefault()
+      e.stopImmediatePropagation()
+
+      const count = e.metaKey ? speed * 2 : speed
+      syntheticWheel = true
+      for (let i = 0; i < count; i++) {
+        const target = e.target as Element
+        target.dispatchEvent(new WheelEvent('wheel', {
+          deltaX: e.deltaX, deltaY: e.deltaY, deltaMode: e.deltaMode,
+          clientX: e.clientX, clientY: e.clientY,
+          screenX: e.screenX, screenY: e.screenY,
+          ctrlKey: e.ctrlKey, altKey: e.altKey,
+          shiftKey: e.shiftKey, metaKey: e.metaKey,
+          bubbles: true, cancelable: true,
+        }))
+      }
+      syntheticWheel = false
+    }
+    el.addEventListener('wheel', handleWheel, { capture: true, passive: false })
+
     // Fit after layout settles
     const fit = () => {
       try {
@@ -72,6 +103,7 @@ export function useTerminal({ sessionId, isActive }: UseTerminalOptions) {
     setTimeout(fit, 150)
 
     return () => {
+      el.removeEventListener('wheel', handleWheel, { capture: true })
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       writeBufferRef.current = []
       terminal.dispose()

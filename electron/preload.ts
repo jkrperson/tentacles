@@ -3,8 +3,9 @@ import type { ElectronAPI, FileChangeEvent, UpdaterStatus } from '../src/types'
 
 const api: ElectronAPI = {
   session: {
-    create: (name, cwd) => ipcRenderer.invoke('session:create', name, cwd),
-    resume: (claudeSessionId, name, cwd) => ipcRenderer.invoke('session:resume', claudeSessionId, name, cwd),
+    create: (name, cwd, agentType) => ipcRenderer.invoke('session:create', name, cwd, agentType),
+    resume: (claudeSessionId, name, cwd, agentType) => ipcRenderer.invoke('session:resume', claudeSessionId, name, cwd, agentType),
+    reattach: (tmuxSessionName, hookId, name, cwd) => ipcRenderer.invoke('session:reattach', tmuxSessionName, hookId, name, cwd),
     write: (id, data) => ipcRenderer.invoke('session:write', id, data),
     resize: (id, cols, rows) => ipcRenderer.invoke('session:resize', id, cols, rows),
     kill: (id) => ipcRenderer.invoke('session:kill', id),

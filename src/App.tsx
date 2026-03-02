@@ -9,6 +9,7 @@ import { useProjectStore } from './stores/projectStore'
 import { useTerminalStore } from './stores/terminalStore'
 import { themes, applyThemeToDOM } from './themes'
 import { initDataRouter } from './dataRouter'
+import type { AgentType } from './types'
 
 function App() {
   const setHasUnread = useSessionStore((s) => s.setHasUnread)
@@ -65,13 +66,16 @@ function App() {
 
   // Listen for OSC title changes — detect status from leading symbol + rename sessions
   // Claude Code titles: "⠶ Task Name" (running/spinner) or "✳ Task Name" (idle/waiting)
-  // Braille spinner chars are U+2800–U+28FF, idle symbol is ✳ (U+2733)
+  // Non-Claude agents may not emit title sequences (handled gracefully)
   useEffect(() => {
     const unsub = window.electronAPI.session.onTitle(({ id, title }) => {
       const session = useSessionStore.getState().sessions.get(id)
       if (!session || session.status === 'completed' || session.status === 'errored') return
 
-      // Parse leading status symbol
+      // Only Claude Code emits meaningful OSC titles; skip parsing for other agents
+      if (session.agentType !== 'claude') return
+
+      // Parse leading status symbol (Claude Code specific)
       const firstChar = title.codePointAt(0) ?? 0
       const isBrailleSpinner = firstChar >= 0x2800 && firstChar <= 0x28FF
       const isIdleSymbol = firstChar === 0x2733 // ✳
@@ -81,7 +85,7 @@ function App() {
       } else if (isIdleSymbol && session.status !== 'idle') {
         updateStatus(id, 'idle')
         const cleanName = title.replace(/^[\u2800-\u28FF\u2733]\s*/, '') || session.name
-        notify('info', `${cleanName} is waiting`, 'Claude is waiting for input', id)
+        notify('info', `${cleanName} is waiting`, 'Claude Code is waiting for input', id)
       }
 
       // Strip the symbol prefix for a clean session name
@@ -151,7 +155,7 @@ function App() {
     return unsub
   }, [updateTerminalStatus])
 
-  const handleNewSession = useCallback(async () => {
+  const handleNewSession = useCallback(async (agentType?: AgentType) => {
     if (sessionOrder.length >= settings.maxSessions) {
       notify('warning', 'Max agents reached', `Limit is ${settings.maxSessions}`)
       return
@@ -166,9 +170,10 @@ function App() {
       cwd = dir
     }
 
+    const resolvedAgent = agentType ?? settings.defaultAgent
     const name = `Agent ${sessionOrder.length + 1}`
     try {
-      const { id, pid } = await window.electronAPI.session.create(name, cwd)
+      const { id, pid, tmuxSessionName, hookId } = await window.electronAPI.session.create(name, cwd, resolvedAgent)
       addSession({
         id,
         name,
@@ -176,7 +181,10 @@ function App() {
         status: 'running',
         createdAt: Date.now(),
         hasUnread: false,
+        agentType: resolvedAgent,
         pid,
+        tmuxSessionName,
+        hookId,
       })
       addProject(cwd) // ensure project exists + activate
     } catch (err: unknown) {
@@ -184,14 +192,15 @@ function App() {
     }
   }, [sessionOrder.length, settings, activeProjectId, addSession, addProject, notify])
 
-  const handleNewSessionInProject = useCallback(async (projectPath: string) => {
+  const handleNewSessionInProject = useCallback(async (projectPath: string, agentType?: AgentType) => {
     if (sessionOrder.length >= settings.maxSessions) {
       notify('warning', 'Max agents reached', `Limit is ${settings.maxSessions}`)
       return
     }
+    const resolvedAgent = agentType ?? settings.defaultAgent
     const name = `Agent ${sessionOrder.length + 1}`
     try {
-      const { id, pid } = await window.electronAPI.session.create(name, projectPath)
+      const { id, pid, tmuxSessionName, hookId } = await window.electronAPI.session.create(name, projectPath, resolvedAgent)
       addSession({
         id,
         name,
@@ -199,7 +208,10 @@ function App() {
         status: 'running',
         createdAt: Date.now(),
         hasUnread: false,
+        agentType: resolvedAgent,
         pid,
+        tmuxSessionName,
+        hookId,
       })
       setActiveProject(projectPath)
     } catch (err: unknown) {
@@ -207,15 +219,16 @@ function App() {
     }
   }, [sessionOrder.length, settings, addSession, setActiveProject, notify])
 
-  const handleNewSessionInWorktree = useCallback(async (projectPath: string, worktreeName?: string) => {
+  const handleNewSessionInWorktree = useCallback(async (projectPath: string, worktreeName?: string, agentType?: AgentType) => {
     if (sessionOrder.length >= settings.maxSessions) {
       notify('warning', 'Max agents reached', `Limit is ${settings.maxSessions}`)
       return
     }
+    const resolvedAgent = agentType ?? settings.defaultAgent
     try {
       const { worktreePath, branch } = await window.electronAPI.git.worktree.create(projectPath, worktreeName)
       const name = worktreeName || `Agent ${sessionOrder.length + 1}`
-      const { id, pid } = await window.electronAPI.session.create(name, worktreePath)
+      const { id, pid, tmuxSessionName, hookId } = await window.electronAPI.session.create(name, worktreePath, resolvedAgent)
       addSession({
         id,
         name,
@@ -223,7 +236,10 @@ function App() {
         status: 'running',
         createdAt: Date.now(),
         hasUnread: false,
+        agentType: resolvedAgent,
         pid,
+        tmuxSessionName,
+        hookId,
         isWorktree: true,
         worktreePath,
         worktreeBranch: branch,
@@ -242,14 +258,15 @@ function App() {
       return
     }
     if (!archived.claudeSessionId) {
-      notify('warning', 'Cannot resume', 'No Claude session ID available')
+      notify('warning', 'Cannot resume', 'No session ID available for resume')
       return
     }
     try {
-      const { id, pid } = await window.electronAPI.session.resume(
+      const { id, pid, tmuxSessionName, hookId } = await window.electronAPI.session.resume(
         archived.claudeSessionId,
         archived.name,
         archived.cwd,
+        archived.agentType,
       )
       addSession({
         id,
@@ -258,7 +275,10 @@ function App() {
         status: 'running',
         createdAt: Date.now(),
         hasUnread: false,
+        agentType: archived.agentType,
         pid,
+        tmuxSessionName,
+        hookId,
         claudeSessionId: archived.claudeSessionId,
         isWorktree: archived.isWorktree,
         worktreePath: archived.worktreePath,
@@ -383,7 +403,7 @@ function App() {
         </span>
       </div>
       <div className="flex-1 min-h-0">
-        <Layout onNewSession={handleNewSession} onNewSessionInProject={handleNewSessionInProject} onNewSessionInWorktree={handleNewSessionInWorktree} onNewTerminal={handleNewTerminal} onResumeSession={handleResumeSession} />
+        <Layout onNewSession={handleNewSession} onNewSessionInProject={handleNewSessionInProject} onNewSessionInWorktree={handleNewSessionInWorktree} onNewTerminal={handleNewTerminal} onResumeSession={handleResumeSession} defaultAgent={settings.defaultAgent} />
       </div>
       <ToastContainer />
       <SettingsModal />

@@ -32,7 +32,7 @@ export function TerminalView({ onNewSession }: TerminalViewProps) {
                 {activeProjectId ? 'No agents in this project' : 'No active agents'}
               </div>
               <button
-                onClick={onNewSession}
+                onClick={() => onNewSession()}
                 className="px-4 py-2 bg-[var(--t-accent)] hover:bg-[var(--t-accent-hover)] text-white text-[13px] font-medium rounded-lg transition-colors"
               >
                 Spawn Agent

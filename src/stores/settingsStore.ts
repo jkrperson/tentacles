@@ -4,7 +4,10 @@ import type { AppSettings } from '../types'
 const defaultSettings: AppSettings = {
   maxSessions: 10,
   defaultProjectPath: '',
+  defaultAgent: 'claude',
   claudeCliPath: 'claude',
+  codexCliPath: 'codex',
+  opencodeCliPath: 'opencode',
   desktopNotifications: true,
   soundEnabled: false,
   idleThresholdMs: 3000,
@@ -13,6 +16,8 @@ const defaultSettings: AppSettings = {
   projectPaths: [],
   theme: 'obsidian',
   enabledLspLanguages: [],
+  scrollSpeed: 5,
+  enableMediaPanel: false,
 }
 
 interface SettingsState {

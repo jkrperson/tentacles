@@ -1,7 +1,13 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useSettingsStore } from '../../stores/settingsStore'
-import type { AppSettings, UpdaterStatus } from '../../types'
+import type { AgentType, AppSettings, UpdaterStatus } from '../../types'
 import { themes } from '../../themes'
+
+const AGENT_OPTIONS: { id: AgentType; label: string }[] = [
+  { id: 'claude', label: 'Claude Code' },
+  { id: 'codex', label: 'Codex CLI' },
+  { id: 'opencode', label: 'opencode' },
+]
 
 const themeKeys = Object.keys(themes) as string[]
 const LSP_LANGUAGES = ['typescript', 'python', 'rust', 'go'] as const
@@ -110,10 +116,46 @@ export function SettingsModal() {
           </div>
 
           <div>
-            <label className="block text-[11px] text-zinc-500 mb-1.5 uppercase tracking-wider">Claude CLI Path</label>
+            <label className="block text-[11px] text-zinc-500 mb-1.5 uppercase tracking-wider">Default Agent</label>
+            <div className="grid grid-cols-3 gap-1.5">
+              {AGENT_OPTIONS.map((agent) => {
+                const selected = draft.defaultAgent === agent.id
+                return (
+                  <button
+                    key={agent.id}
+                    onClick={() => setDraft((d) => ({ ...d, defaultAgent: agent.id }))}
+                    className={`px-2.5 py-1.5 rounded-md text-[12px] border transition-colors ${
+                      selected
+                        ? 'border-violet-500 bg-violet-500/10 text-zinc-200'
+                        : 'border-[var(--t-border-input)] text-zinc-400 hover:border-[var(--t-border-input-hover)] hover:text-zinc-300'
+                    }`}
+                  >
+                    {agent.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] text-zinc-500 mb-1.5 uppercase tracking-wider">Claude Code CLI Path</label>
             <input type="text" value={draft.claudeCliPath}
               onChange={(e) => setDraft((d) => ({ ...d, claudeCliPath: e.target.value }))}
               className={inputClass} placeholder="claude" />
+          </div>
+
+          <div>
+            <label className="block text-[11px] text-zinc-500 mb-1.5 uppercase tracking-wider">Codex CLI Path</label>
+            <input type="text" value={draft.codexCliPath}
+              onChange={(e) => setDraft((d) => ({ ...d, codexCliPath: e.target.value }))}
+              className={inputClass} placeholder="codex" />
+          </div>
+
+          <div>
+            <label className="block text-[11px] text-zinc-500 mb-1.5 uppercase tracking-wider">opencode CLI Path</label>
+            <input type="text" value={draft.opencodeCliPath}
+              onChange={(e) => setDraft((d) => ({ ...d, opencodeCliPath: e.target.value }))}
+              className={inputClass} placeholder="opencode" />
           </div>
 
           <div>
@@ -121,6 +163,16 @@ export function SettingsModal() {
             <input type="number" min={8} max={24} value={draft.terminalFontSize}
               onChange={(e) => setDraft((d) => ({ ...d, terminalFontSize: parseInt(e.target.value) || 13 }))}
               className={inputClass} />
+          </div>
+
+          <div>
+            <label className="block text-[11px] text-zinc-500 mb-1.5 uppercase tracking-wider">Scroll Speed</label>
+            <div className="flex items-center gap-3">
+              <input type="range" min={1} max={10} value={draft.scrollSpeed}
+                onChange={(e) => setDraft((d) => ({ ...d, scrollSpeed: parseInt(e.target.value) || 5 }))}
+                className="flex-1 accent-[var(--t-accent)]" />
+              <span className="text-[13px] text-zinc-300 w-5 text-right">{draft.scrollSpeed}</span>
+            </div>
           </div>
 
           <div>
@@ -178,6 +230,16 @@ export function SettingsModal() {
               className={`w-9 h-5 rounded-full transition-colors relative ${draft.soundEnabled ? 'bg-[var(--t-accent)]' : 'bg-[var(--t-border-input)]'}`}
             >
               <div className={`w-3.5 h-3.5 bg-white rounded-full absolute top-[3px] transition-all ${draft.soundEnabled ? 'left-[18px]' : 'left-[3px]'}`} />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between py-1">
+            <span className="text-[13px] text-zinc-400">Media Panel</span>
+            <button
+              onClick={() => setDraft((d) => ({ ...d, enableMediaPanel: !d.enableMediaPanel }))}
+              className={`w-9 h-5 rounded-full transition-colors relative ${draft.enableMediaPanel ? 'bg-[var(--t-accent)]' : 'bg-[var(--t-border-input)]'}`}
+            >
+              <div className={`w-3.5 h-3.5 bg-white rounded-full absolute top-[3px] transition-all ${draft.enableMediaPanel ? 'left-[18px]' : 'left-[3px]'}`} />
             </button>
           </div>
 

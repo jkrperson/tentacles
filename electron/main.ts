@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog, Notification } from 'electron'
 import { fileURLToPath } from 'node:url'
 import * as path from 'node:path'
 import * as fs from 'node:fs'
+import * as http from 'node:http'
 import { execSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { PtyManager } from './ptyManager'
@@ -9,6 +10,8 @@ import { FileWatcher } from './fileWatcher'
 import { GitManager } from './gitManager'
 import { LspManager } from './lspManager'
 import { initAutoUpdater } from './updater'
+import { getAdapter } from './agents/registry'
+import type { AgentType } from './agents/types'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -46,6 +49,48 @@ export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron')
 export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
 
+// In production, serve renderer files over HTTP so third-party embeds (YouTube, Twitch)
+// see a real http://localhost origin. file:// has a null origin which breaks embeds.
+let rendererURL: string | undefined
+
+const MIME_TYPES: Record<string, string> = {
+  '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css',
+  '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg',
+  '.gif': 'image/gif', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
+  '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf',
+  '.wasm': 'application/wasm', '.map': 'application/json',
+}
+
+function startRendererServer(root: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const server = http.createServer((req, res) => {
+      const urlPath = new URL(req.url || '/', 'http://localhost').pathname
+      const filePath = path.join(root, decodeURIComponent(urlPath))
+
+      // Serve static assets if the file exists and has an extension;
+      // otherwise fall back to index.html for SPA client-side routing.
+      const isAsset = path.extname(filePath) && fs.existsSync(filePath)
+      const resolved = isAsset ? filePath : path.join(root, 'index.html')
+
+      try {
+        const content = fs.readFileSync(resolved)
+        const ext = path.extname(resolved)
+        res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' })
+        res.end(content)
+      } catch {
+        res.writeHead(404)
+        res.end('Not Found')
+      }
+    })
+
+    server.listen(0, '127.0.0.1', () => {
+      const addr = server.address() as { port: number }
+      resolve(`http://127.0.0.1:${addr.port}`)
+    })
+    server.on('error', reject)
+  })
+}
+
 const settingsPath = path.join(app.getPath('userData'), 'settings.json')
 const sessionsPath = path.join(app.getPath('userData'), 'sessions.json')
 
@@ -54,6 +99,13 @@ const ptyManager = new PtyManager()
 const fileWatcher = new FileWatcher()
 const gitManager = new GitManager()
 const lspManager = new LspManager()
+
+/** Safely send an IPC message to the renderer — no-op if the window is destroyed. */
+function sendToRenderer(channel: string, ...args: unknown[]) {
+  if (win && !win.isDestroyed()) {
+    win.webContents.send(channel, ...args)
+  }
+}
 
 function loadSettings() {
   try {
@@ -93,43 +145,56 @@ function createWindow() {
     },
   })
 
+  // Prevent iframes (e.g. YouTube/Twitch embeds) from navigating the top-level window
+  win.webContents.on('will-navigate', (event, url) => {
+    const baseURL = VITE_DEV_SERVER_URL ?? rendererURL ?? 'file://'
+    if (!url.startsWith(baseURL)) event.preventDefault()
+  })
+
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL)
     win.webContents.openDevTools()
   } else {
-    win.loadFile(path.join(RENDERER_DIST, 'index.html'))
+    win.loadURL(rendererURL!)
     initAutoUpdater(win)
   }
 }
 
 // --- PTY IPC ---
 ptyManager.onData((id, data) => {
-  win?.webContents.send('session:data', { id, data })
+  sendToRenderer('session:data', { id, data })
 })
 
 const lastTitleStatus = new Map<string, string>()
 
 ptyManager.onTitle((id, title) => {
-  win?.webContents.send('session:title', { id, title })
+  sendToRenderer('session:title', { id, title })
 
   // Debug: log raw title and codepoints to main process console
   const codepoints = [...title].map((c) => 'U+' + (c.codePointAt(0) ?? 0).toString(16).padStart(4, '0'))
   console.log(`[title] id=${id.slice(0, 8)} chars=[${codepoints.join(', ')}] raw="${title}"`)
 
-  // Desktop notification when Claude transitions to idle (waiting for input)
-  const firstChar = title.codePointAt(0) ?? 0
-  const isIdle = firstChar === 0x2733 // ✳
-  const prev = lastTitleStatus.get(id)
-  lastTitleStatus.set(id, isIdle ? 'idle' : 'running')
+  // Determine which adapter owns this session (if tracked via hooks)
+  const hookInfo = sessionHookMap.get(id)
+  const agentType: AgentType = hookInfo?.agentType ?? 'claude'
+  const adapter = getAdapter(agentType)
 
-  if (isIdle && prev !== 'idle') {
-    const settings = loadSettings()
-    if (settings.desktopNotifications !== false && Notification.isSupported()) {
-      const name = title.replace(/^\u2733\s*/, '') || 'Agent'
-      new Notification({
-        title: `${name} is waiting`,
-        body: 'Claude is waiting for input',
-      }).show()
+  // Use adapter to parse title for status
+  const parsed = adapter.parseTitle?.(title)
+  if (parsed) {
+    const prev = lastTitleStatus.get(id)
+    lastTitleStatus.set(id, parsed.status)
+
+    // Desktop notification when agent transitions to idle
+    if (parsed.status === 'idle' && prev !== 'idle') {
+      const settings = loadSettings()
+      if (settings.desktopNotifications !== false && Notification.isSupported()) {
+        const displayName = parsed.name || 'Agent'
+        new Notification({
+          title: `${displayName} is waiting`,
+          body: `${adapter.name} is waiting for input`,
+        }).show()
+      }
     }
   }
 })
@@ -141,67 +206,32 @@ ptyManager.onExit((id, exitCode) => {
   const hookInfo = sessionHookMap.get(id)
   if (hookInfo) {
     hookInfo.abortCtrl?.abort() // Cancel waitForSessionId polling
-    cleanupHookFiles(hookInfo.hookId)
+    // Preserve hook files if the tmux session is still alive (app quit — will reattach on restart)
+    const tmuxAlive = hookInfo.tmuxSessionName && ptyManager.hasTmuxSession(hookInfo.tmuxSessionName)
+    if (!tmuxAlive) {
+      cleanupHookFiles(hookInfo.hookId)
+    }
     sessionHookMap.delete(id)
     // Shared poll timer stops itself when the map is empty
   }
 
   // Clear statusDetail before sending exit
-  win?.webContents.send('session:statusDetail', { id, detail: null })
-  win?.webContents.send('session:exit', { id, exitCode })
+  sendToRenderer('session:statusDetail', { id, detail: null })
+  sendToRenderer('session:exit', { id, exitCode })
 
   const settings = loadSettings()
   if (settings.desktopNotifications !== false && Notification.isSupported()) {
     new Notification({
       title: 'Session ended',
-      body: `Claude session exited with code ${exitCode}`,
+      body: `Agent session exited with code ${exitCode}`,
     }).show()
   }
 })
 
-// --- Hook-based Claude session ID capture ---
+// --- Hook-based session ID capture ---
 const hooksDir = path.join(app.getPath('userData'), 'hooks')
 
-function ensureHooksDir() {
-  if (!fs.existsSync(hooksDir)) {
-    fs.mkdirSync(hooksDir, { recursive: true })
-  }
-}
-
-function writeHookSettings(hookId: string): { settingsPath: string; outputPath: string; statusPath: string } {
-  ensureHooksDir()
-  const outputPath = path.join(hooksDir, `${hookId}.out`)
-  const statusPath = path.join(hooksDir, `${hookId}.status`)
-  const settingsPath = path.join(hooksDir, `${hookId}.json`)
-
-  const statusCmd = `sh -c 'cat > ${JSON.stringify(statusPath)}'`
-  const settings = {
-    hooks: {
-      SessionStart: [
-        {
-          hooks: [{ type: 'command' as const, command: `sh -c 'cat > ${JSON.stringify(outputPath)}'` }],
-        },
-      ],
-      PreToolUse: [
-        { hooks: [{ type: 'command' as const, command: statusCmd }] },
-      ],
-      PostToolUse: [
-        { hooks: [{ type: 'command' as const, command: statusCmd }] },
-      ],
-      Stop: [
-        { hooks: [{ type: 'command' as const, command: statusCmd }] },
-      ],
-      PermissionRequest: [
-        { hooks: [{ type: 'command' as const, command: statusCmd }] },
-      ],
-    },
-  }
-
-  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
-  return { settingsPath, outputPath, statusPath }
-}
-
-function waitForSessionId(outputPath: string, signal?: AbortSignal, timeoutMs = 30000): Promise<string | null> {
+function waitForSessionId(outputPath: string, adapter: ReturnType<typeof getAdapter>, signal?: AbortSignal, timeoutMs = 30000): Promise<string | null> {
   return new Promise((resolve) => {
     const start = Date.now()
     const poll = () => {
@@ -214,8 +244,9 @@ function waitForSessionId(outputPath: string, signal?: AbortSignal, timeoutMs = 
           const raw = fs.readFileSync(outputPath, 'utf-8').trim()
           if (raw) {
             const parsed = JSON.parse(raw)
-            if (parsed.session_id) {
-              resolve(parsed.session_id)
+            const sessionId = adapter.parseSessionId?.(parsed)
+            if (sessionId) {
+              resolve(sessionId)
               return
             }
           }
@@ -235,63 +266,9 @@ function cleanupHookFiles(hookId: string) {
   try { fs.unlinkSync(path.join(hooksDir, `${hookId}.status`)) } catch { /* already deleted */ }
 }
 
-interface HookEvent {
-  hook_event_name?: string
-  tool_name?: string
-  tool_input?: Record<string, string>
-}
-
-function deriveStatusDetail(event: HookEvent): string | null {
-  const hookName = event.hook_event_name
-  const toolName = event.tool_name
-  const toolInput = event.tool_input
-
-  if (hookName === 'Stop') return null
-
-  if (hookName === 'PermissionRequest') {
-    return toolName ? `Needs permission: ${toolName}` : 'Needs permission'
-  }
-
-  if (hookName === 'PostToolUse') return 'Thinking...'
-
-  if (hookName === 'PreToolUse') {
-    if (toolName === 'Bash') {
-      return toolInput?.description || 'Running command'
-    }
-    if (toolName === 'Edit') {
-      const file = toolInput?.file_path
-      return file ? `Editing ${path.basename(file)}` : 'Editing file'
-    }
-    if (toolName === 'Write') {
-      const file = toolInput?.file_path
-      return file ? `Writing ${path.basename(file)}` : 'Writing file'
-    }
-    if (toolName === 'Read') {
-      const file = toolInput?.file_path
-      return file ? `Reading ${path.basename(file)}` : 'Reading file'
-    }
-    if (toolName === 'Grep') return 'Searching code'
-    if (toolName === 'Glob') return 'Finding files'
-    if (toolName === 'Task') {
-      const subagent = toolInput?.subagent_type
-      return subagent ? `Running ${subagent}` : 'Running subagent'
-    }
-    if (toolName === 'WebFetch') return 'Fetching web page'
-    if (toolName === 'WebSearch') return 'Searching web'
-    if (toolName?.startsWith('mcp__')) {
-      const segments = toolName.split('__')
-      const toolSegment = segments[segments.length - 1] || toolName
-      return `Using ${toolSegment}`
-    }
-    return toolName ? `Using ${toolName}` : 'Working...'
-  }
-
-  return null
-}
-
 // Track hook resources per PTY session for cleanup.
 // A single shared interval polls all status files to avoid FD exhaustion (EMFILE).
-const sessionHookMap = new Map<string, { hookId: string; statusPath: string; lastContent: string; abortCtrl?: AbortController }>()
+const sessionHookMap = new Map<string, { hookId: string; statusPath: string; lastContent: string; abortCtrl?: AbortController; tmuxSessionName?: string; agentType: AgentType }>()
 let sharedPollTimer: ReturnType<typeof setInterval> | null = null
 
 function startSharedPoll() {
@@ -303,8 +280,9 @@ function startSharedPoll() {
         if (!raw || raw === info.lastContent) continue
         info.lastContent = raw
         const event = JSON.parse(raw)
-        const detail = deriveStatusDetail(event)
-        win?.webContents.send('session:statusDetail', { id: ptyId, detail })
+        const adapter = getAdapter(info.agentType)
+        const detail = adapter.parseStatusDetail?.(event) ?? null
+        sendToRenderer('session:statusDetail', { id: ptyId, detail })
       } catch {
         // file not ready or malformed JSON
       }
@@ -317,60 +295,76 @@ function startSharedPoll() {
   }, 500)
 }
 
-function registerStatusPoll(statusPath: string, ptyId: string) {
+function registerStatusPoll(statusPath: string, ptyId: string, agentType: AgentType, tmuxSessionName?: string) {
   if (!fs.existsSync(statusPath)) {
     fs.writeFileSync(statusPath, '')
   }
-  sessionHookMap.set(ptyId, { hookId: '', statusPath, lastContent: '' })
+  sessionHookMap.set(ptyId, { hookId: '', statusPath, lastContent: '', tmuxSessionName, agentType })
   startSharedPoll()
 }
 
-/** Remove all files in the hooks directory (best-effort). */
-function cleanupAllHookFiles() {
+/** Remove hook files in the hooks directory, optionally preserving specific hookIds. */
+function cleanupAllHookFiles(preserve = new Set<string>()) {
   try {
-    if (fs.existsSync(hooksDir)) {
-      for (const file of fs.readdirSync(hooksDir)) {
+    if (!fs.existsSync(hooksDir)) return
+    for (const file of fs.readdirSync(hooksDir)) {
+      const hookId = file.replace(/\.(json|out|status)$/, '')
+      if (!preserve.has(hookId)) {
         try { fs.unlinkSync(path.join(hooksDir, file)) } catch { /* ignore */ }
       }
     }
   } catch { /* ignore */ }
 }
 
-function spawnWithHook(name: string, cwd: string, extraArgs: string[] = []): { id: string; pid: number } {
+function spawnAgent(name: string, cwd: string, agentType: AgentType, resumeId?: string): { id: string; pid: number; tmuxSessionName?: string; hookId: string } {
   const settings = loadSettings()
-  const claudeCliPath = settings.claudeCliPath || 'claude'
+  const adapter = getAdapter(agentType)
+  const binaryPath = (settings[adapter.settingsKey] as string) || adapter.defaultBinary
   const hookId = randomUUID()
-  const { settingsPath, outputPath, statusPath } = writeHookSettings(hookId)
 
-  const args = [...extraArgs, '--settings', settingsPath]
-  const result = ptyManager.create(name, cwd, claudeCliPath, args)
+  // Set up hooks if the adapter supports them
+  const hookSetup = adapter.setupHooks?.(hookId) ?? null
+  const extraArgs = hookSetup?.extraArgs ?? []
 
-  // Register this session's status file with the shared poller
-  registerStatusPoll(statusPath, result.id)
-  // Store the hookId and abort controller for cleanup
-  const abortCtrl = new AbortController()
-  const entry = sessionHookMap.get(result.id)!
-  entry.hookId = hookId
-  entry.abortCtrl = abortCtrl
-
-  // Async: wait for session ID, send to renderer, cleanup .out only
-  waitForSessionId(outputPath, abortCtrl.signal).then((claudeSessionId) => {
-    if (claudeSessionId) {
-      win?.webContents.send('session:claudeSessionId', { id: result.id, claudeSessionId })
-    }
-    // Only clean up the .out file — .json and .status are needed for the session lifetime
-    try { fs.unlinkSync(outputPath) } catch { /* already deleted */ }
+  // Build spawn config via adapter
+  const spawnConfig = adapter.buildSpawnConfig({
+    binaryPath,
+    cwd,
+    resumeId,
+    extraArgs,
   })
 
-  return result
+  const result = ptyManager.create(name, spawnConfig.cwd, spawnConfig.command, spawnConfig.args)
+
+  // Register hook-based polling only if the adapter set up hooks
+  if (hookSetup) {
+    registerStatusPoll(hookSetup.statusPath, result.id, agentType, result.tmuxSessionName)
+    const abortCtrl = new AbortController()
+    const entry = sessionHookMap.get(result.id)!
+    entry.hookId = hookId
+    entry.abortCtrl = abortCtrl
+
+    // Async: wait for session ID, send to renderer, cleanup .out only
+    if (hookSetup.outputPath) {
+      const outputPath = hookSetup.outputPath
+      waitForSessionId(outputPath, adapter, abortCtrl.signal).then((claudeSessionId) => {
+        if (claudeSessionId) {
+          sendToRenderer('session:claudeSessionId', { id: result.id, claudeSessionId })
+        }
+        try { fs.unlinkSync(outputPath) } catch { /* already deleted */ }
+      })
+    }
+  }
+
+  return { id: result.id, pid: result.pid, tmuxSessionName: result.tmuxSessionName, hookId }
 }
 
-ipcMain.handle('session:create', (_e, name: string, cwd: string) => {
-  return spawnWithHook(name, cwd)
+ipcMain.handle('session:create', (_e, name: string, cwd: string, agentType?: AgentType) => {
+  return spawnAgent(name, cwd, agentType ?? 'claude')
 })
 
-ipcMain.handle('session:resume', (_e, claudeSessionId: string, name: string, cwd: string) => {
-  return spawnWithHook(name, cwd, ['--resume', claudeSessionId])
+ipcMain.handle('session:resume', (_e, resumeId: string, name: string, cwd: string, agentType?: AgentType) => {
+  return spawnAgent(name, cwd, agentType ?? 'claude', resumeId)
 })
 
 ipcMain.handle('session:write', (_e, id: string, data: string) => {
@@ -382,7 +376,62 @@ ipcMain.handle('session:resize', (_e, id: string, cols: number, rows: number) =>
 })
 
 ipcMain.handle('session:kill', (_e, id: string) => {
-  ptyManager.kill(id)
+  ptyManager.killWithTmux(id)
+})
+
+ipcMain.handle('session:reattach', (_e, tmuxSessionName: string, hookId: string, name: string, cwd: string, agentType?: AgentType) => {
+  const result = ptyManager.reattachAgent(name, cwd, tmuxSessionName)
+  if (!result) return null
+
+  const resolvedAgentType: AgentType = agentType ?? 'claude'
+  const adapter = getAdapter(resolvedAgentType)
+
+  // Re-register status polling for this session
+  if (hookId) {
+    const statusPath = path.join(hooksDir, `${hookId}.status`)
+    registerStatusPoll(statusPath, result.id, resolvedAgentType, tmuxSessionName)
+    const entry = sessionHookMap.get(result.id)!
+    entry.hookId = hookId
+  }
+
+  // Immediately read .status file so the renderer shows status without waiting for the poll interval
+  let initialStatusDetail: string | null = null
+  if (hookId && adapter.parseStatusDetail) {
+    try {
+      const statusPath = path.join(hooksDir, `${hookId}.status`)
+      const raw = fs.readFileSync(statusPath, 'utf-8').trim()
+      if (raw) {
+        const event = JSON.parse(raw)
+        initialStatusDetail = adapter.parseStatusDetail(event)
+      }
+    } catch { /* file missing or malformed */ }
+  }
+
+  // Query pane title to seed lastTitleStatus for desktop notification dedup
+  const paneTitle = ptyManager.getTmuxPaneTitle(tmuxSessionName) ?? undefined
+  if (paneTitle && adapter.parseTitle) {
+    const parsed = adapter.parseTitle(paneTitle)
+    if (parsed) {
+      lastTitleStatus.set(result.id, parsed.status)
+    }
+  }
+
+  // Try recovering claudeSessionId from .out file (crash before capture edge case)
+  let recoveredClaudeSessionId: string | undefined
+  if (hookId && adapter.parseSessionId) {
+    try {
+      const outputPath = path.join(hooksDir, `${hookId}.out`)
+      if (fs.existsSync(outputPath)) {
+        const raw = fs.readFileSync(outputPath, 'utf-8').trim()
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          recoveredClaudeSessionId = adapter.parseSessionId(parsed) ?? undefined
+        }
+      }
+    } catch { /* file missing or malformed */ }
+  }
+
+  return { ...result, paneTitle, initialStatusDetail, recoveredClaudeSessionId }
 })
 
 ipcMain.handle('session:list', () => {
@@ -391,11 +440,11 @@ ipcMain.handle('session:list', () => {
 
 // --- Terminal (shell) IPC ---
 ptyManager.onShellData((id, data) => {
-  win?.webContents.send('terminal:data', { id, data })
+  sendToRenderer('terminal:data', { id, data })
 })
 
 ptyManager.onShellExit((id, exitCode) => {
-  win?.webContents.send('terminal:exit', { id, exitCode })
+  sendToRenderer('terminal:exit', { id, exitCode })
 })
 
 ipcMain.handle('terminal:create', (_e, name: string, cwd: string) => {
@@ -416,7 +465,7 @@ ipcMain.handle('terminal:kill', (_e, id: string) => {
 
 // --- File IPC ---
 fileWatcher.onChanged((eventType, filePath, watchRoot) => {
-  win?.webContents.send('file:changed', { eventType, path: filePath, watchRoot })
+  sendToRenderer('file:changed', { eventType, path: filePath, watchRoot })
 })
 
 ipcMain.handle('file:readDir', (_e, dirPath: string) => {
@@ -582,6 +631,14 @@ app.on('activate', () => {
 })
 
 app.on('will-quit', async () => {
+  // Collect hookIds for tmux-backed sessions BEFORE killing
+  const tmuxHookIds = new Set<string>()
+  for (const [, info] of sessionHookMap) {
+    if (info.tmuxSessionName && info.hookId) {
+      tmuxHookIds.add(info.hookId)
+    }
+  }
+
   ptyManager.killAll()
   lspManager.stopAll()
   await fileWatcher.unwatch()
@@ -593,12 +650,33 @@ app.on('will-quit', async () => {
   }
   sessionHookMap.clear()
 
-  // Clean up leftover hook files
-  cleanupAllHookFiles()
+  // Clean up hook files, preserving those for tmux-backed sessions
+  cleanupAllHookFiles(tmuxHookIds)
 })
 
-app.whenReady().then(() => {
-  // Clean up stale hook files from previous sessions/crashes
-  cleanupAllHookFiles()
+app.whenReady().then(async () => {
+  // Start local HTTP server for production so embeds see a real http:// origin
+  if (!VITE_DEV_SERVER_URL) {
+    rendererURL = await startRendererServer(RENDERER_DIST)
+  }
+
+  // Collect active tmux names and hookIds from persisted state
+  const activeTmuxNames = new Set<string>()
+  const activeHookIds = new Set<string>()
+
+  try {
+    const sessions = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
+    for (const s of sessions.sessions || []) {
+      if (s.tmuxSessionName) activeTmuxNames.add(s.tmuxSessionName)
+      if (s.tmuxSessionName && s.hookId) activeHookIds.add(s.hookId)
+    }
+  } catch { /* ignore */ }
+
+  // Clean up stale hook files, preserving those for active tmux sessions
+  cleanupAllHookFiles(activeHookIds)
+
+  // Clean up orphaned tmux sessions from previous runs/crashes
+  ptyManager.cleanupOrphanedSessions(activeTmuxNames)
+
   createWindow()
 })

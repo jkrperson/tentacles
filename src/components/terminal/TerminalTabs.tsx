@@ -1,6 +1,19 @@
 import { useMemo } from 'react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useProjectStore } from '../../stores/projectStore'
+import type { AgentType } from '../../types'
+
+const AGENT_BADGE_COLOR: Record<AgentType, string> = {
+  claude: 'bg-orange-500/20 text-orange-300',
+  codex: 'bg-green-500/20 text-green-300',
+  opencode: 'bg-blue-500/20 text-blue-300',
+}
+
+const AGENT_LETTER: Record<AgentType, string> = {
+  claude: 'C',
+  codex: 'X',
+  opencode: 'O',
+}
 
 const STATUS_DOTS: Record<string, string> = {
   running: 'bg-emerald-400',
@@ -42,6 +55,11 @@ export function TerminalTabs() {
             }`}
           >
             <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${STATUS_DOTS[session.status] ?? 'bg-zinc-500'}`} />
+            {session.agentType !== 'claude' && (
+              <span className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded text-[8px] font-bold flex-shrink-0 ${AGENT_BADGE_COLOR[session.agentType] ?? ''}`}>
+                {AGENT_LETTER[session.agentType] ?? '?'}
+              </span>
+            )}
             <span className="truncate max-w-36">{session.name}</span>
             {session.hasUnread && !isActive && (
               <span className="w-1.5 h-1.5 rounded-full bg-violet-400 flex-shrink-0" />
