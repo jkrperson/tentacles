@@ -83,9 +83,9 @@ function startRendererServer(root: string): Promise<string> {
       }
     })
 
-    server.listen(0, '127.0.0.1', () => {
+    server.listen(0, 'localhost', () => {
       const addr = server.address() as { port: number }
-      resolve(`http://127.0.0.1:${addr.port}`)
+      resolve(`http://localhost:${addr.port}`)
     })
     server.on('error', reject)
   })
