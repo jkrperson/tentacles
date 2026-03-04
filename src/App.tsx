@@ -55,14 +55,9 @@ function App() {
   }, [settingsLoaded, loadProjects])
 
   // Initialize the single-listener data router for all terminal panels.
-  // Also handles marking inactive sessions as unread.
   useEffect(() => {
-    return initDataRouter((id) => {
-      if (id !== activeSessionRef.current) {
-        setHasUnread(id, true)
-      }
-    })
-  }, [setHasUnread])
+    return initDataRouter()
+  }, [])
 
   // Listen for OSC title changes — detect status from leading symbol + rename sessions
   // Claude Code titles: "⠶ Task Name" (running/spinner) or "✳ Task Name" (idle/waiting)
@@ -84,6 +79,7 @@ function App() {
         updateStatus(id, 'running')
       } else if (isIdleSymbol && session.status !== 'idle') {
         updateStatus(id, 'idle')
+        if (id !== activeSessionRef.current) setHasUnread(id, true)
         const cleanName = title.replace(/^[\u2800-\u28FF\u2733]\s*/, '') || session.name
         notify('info', `${cleanName} is waiting`, 'Claude Code is waiting for input', id)
       }
@@ -95,7 +91,7 @@ function App() {
       }
     })
     return unsub
-  }, [renameSession, updateStatus, notify])
+  }, [renameSession, updateStatus, notify, setHasUnread])
 
   useEffect(() => {
     if (activeSessionId) {
@@ -108,6 +104,7 @@ function App() {
     const unsub = window.electronAPI.session.onExit(({ id, exitCode }) => {
       const status = exitCode === 0 ? 'completed' : 'errored'
       updateStatus(id, status, exitCode)
+      if (id !== activeSessionRef.current) setHasUnread(id, true)
       const session = useSessionStore.getState().sessions.get(id)
       notify(
         exitCode === 0 ? 'success' : 'error',
@@ -117,7 +114,7 @@ function App() {
       )
     })
     return unsub
-  }, [updateStatus, notify])
+  }, [updateStatus, notify, setHasUnread])
 
   // Capture Claude CLI session ID for resume support
   useEffect(() => {
