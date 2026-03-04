@@ -202,7 +202,12 @@ export class PtyManager {
       cols: 120,
       rows: 30,
       cwd,
-      env: { ...process.env, TERM: 'xterm-256color', ...extraEnv },
+      env: {
+        ...process.env,
+        TERM: 'xterm-256color',
+        LANG: process.env.LANG || 'en_US.UTF-8',
+        ...extraEnv,
+      },
     })
 
     const managed: ManagedPty = { id, name, cwd, pid: ptyProcess.pid, kind, ptyProcess, tmuxSessionName }
