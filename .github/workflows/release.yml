@@ -52,7 +52,7 @@ jobs:
           path: |
             release/**/*.dmg
             release/**/*.AppImage
-            release/**/*.exe
+            release/**/*-Setup.exe
             release/**/latest-mac.yml
             release/**/latest-linux.yml
             release/**/latest.yml
