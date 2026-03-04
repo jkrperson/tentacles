@@ -51,8 +51,6 @@ jobs:
           name: release-${{ matrix.platform }}
           path: |
             release/**/*.dmg
-            release/**/*.zip
-            release/**/*.blockmap
             release/**/*.AppImage
             release/**/*.exe
             release/**/latest-mac.yml
