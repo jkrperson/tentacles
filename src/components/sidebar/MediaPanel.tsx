@@ -2,30 +2,58 @@ import { useState, useCallback } from 'react'
 
 type Service = 'youtube' | 'twitch'
 
-function parseYouTubeId(input: string): string | null {
+interface YouTubeResult {
+  videoId: string | null
+  listId: string | null
+}
+
+function parseYouTube(input: string): YouTubeResult {
   const trimmed = input.trim()
-  if (!trimmed) return null
+  if (!trimmed) return { videoId: null, listId: null }
+
+  let videoId: string | null = null
+  let listId: string | null = null
+
+  // Extract playlist ID from ?list= or &list=
+  const listMatch = trimmed.match(/[?&]list=([a-zA-Z0-9_-]+)/)
+  if (listMatch) listId = listMatch[1]
 
   // watch?v=ID
   const watchMatch = trimmed.match(/[?&]v=([a-zA-Z0-9_-]{11})/)
-  if (watchMatch) return watchMatch[1]
+  if (watchMatch) videoId = watchMatch[1]
 
   // youtu.be/ID
   const shortMatch = trimmed.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/)
-  if (shortMatch) return shortMatch[1]
+  if (shortMatch) videoId = shortMatch[1]
 
-  // /embed/ID
+  // /embed/ID (but not "videoseries")
   const embedMatch = trimmed.match(/\/embed\/([a-zA-Z0-9_-]{11})/)
-  if (embedMatch) return embedMatch[1]
+  if (embedMatch) videoId = embedMatch[1]
 
   // /live/ID
   const liveMatch = trimmed.match(/\/live\/([a-zA-Z0-9_-]{11})/)
-  if (liveMatch) return liveMatch[1]
+  if (liveMatch) videoId = liveMatch[1]
+
+  // /playlist?list=... (playlist-only URL, no video ID needed)
+  if (!videoId && listId) return { videoId: null, listId }
 
   // bare 11-char ID
-  if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) return trimmed
+  if (!videoId && !listId && /^[a-zA-Z0-9_-]{11}$/.test(trimmed)) videoId = trimmed
 
-  return null
+  return { videoId, listId }
+}
+
+function buildYouTubeEmbedUrl(result: YouTubeResult): string | null {
+  const { videoId, listId } = result
+  if (!videoId && !listId) return null
+
+  // Playlist without a specific video — use "videoseries" to play from the start
+  if (!videoId && listId) return `https://www.youtube.com/embed/videoseries?list=${listId}`
+
+  // Video with or without playlist
+  const base = `https://www.youtube.com/embed/${videoId}`
+  if (listId) return `${base}?list=${listId}`
+  return base
 }
 
 function parseTwitchChannel(input: string): string | null {
@@ -47,9 +75,10 @@ export function MediaPanel() {
   const [url, setUrl] = useState('')
   const [collapsed, setCollapsed] = useState(false)
 
-  const youtubeId = service === 'youtube' ? parseYouTubeId(url) : null
+  const youtubeResult = service === 'youtube' ? parseYouTube(url) : null
+  const youtubeEmbedUrl = youtubeResult ? buildYouTubeEmbedUrl(youtubeResult) : null
   const twitchChannel = service === 'twitch' ? parseTwitchChannel(url) : null
-  const hasEmbed = !!(youtubeId || twitchChannel)
+  const hasEmbed = !!(youtubeEmbedUrl || twitchChannel)
 
   const handleServiceSwitch = useCallback((s: Service) => {
     setService(s)
@@ -110,16 +139,16 @@ export function MediaPanel() {
             type="text"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder={service === 'youtube' ? 'YouTube URL or video ID' : 'Twitch channel name or URL'}
+            placeholder={service === 'youtube' ? 'YouTube URL, video ID, or playlist' : 'Twitch channel name or URL'}
             className="w-full bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded px-2 py-1 text-[11px] text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-violet-500/50 transition-colors"
           />
         </div>
 
         {/* Embed or empty state */}
         <div className="flex-1 min-h-0 relative">
-          {youtubeId && (
+          {youtubeEmbedUrl && (
             <iframe
-              src={`https://www.youtube.com/embed/${youtubeId}`}
+              src={youtubeEmbedUrl}
               className="absolute inset-0 w-full h-full"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
