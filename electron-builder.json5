@@ -28,7 +28,7 @@
         "arch": ["arm64", "x64"]
       }
     ],
-    "artifactName": "${productName}-Mac-${version}-${arch}.${ext}",
+    "artifactName": "${productName}-Mac-${arch}.${ext}",
     "category": "public.app-category.developer-tools"
   },
   "win": {
@@ -40,7 +40,7 @@
         ]
       }
     ],
-    "artifactName": "${productName}-Windows-${version}-Setup.${ext}"
+    "artifactName": "${productName}-Windows-Setup.${ext}"
   },
   "nsis": {
     "oneClick": false,
@@ -52,6 +52,6 @@
     "target": [
       "AppImage"
     ],
-    "artifactName": "${productName}-Linux-${version}.${ext}"
+    "artifactName": "${productName}-Linux.${ext}"
   }
 }

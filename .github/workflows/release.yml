@@ -52,7 +52,7 @@ jobs:
           path: |
             release/**/*.dmg
             release/**/*.AppImage
-            release/**/*-Setup.exe
+            release/**/Tentacles-Windows-Setup.exe
             release/**/latest-mac.yml
             release/**/latest-linux.yml
             release/**/latest.yml

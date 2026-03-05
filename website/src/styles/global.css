@@ -291,8 +291,15 @@ section {
 
 /* ---- Download & Install ---- */
 
-.download-buttons {
-  margin-bottom: 48px;
+.platform-downloads {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.btn-sm {
+  padding: 8px 20px;
+  font-size: 0.88rem;
 }
 
 .install-tabs {
