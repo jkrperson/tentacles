@@ -64,31 +64,17 @@ export function useTerminal({ sessionId, isActive }: UseTerminalOptions) {
     terminal.open(el)
     termRef.current = { terminal, fitAddon }
 
-    // Intercept wheel events and replay them N times based on scroll speed.
-    // This works in both viewport-scroll mode and mouse-reporting mode (tmux).
-    let syntheticWheel = false
+    // Accelerate scroll speed by calling xterm's scrollLines() directly.
     const handleWheel = (e: WheelEvent) => {
-      if (syntheticWheel) return
       const speed = scrollSpeedRef.current
       if (speed <= 1) return
 
       e.preventDefault()
       e.stopImmediatePropagation()
 
-      const count = e.metaKey ? speed * 2 : speed
-      syntheticWheel = true
-      for (let i = 0; i < count; i++) {
-        const target = e.target as Element
-        target.dispatchEvent(new WheelEvent('wheel', {
-          deltaX: e.deltaX, deltaY: e.deltaY, deltaMode: e.deltaMode,
-          clientX: e.clientX, clientY: e.clientY,
-          screenX: e.screenX, screenY: e.screenY,
-          ctrlKey: e.ctrlKey, altKey: e.altKey,
-          shiftKey: e.shiftKey, metaKey: e.metaKey,
-          bubbles: true, cancelable: true,
-        }))
-      }
-      syntheticWheel = false
+      const direction = e.deltaY > 0 ? 1 : e.deltaY < 0 ? -1 : 0
+      const lines = direction * speed * (e.metaKey ? 2 : 1)
+      terminal.scrollLines(lines)
     }
     el.addEventListener('wheel', handleWheel, { capture: true, passive: false })
 
