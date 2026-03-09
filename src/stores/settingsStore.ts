@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { trpc } from '../trpc'
 import type { AppSettings } from '../types'
 
 const defaultSettings: AppSettings = {
@@ -37,7 +38,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   loadSettings: async () => {
     try {
-      const saved = await window.electronAPI.app.getSettings()
+      const saved = await trpc.app.getSettings.query() as AppSettings
       set({ settings: { ...defaultSettings, ...saved }, loaded: true })
     } catch {
       set({ loaded: true })
@@ -47,7 +48,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   saveSettings: async (partial) => {
     const merged = { ...get().settings, ...partial }
     set({ settings: merged })
-    await window.electronAPI.app.saveSettings(merged)
+    await trpc.app.saveSettings.mutate(merged as unknown as Record<string, unknown>)
   },
 
   toggleSettings: () => set((state) => ({ isSettingsOpen: !state.isSettingsOpen })),

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { trpc } from '../trpc'
 
 interface LspServerInfo {
   status: 'starting' | 'running' | 'stopped'
@@ -35,7 +36,7 @@ export const useLspStore = create<LspState>((set, get) => ({
     })
 
     try {
-      const { port } = await window.electronAPI.lsp.start(languageId, projectRoot)
+      const { port } = await trpc.lsp.start.mutate({ languageId, projectRoot })
       set((state) => {
         const servers = new Map(state.servers)
         servers.set(key, { status: 'running', port, projectRoot })
@@ -56,7 +57,7 @@ export const useLspStore = create<LspState>((set, get) => ({
   stopServer: async (languageId, projectRoot) => {
     const key = serverKey(languageId, projectRoot)
     try {
-      await window.electronAPI.lsp.stop(languageId, projectRoot)
+      await trpc.lsp.stop.mutate({ languageId, projectRoot })
     } catch {
       // already stopped
     }

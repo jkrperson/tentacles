@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useProjectStore } from '../../stores/projectStore'
+import { trpc } from '../../trpc'
 import type { AgentType, Session } from '../../types'
 
 const AGENT_BADGE: Record<AgentType, { letter: string; color: string }> = {
@@ -107,12 +108,12 @@ export const SessionCard = memo(function SessionCard({ session, isActive, isArch
           if (isArchived) {
             // Permanent delete — clean up worktree if applicable
             if (session.isWorktree && session.originalRepo && session.worktreePath) {
-              window.electronAPI.git.worktree.remove(session.originalRepo, session.worktreePath).catch(() => {})
+              trpc.git.worktree.remove.mutate({ repoPath: session.originalRepo, worktreePath: session.worktreePath }).catch(() => {})
             }
             deleteArchivedSession(session.id)
           } else {
             // Archive (kill if still running)
-            if (session.status === 'running' || session.status === 'idle') window.electronAPI.session.kill(session.id)
+            if (session.status === 'running' || session.status === 'idle') trpc.session.kill.mutate({ id: session.id })
             removeSession(session.id)
           }
         }}

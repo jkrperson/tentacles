@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useSettingsStore } from '../../stores/settingsStore'
+import { trpc } from '../../trpc'
 import type { AgentType, AppSettings, UpdaterStatus } from '../../types'
 import { themes } from '../../themes'
 
@@ -25,13 +26,14 @@ export function SettingsModal() {
   useEffect(() => {
     if (isOpen) {
       setDraft(currentSettings)
-      window.electronAPI.lsp.listAvailable().then(setAvailableLsps).catch(() => {})
+      trpc.lsp.listAvailable.query().then(setAvailableLsps).catch(() => {})
     }
   }, [isOpen, currentSettings])
 
   useEffect(() => {
-    window.electronAPI.app.getVersion().then(setAppVersion).catch(() => {})
-    return window.electronAPI.updater.onStatus(setUpdateStatus)
+    trpc.app.getVersion.query().then(setAppVersion).catch(() => {})
+    const sub = trpc.updater.onStatus.subscribe(undefined, { onData: setUpdateStatus })
+    return () => sub.unsubscribe()
   }, [])
 
   const handleSave = useCallback(async () => {
@@ -40,7 +42,7 @@ export function SettingsModal() {
   }, [draft, saveSettings, toggleSettings])
 
   const handleBrowse = useCallback(async () => {
-    const dir = await window.electronAPI.dialog.selectDirectory()
+    const dir = await trpc.dialog.selectDirectory.query()
     if (dir) setDraft((d) => ({ ...d, defaultProjectPath: dir }))
   }, [])
 
@@ -261,21 +263,21 @@ export function SettingsModal() {
               </span>
               {updateStatus?.status === 'available' ? (
                 <button
-                  onClick={() => window.electronAPI.updater.download()}
+                  onClick={() => trpc.updater.download.mutate()}
                   className="px-3 py-1 text-[12px] bg-[var(--t-accent)] hover:bg-[var(--t-accent-hover)] text-white rounded-md transition-colors"
                 >
                   Download
                 </button>
               ) : updateStatus?.status === 'ready' ? (
                 <button
-                  onClick={() => window.electronAPI.updater.install()}
+                  onClick={() => trpc.updater.install.mutate()}
                   className="px-3 py-1 text-[12px] bg-green-600 hover:bg-green-500 text-white rounded-md transition-colors"
                 >
                   Restart
                 </button>
               ) : (
                 <button
-                  onClick={() => window.electronAPI.updater.check()}
+                  onClick={() => trpc.updater.check.mutate()}
                   disabled={updateStatus?.status === 'checking' || updateStatus?.status === 'downloading'}
                   className="px-3 py-1 text-[12px] text-zinc-400 hover:text-zinc-200 border border-[var(--t-border-input)] hover:border-[var(--t-border-input-hover)] rounded-md transition-colors disabled:opacity-40"
                 >

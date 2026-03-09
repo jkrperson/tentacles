@@ -9,6 +9,7 @@ import { useProjectStore } from './stores/projectStore'
 import { useTerminalStore } from './stores/terminalStore'
 import { themes, applyThemeToDOM } from './themes'
 import { initDataRouter } from './dataRouter'
+import { trpc } from './trpc'
 import type { AgentType } from './types'
 
 function App() {
@@ -63,34 +64,36 @@ function App() {
   // Claude Code titles: "⠶ Task Name" (running/spinner) or "✳ Task Name" (idle/waiting)
   // Non-Claude agents may not emit title sequences (handled gracefully)
   useEffect(() => {
-    const unsub = window.electronAPI.session.onTitle(({ id, title }) => {
-      const session = useSessionStore.getState().sessions.get(id)
-      if (!session || session.status === 'completed' || session.status === 'errored') return
+    const sub = trpc.session.onTitle.subscribe(undefined, {
+      onData: ({ id, title }) => {
+        const session = useSessionStore.getState().sessions.get(id)
+        if (!session || session.status === 'completed' || session.status === 'errored') return
 
-      // Only Claude Code emits meaningful OSC titles; skip parsing for other agents
-      if (session.agentType !== 'claude') return
+        // Only Claude Code emits meaningful OSC titles; skip parsing for other agents
+        if (session.agentType !== 'claude') return
 
-      // Parse leading status symbol (Claude Code specific)
-      const firstChar = title.codePointAt(0) ?? 0
-      const isBrailleSpinner = firstChar >= 0x2800 && firstChar <= 0x28FF
-      const isIdleSymbol = firstChar === 0x2733 // ✳
+        // Parse leading status symbol (Claude Code specific)
+        const firstChar = title.codePointAt(0) ?? 0
+        const isBrailleSpinner = firstChar >= 0x2800 && firstChar <= 0x28FF
+        const isIdleSymbol = firstChar === 0x2733 // ✳
 
-      if (isBrailleSpinner && session.status !== 'running') {
-        updateStatus(id, 'running')
-      } else if (isIdleSymbol && session.status !== 'idle') {
-        updateStatus(id, 'idle')
-        if (id !== activeSessionRef.current) setHasUnread(id, true)
-        const cleanName = title.replace(/^[\u2800-\u28FF\u2733]\s*/, '') || session.name
-        notify('info', `${cleanName} is waiting`, 'Claude Code is waiting for input', id)
-      }
+        if (isBrailleSpinner && session.status !== 'running') {
+          updateStatus(id, 'running')
+        } else if (isIdleSymbol && session.status !== 'idle') {
+          updateStatus(id, 'idle')
+          if (id !== activeSessionRef.current) setHasUnread(id, true)
+          const cleanName = title.replace(/^[\u2800-\u28FF\u2733]\s*/, '') || session.name
+          notify('info', `${cleanName} is waiting`, 'Claude Code is waiting for input', id)
+        }
 
-      // Strip the symbol prefix for a clean session name
-      const cleanTitle = title.replace(/^[\u2800-\u28FF\u2733]\s*/, '')
-      if (cleanTitle && cleanTitle !== session.name) {
-        renameSession(id, cleanTitle)
-      }
+        // Strip the symbol prefix for a clean session name
+        const cleanTitle = title.replace(/^[\u2800-\u28FF\u2733]\s*/, '')
+        if (cleanTitle && cleanTitle !== session.name) {
+          renameSession(id, cleanTitle)
+        }
+      },
     })
-    return unsub
+    return () => sub.unsubscribe()
   }, [renameSession, updateStatus, notify, setHasUnread])
 
   useEffect(() => {
@@ -101,50 +104,58 @@ function App() {
 
   // Listen for session exits — uses store.getState() to avoid re-subscribing on session changes
   useEffect(() => {
-    const unsub = window.electronAPI.session.onExit(({ id, exitCode }) => {
-      const status = exitCode === 0 ? 'completed' : 'errored'
-      updateStatus(id, status, exitCode)
-      if (id !== activeSessionRef.current) setHasUnread(id, true)
-      const session = useSessionStore.getState().sessions.get(id)
-      notify(
-        exitCode === 0 ? 'success' : 'error',
-        `${session?.name ?? 'Agent'} finished`,
-        `Exit code: ${exitCode}`,
-        id,
-      )
+    const sub = trpc.session.onExit.subscribe(undefined, {
+      onData: ({ id, exitCode }) => {
+        const status = exitCode === 0 ? 'completed' : 'errored'
+        updateStatus(id, status, exitCode)
+        if (id !== activeSessionRef.current) setHasUnread(id, true)
+        const session = useSessionStore.getState().sessions.get(id)
+        notify(
+          exitCode === 0 ? 'success' : 'error',
+          `${session?.name ?? 'Agent'} finished`,
+          `Exit code: ${exitCode}`,
+          id,
+        )
+      },
     })
-    return unsub
+    return () => sub.unsubscribe()
   }, [updateStatus, notify, setHasUnread])
 
   // Capture Claude CLI session ID for resume support
   useEffect(() => {
-    const unsub = window.electronAPI.session.onClaudeSessionId(({ id, claudeSessionId }) => {
-      setClaudeSessionId(id, claudeSessionId)
+    const sub = trpc.session.onClaudeSessionId.subscribe(undefined, {
+      onData: ({ id, claudeSessionId }) => {
+        setClaudeSessionId(id, claudeSessionId)
+      },
     })
-    return unsub
+    return () => sub.unsubscribe()
   }, [setClaudeSessionId])
 
   // Listen for detailed status updates from hook events
   useEffect(() => {
-    const unsub = window.electronAPI.session.onStatusDetail(({ id, detail }) => {
-      setStatusDetail(id, detail)
+    const sub = trpc.session.onStatusDetail.subscribe(undefined, {
+      onData: ({ id, detail }) => {
+        setStatusDetail(id, detail)
+      },
     })
-    return unsub
+    return () => sub.unsubscribe()
   }, [setStatusDetail])
 
   // Listen for agent status changes from hook events (e.g. Codex idle on turn-complete)
   useEffect(() => {
-    const unsub = window.electronAPI.session.onAgentStatus(({ id, status }) => {
-      const session = useSessionStore.getState().sessions.get(id)
-      if (!session || session.status === 'completed' || session.status === 'errored') return
-      if (session.status !== status) {
-        updateStatus(id, status)
-        if (status === 'idle') {
-          notify('info', `${session.name} is waiting`, 'Agent is waiting for input', id)
+    const sub = trpc.session.onAgentStatus.subscribe(undefined, {
+      onData: ({ id, status }) => {
+        const session = useSessionStore.getState().sessions.get(id)
+        if (!session || session.status === 'completed' || session.status === 'errored') return
+        if (session.status !== status) {
+          updateStatus(id, status)
+          if (status === 'idle') {
+            notify('info', `${session.name} is waiting`, 'Agent is waiting for input', id)
+          }
         }
-      }
+      },
     })
-    return unsub
+    return () => sub.unsubscribe()
   }, [updateStatus, notify])
 
   // Switch active terminal when project changes
@@ -161,10 +172,12 @@ function App() {
 
   // Listen for shell terminal exits
   useEffect(() => {
-    const unsub = window.electronAPI.terminal.onExit(({ id, exitCode }) => {
-      updateTerminalStatus(id, exitCode)
+    const sub = trpc.terminal.onExit.subscribe(undefined, {
+      onData: ({ id, exitCode }) => {
+        updateTerminalStatus(id, exitCode)
+      },
     })
-    return unsub
+    return () => sub.unsubscribe()
   }, [updateTerminalStatus])
 
   const handleNewSession = useCallback(async (agentType?: AgentType) => {
@@ -176,7 +189,7 @@ function App() {
     let cwd = activeProjectId
     if (!cwd) {
       // No active project — open directory picker
-      const dir = await window.electronAPI.dialog.selectDirectory()
+      const dir = await trpc.dialog.selectDirectory.query()
       if (!dir) return
       addProject(dir)
       cwd = dir
@@ -185,7 +198,7 @@ function App() {
     const resolvedAgent = agentType ?? settings.defaultAgent
     const name = `Agent ${sessionOrder.length + 1}`
     try {
-      const { id, pid, tmuxSessionName, hookId } = await window.electronAPI.session.create(name, cwd, resolvedAgent)
+      const { id, pid, tmuxSessionName, hookId } = await trpc.session.create.mutate({ name, cwd, agentType: resolvedAgent })
       addSession({
         id,
         name,
@@ -212,7 +225,7 @@ function App() {
     const resolvedAgent = agentType ?? settings.defaultAgent
     const name = `Agent ${sessionOrder.length + 1}`
     try {
-      const { id, pid, tmuxSessionName, hookId } = await window.electronAPI.session.create(name, projectPath, resolvedAgent)
+      const { id, pid, tmuxSessionName, hookId } = await trpc.session.create.mutate({ name, cwd: projectPath, agentType: resolvedAgent })
       addSession({
         id,
         name,
@@ -238,9 +251,9 @@ function App() {
     }
     const resolvedAgent = agentType ?? settings.defaultAgent
     try {
-      const { worktreePath, branch } = await window.electronAPI.git.worktree.create(projectPath, worktreeName)
+      const { worktreePath, branch } = await trpc.git.worktree.create.mutate({ repoPath: projectPath, name: worktreeName })
       const name = worktreeName || `Agent ${sessionOrder.length + 1}`
-      const { id, pid, tmuxSessionName, hookId } = await window.electronAPI.session.create(name, worktreePath, resolvedAgent)
+      const { id, pid, tmuxSessionName, hookId } = await trpc.session.create.mutate({ name, cwd: worktreePath, agentType: resolvedAgent })
       addSession({
         id,
         name,
@@ -274,12 +287,12 @@ function App() {
       return
     }
     try {
-      const { id, pid, tmuxSessionName, hookId } = await window.electronAPI.session.resume(
-        archived.claudeSessionId,
-        archived.name,
-        archived.cwd,
-        archived.agentType,
-      )
+      const { id, pid, tmuxSessionName, hookId } = await trpc.session.resume.mutate({
+        claudeSessionId: archived.claudeSessionId,
+        name: archived.name,
+        cwd: archived.cwd,
+        agentType: archived.agentType,
+      })
       addSession({
         id,
         name: archived.name,
@@ -306,7 +319,7 @@ function App() {
   const handleNewTerminal = useCallback(async () => {
     let cwd = activeProjectId
     if (!cwd) {
-      const dir = await window.electronAPI.dialog.selectDirectory()
+      const dir = await trpc.dialog.selectDirectory.query()
       if (!dir) return
       addProject(dir)
       cwd = dir
@@ -314,7 +327,7 @@ function App() {
 
     const name = `Terminal ${terminalOrder.length + 1}`
     try {
-      const { id, pid } = await window.electronAPI.terminal.create(name, cwd)
+      const { id, pid } = await trpc.terminal.create.mutate({ name, cwd })
       addTerminal({
         id,
         name,
@@ -349,7 +362,7 @@ function App() {
         if (aid) {
           const session = sess.get(aid)
           if (session?.status === 'running' || session?.status === 'idle') {
-            window.electronAPI.session.kill(aid)
+            trpc.session.kill.mutate({ id: aid })
           }
           rm(aid)
         }

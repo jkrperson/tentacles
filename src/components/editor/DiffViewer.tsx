@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { DiffEditor, useMonaco } from '@monaco-editor/react'
 import { useSettingsStore } from '../../stores/settingsStore'
+import { trpc } from '../../trpc'
 import { themes, getMonacoThemeData } from '../../themes'
 import { getLang } from '../../utils/lang'
 
@@ -41,7 +42,7 @@ export function DiffViewer({ filePath, staged, projectRoot, onClose }: DiffViewe
 
       try {
         // Original: HEAD version
-        orig = await window.electronAPI.git.showFile(projectRoot, 'HEAD', filePath)
+        orig = await trpc.git.showFile.query({ repoPath: projectRoot, ref: 'HEAD', filePath })
       } catch {
         // New file — no HEAD version
         orig = ''
@@ -50,10 +51,10 @@ export function DiffViewer({ filePath, staged, projectRoot, onClose }: DiffViewe
       try {
         if (staged) {
           // Staged: modified = index version (`:0:path`)
-          mod = await window.electronAPI.git.showFile(projectRoot, ':0', filePath)
+          mod = await trpc.git.showFile.query({ repoPath: projectRoot, ref: ':0', filePath })
         } else {
           // Unstaged: modified = working tree (read from disk)
-          mod = await window.electronAPI.file.readFile(filePath)
+          mod = await trpc.file.readFile.query({ filePath })
         }
       } catch {
         // Deleted file

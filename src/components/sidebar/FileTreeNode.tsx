@@ -1,5 +1,6 @@
 import { memo, useCallback, useState } from 'react'
 import { useProjectStore } from '../../stores/projectStore'
+import { trpc } from '../../trpc'
 import type { FileNode, GitFileStatus } from '../../types'
 
 const GIT_STATUS_COLORS: Record<GitFileStatus, string> = {
@@ -96,7 +97,7 @@ export const FileTreeNode = memo(function FileTreeNode({ node, depth }: { node: 
     if (node.type === 'directory') {
       toggleFileTreeExpanded(activeProjectId, node.path)
       if (!loaded && !isExpanded) {
-        const nodes = await window.electronAPI.file.readDir(node.path)
+        const nodes = await trpc.file.readDir.query({ dirPath: node.path })
         setChildren(nodes)
         updateFileTreeChildren(activeProjectId, node.path, nodes)
         setLoaded(true)

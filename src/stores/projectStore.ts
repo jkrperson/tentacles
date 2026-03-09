@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { trpc } from '../trpc'
 import type { Project, ProjectFileTreeState, FileNode, GitFileStatus, GitStatusDetailResult, DiffViewState } from '../types'
 import { useSettingsStore } from './settingsStore'
 
@@ -103,7 +104,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         ? projectOrder[0] ?? null
         : state.activeProjectId
     set({ projects, projectOrder, activeProjectId, fileTreeCache })
-    window.electronAPI.file.unwatchDir(path).catch(() => {})
+    trpc.file.unwatchDir.mutate({ dirPath: path }).catch(() => {})
     get().persistProjects()
   },
 

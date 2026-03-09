@@ -6,6 +6,8 @@
  * registered write callback via a Map lookup (O(1)).
  */
 
+import { trpc } from './trpc'
+
 type WriteCallback = (data: string) => void
 
 const sessionWriters = new Map<string, WriteCallback>()
@@ -23,12 +25,16 @@ export function registerTerminalWriter(id: string, cb: WriteCallback): () => voi
 
 /** Call once at app startup. Returns a cleanup function. */
 export function initDataRouter(onUnreadData?: (id: string) => void): () => void {
-  const unsubSession = window.electronAPI.session.onData(({ id, data }) => {
-    sessionWriters.get(id)?.(data)
-    onUnreadData?.(id)
+  const sub1 = trpc.session.onData.subscribe(undefined, {
+    onData: ({ id, data }) => {
+      sessionWriters.get(id)?.(data)
+      onUnreadData?.(id)
+    },
   })
-  const unsubTerminal = window.electronAPI.terminal.onData(({ id, data }) => {
-    terminalWriters.get(id)?.(data)
+  const sub2 = trpc.terminal.onData.subscribe(undefined, {
+    onData: ({ id, data }) => {
+      terminalWriters.get(id)?.(data)
+    },
   })
-  return () => { unsubSession(); unsubTerminal() }
+  return () => { sub1.unsubscribe(); sub2.unsubscribe() }
 }

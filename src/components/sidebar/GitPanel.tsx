@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useProjectStore } from '../../stores/projectStore'
 import { useNotificationStore } from '../../stores/notificationStore'
+import { trpc } from '../../trpc'
 import type { GitFileDetail, GitFileStatus, GitStatusDetailResult } from '../../types'
 
 const GIT_STATUS_COLORS: Record<GitFileStatus, string> = {
@@ -68,7 +69,7 @@ export function GitPanel({ onToggle }: GitPanelProps) {
   const refreshStatus = useCallback(async () => {
     if (!activeProjectId) return
     try {
-      const result = await window.electronAPI.git.status(activeProjectId)
+      const result = await trpc.git.status.query({ dirPath: activeProjectId })
       setGitStatuses(activeProjectId, result as GitStatusDetailResult)
     } catch {
       // ignore
@@ -79,7 +80,7 @@ export function GitPanel({ onToggle }: GitPanelProps) {
     if (!activeProjectId) return
     setLoading('stage')
     try {
-      await window.electronAPI.git.stage(activeProjectId, paths)
+      await trpc.git.stage.mutate({ repoPath: activeProjectId, paths })
       await refreshStatus()
     } catch (err) {
       notify('error', 'Stage failed', String(err))
@@ -92,7 +93,7 @@ export function GitPanel({ onToggle }: GitPanelProps) {
     if (!activeProjectId) return
     setLoading('unstage')
     try {
-      await window.electronAPI.git.unstage(activeProjectId, paths)
+      await trpc.git.unstage.mutate({ repoPath: activeProjectId, paths })
       await refreshStatus()
     } catch (err) {
       notify('error', 'Unstage failed', String(err))
@@ -105,7 +106,7 @@ export function GitPanel({ onToggle }: GitPanelProps) {
     if (!activeProjectId || !commitMsg.trim() || stagedFiles.length === 0) return
     setLoading('commit')
     try {
-      const result = await window.electronAPI.git.commit(activeProjectId, commitMsg.trim())
+      const result = await trpc.git.commit.mutate({ repoPath: activeProjectId, message: commitMsg.trim() })
       setCommitMsg('')
       await refreshStatus()
       notify('success', 'Committed', result.hash ? `Commit ${result.hash}` : 'Changes committed')
@@ -120,7 +121,7 @@ export function GitPanel({ onToggle }: GitPanelProps) {
     if (!activeProjectId) return
     setLoading('push')
     try {
-      await window.electronAPI.git.push(activeProjectId)
+      await trpc.git.push.mutate({ repoPath: activeProjectId })
       await refreshStatus()
       notify('success', 'Pushed', 'Changes pushed to remote')
     } catch (err) {
@@ -134,7 +135,7 @@ export function GitPanel({ onToggle }: GitPanelProps) {
     if (!activeProjectId) return
     setLoading('pull')
     try {
-      await window.electronAPI.git.pull(activeProjectId)
+      await trpc.git.pull.mutate({ repoPath: activeProjectId })
       await refreshStatus()
       notify('success', 'Pulled', 'Changes pulled from remote')
     } catch (err) {
@@ -148,7 +149,7 @@ export function GitPanel({ onToggle }: GitPanelProps) {
     if (!activeProjectId) return
     setLoading('stash')
     try {
-      await window.electronAPI.git.stash(activeProjectId)
+      await trpc.git.stash.mutate({ repoPath: activeProjectId })
       await refreshStatus()
       notify('success', 'Stashed', 'Changes stashed')
     } catch (err) {
@@ -162,7 +163,7 @@ export function GitPanel({ onToggle }: GitPanelProps) {
     if (!activeProjectId) return
     setLoading('stashPop')
     try {
-      await window.electronAPI.git.stashPop(activeProjectId)
+      await trpc.git.stashPop.mutate({ repoPath: activeProjectId })
       await refreshStatus()
       notify('success', 'Stash popped', 'Stashed changes restored')
     } catch (err) {
@@ -175,7 +176,7 @@ export function GitPanel({ onToggle }: GitPanelProps) {
   const handleFetchBranches = useCallback(async () => {
     if (!activeProjectId) return
     try {
-      const result = await window.electronAPI.git.branches(activeProjectId)
+      const result = await trpc.git.branches.query({ repoPath: activeProjectId })
       setBranches(result.branches)
       setShowBranchMenu(true)
     } catch (err) {
@@ -188,7 +189,7 @@ export function GitPanel({ onToggle }: GitPanelProps) {
     setShowBranchMenu(false)
     setLoading('switch')
     try {
-      await window.electronAPI.git.switchBranch(activeProjectId, branch)
+      await trpc.git.switchBranch.mutate({ repoPath: activeProjectId, branch })
       await refreshStatus()
       notify('success', 'Branch switched', `Now on ${branch}`)
     } catch (err) {
@@ -203,7 +204,7 @@ export function GitPanel({ onToggle }: GitPanelProps) {
     setShowNewBranch(false)
     setLoading('switch')
     try {
-      await window.electronAPI.git.createBranch(activeProjectId, newBranchName.trim(), true)
+      await trpc.git.createBranch.mutate({ repoPath: activeProjectId, name: newBranchName.trim(), checkout: true })
       setNewBranchName('')
       await refreshStatus()
       notify('success', 'Branch created', `Now on ${newBranchName.trim()}`)

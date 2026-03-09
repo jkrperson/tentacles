@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
 import '@xterm/xterm/css/xterm.css'
+import { trpc } from '../trpc'
 import { useSettingsStore } from '../stores/settingsStore'
 import { themes, getTerminalTheme } from '../themes'
 
@@ -45,7 +46,7 @@ export function useShellTerminal({ terminalId, isActive }: UseShellTerminalOptio
     terminal.unicode.activeVersion = '11'
 
     terminal.onData((data) => {
-      window.electronAPI.terminal.write(terminalId, data)
+      trpc.terminal.write.mutate({ id: terminalId, data })
     })
 
     // Map Shift+Enter to send the same escape sequence as Option+Enter
@@ -53,7 +54,7 @@ export function useShellTerminal({ terminalId, isActive }: UseShellTerminalOptio
     terminal.attachCustomKeyEventHandler((e) => {
       if (e.shiftKey && e.key === 'Enter') {
         if (e.type === 'keydown') {
-          window.electronAPI.terminal.write(terminalId, '\x1b\r')
+          trpc.terminal.write.mutate({ id: terminalId, data: '\x1b\r' })
         }
         return false
       }
@@ -80,7 +81,7 @@ export function useShellTerminal({ terminalId, isActive }: UseShellTerminalOptio
     const fit = () => {
       try {
         fitAddon.fit()
-        window.electronAPI.terminal.resize(terminalId, terminal.cols, terminal.rows)
+        trpc.terminal.resize.mutate({ id: terminalId, cols: terminal.cols, rows: terminal.rows })
       } catch { /* not visible yet */ }
     }
     requestAnimationFrame(fit)
@@ -112,7 +113,7 @@ export function useShellTerminal({ terminalId, isActive }: UseShellTerminalOptio
     const doFit = () => {
       try {
         entry.fitAddon.fit()
-        window.electronAPI.terminal.resize(terminalId, entry.terminal.cols, entry.terminal.rows)
+        trpc.terminal.resize.mutate({ id: terminalId, cols: entry.terminal.cols, rows: entry.terminal.rows })
       } catch { /* ignore */ }
     }
 

@@ -5,6 +5,7 @@
 ## Tech Stack
 - **Runtime**: Electron 30 + React 18 + TypeScript
 - **Build**: Vite + vite-plugin-electron
+- **IPC**: tRPC (electron-trpc) — end-to-end type-safe main↔renderer communication
 - **Styling**: Tailwind CSS v4
 - **State**: Zustand (4 stores: session, fileTree, settings, notification)
 - **Terminal**: @xterm/xterm + node-pty
@@ -15,7 +16,13 @@
 ## Project Structure
 ```
 electron/          # Main process (main.ts, preload.ts, ptyManager.ts, fileWatcher.ts)
+  trpc/            # tRPC router infrastructure
+    trpc.ts        # tRPC init
+    events.ts      # Typed EventEmitter for main→renderer events
+    router.ts      # Root AppRouter (combines all domain routers)
+    routers/       # Per-domain routers (session, terminal, file, git, dialog, lsp, updater, app)
 src/
+  trpc.ts          # Renderer-side tRPC proxy client
   components/      # React components (terminal/, sessions/, sidebar/, editor/, notifications/, settings/)
   hooks/           # Custom hooks (useTerminal.ts)
   stores/          # Zustand stores
@@ -27,19 +34,22 @@ src/
 - `bun run build` — Production build + package
 
 ## Conventions
-- Use `import type` in preload scripts (erased at compile time)
-- IPC channels follow `domain:action` naming (e.g., `session:create`, `file:readDir`)
-- All IPC listeners return unsubscribe functions
-- node-pty and ws are externalized from Vite's main process bundle
+- IPC uses tRPC via `electron-trpc` — types flow from router definitions to renderer callsites
+- Queries for read operations (`trpc.git.status.query({...})`), mutations for writes (`trpc.session.create.mutate({...})`)
+- Subscriptions for main→renderer events (`trpc.session.onData.subscribe(undefined, { onData: cb })`)
+- Main process emits events via typed EventEmitter (`ee.emit`); tRPC subscriptions listen to `ee`
+- Router procedures use named object inputs (e.g., `{ repoPath, branch }`) — no positional args
+- node-pty, ws, and electron-trpc are externalized from Vite's main process bundle
 - Terminal instances persist across tab switches (hidden via `display:none`, never disposed)
 
 ## Best Practices
 
-### Electron
+### Electron / tRPC
 - Keep the main process lean — offload heavy work to utility processes or the renderer
-- Never expose full `ipcMain`/`ipcRenderer` directly; use contextBridge with a typed preload API
-- Minimize IPC payloads; avoid sending large buffers or entire file contents when a path suffices
-- Always validate and sanitize data received over IPC in the main process
+- Add new IPC by creating procedures in the appropriate `electron/trpc/routers/*.ts` file — types auto-propagate
+- Use zod schemas for input validation on all procedures
+- For new main→renderer events: add to `electron/trpc/events.ts` EventMap, emit via `ee`, create a subscription procedure
+- Router factory functions receive dependencies (managers, etc.) — no module-level singletons in router files
 - Avoid `nodeIntegration: true` and `contextIsolation: false` — use the preload bridge pattern
 
 ### React

@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useRef } from 'react'
 import { useProjectStore } from '../../stores/projectStore'
+import { trpc } from '../../trpc'
 import { FileTreeNode } from './FileTreeNode'
 import type { GitStatusDetailResult } from '../../types'
 
@@ -19,7 +20,7 @@ export function FileTree({ onToggle }: FileTreeProps) {
   const nodes = cache?.nodes ?? []
 
   const fetchGitStatus = useCallback((projectId: string) => {
-    window.electronAPI.git.status(projectId).then((result) => {
+    trpc.git.status.query({ dirPath: projectId }).then((result) => {
       setGitStatuses(projectId, result as GitStatusDetailResult)
     }).catch(() => {
       // Not a git repo or git not available — clear statuses
@@ -35,11 +36,11 @@ export function FileTree({ onToggle }: FileTreeProps) {
     // If cache has nodes already, use them (instant switch). Otherwise load from disk.
     const existing = useProjectStore.getState().fileTreeCache.get(activeProjectId)
     if (!existing || existing.nodes.length === 0) {
-      window.electronAPI.file.readDir(activeProjectId).then((rootNodes) => {
+      trpc.file.readDir.query({ dirPath: activeProjectId }).then((rootNodes) => {
         setFileTreeNodes(activeProjectId, rootNodes)
       })
     }
-    window.electronAPI.file.watch(activeProjectId)
+    trpc.file.watch.mutate({ dirPath: activeProjectId })
   }, [activeProjectId, setFileTreeNodes])
 
   // Poll git status for the active project
@@ -53,7 +54,7 @@ export function FileTree({ onToggle }: FileTreeProps) {
   // Listen for file change events, route to correct project via watchRoot
   const gitRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
-    const unsub = window.electronAPI.file.onChanged((event) => {
+    const sub = trpc.file.onChanged.subscribe(undefined, { onData: (event) => {
       const projectId = event.watchRoot
       if (!projectId) return
 
@@ -64,7 +65,7 @@ export function FileTree({ onToggle }: FileTreeProps) {
         event.eventType === 'add' || event.eventType === 'unlink' ||
         event.eventType === 'addDir' || event.eventType === 'unlinkDir'
       ) {
-        window.electronAPI.file.readDir(projectId).then((rootNodes) => {
+        trpc.file.readDir.query({ dirPath: projectId }).then((rootNodes) => {
           setFileTreeNodes(projectId, rootNodes)
         })
       }
@@ -72,8 +73,8 @@ export function FileTree({ onToggle }: FileTreeProps) {
       // Debounced git status refresh on file changes
       if (gitRefreshTimerRef.current) clearTimeout(gitRefreshTimerRef.current)
       gitRefreshTimerRef.current = setTimeout(() => fetchGitStatus(projectId), 500)
-    })
-    return unsub
+    } })
+    return () => sub.unsubscribe()
   }, [addFileTreeChangedPath, removeFileTreeChangedPath, setFileTreeNodes, fetchGitStatus])
 
   const dirName = activeProjectId?.split('/').pop() ?? ''

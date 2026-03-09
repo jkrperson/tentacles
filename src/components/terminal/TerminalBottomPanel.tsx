@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { ShellTerminalPanel } from './ShellTerminalPanel'
 import { useTerminalStore } from '../../stores/terminalStore'
 import { useProjectStore } from '../../stores/projectStore'
+import { trpc } from '../../trpc'
 
 interface TerminalBottomPanelProps {
   onNewTerminal: () => void
@@ -68,7 +69,7 @@ export function TerminalBottomPanel({ onNewTerminal, expanded, onToggleExpanded 
                   <span
                     onClick={(e) => {
                       e.stopPropagation()
-                      if (terminal.status === 'running') window.electronAPI.terminal.kill(id)
+                      if (terminal.status === 'running') trpc.terminal.kill.mutate({ id })
                       removeTerminal(id)
                     }}
                     className="ml-0.5 opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-zinc-300 transition-opacity"

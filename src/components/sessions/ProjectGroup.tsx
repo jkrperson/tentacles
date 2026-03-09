@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect, useRef } from 'react'
 import { SessionCard } from './SessionCard'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useProjectStore } from '../../stores/projectStore'
+import { trpc } from '../../trpc'
 import type { Project } from '../../types'
 
 interface ProjectGroupProps {
@@ -31,7 +32,7 @@ export function ProjectGroup({ project, onNewSessionInProject, onNewSessionInWor
   const isActive = project.path === activeProjectId
 
   useEffect(() => {
-    window.electronAPI.git.isRepo(project.path).then(setIsRepo).catch(() => setIsRepo(false))
+    trpc.git.isRepo.query({ dirPath: project.path }).then(setIsRepo).catch(() => setIsRepo(false))
   }, [project.path])
 
   useEffect(() => {

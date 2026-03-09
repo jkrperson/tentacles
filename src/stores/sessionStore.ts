@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { trpc } from '../trpc'
 import type { Session, SessionStatus, SessionsFile } from '../types'
 
 // Debounce helper
@@ -49,7 +50,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   persistSessions: () => {
     debouncedPersist(() => {
       const data = serializeState(get())
-      window.electronAPI.app.saveSessions(data).catch(() => {})
+      trpc.app.saveSessions.mutate(data as unknown as Record<string, unknown>).catch(() => {})
     })
   },
 
@@ -65,7 +66,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // Persist after state update
       debouncedPersist(() => {
         const data = serializeState(get())
-        window.electronAPI.app.saveSessions(data).catch(() => {})
+        trpc.app.saveSessions.mutate(data as unknown as Record<string, unknown>).catch(() => {})
       })
       return next
     }),
@@ -97,7 +98,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
       debouncedPersist(() => {
         const data = serializeState(get())
-        window.electronAPI.app.saveSessions(data).catch(() => {})
+        trpc.app.saveSessions.mutate(data as unknown as Record<string, unknown>).catch(() => {})
       })
 
       return { sessions, sessionOrder, activeSessionId, archivedSessions, archivedOrder }
@@ -111,7 +112,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
       debouncedPersist(() => {
         const data = serializeState(get())
-        window.electronAPI.app.saveSessions(data).catch(() => {})
+        trpc.app.saveSessions.mutate(data as unknown as Record<string, unknown>).catch(() => {})
       })
 
       return { archivedSessions, archivedOrder }
@@ -128,7 +129,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
       debouncedPersist(() => {
         const data = serializeState(get())
-        window.electronAPI.app.saveSessions(data).catch(() => {})
+        trpc.app.saveSessions.mutate(data as unknown as Record<string, unknown>).catch(() => {})
       })
 
       return { sessions }
@@ -163,7 +164,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         sessions.set(id, { ...session, claudeSessionId })
         debouncedPersist(() => {
           const data = serializeState(get())
-          window.electronAPI.app.saveSessions(data).catch(() => {})
+          trpc.app.saveSessions.mutate(data as unknown as Record<string, unknown>).catch(() => {})
         })
         return { sessions }
       }
@@ -174,7 +175,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         archivedSessions.set(id, { ...archived, claudeSessionId })
         debouncedPersist(() => {
           const data = serializeState(get())
-          window.electronAPI.app.saveSessions(data).catch(() => {})
+          trpc.app.saveSessions.mutate(data as unknown as Record<string, unknown>).catch(() => {})
         })
         return { archivedSessions }
       }
@@ -195,7 +196,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
     debouncedPersist(() => {
       const data = serializeState(get())
-      window.electronAPI.app.saveSessions(data).catch(() => {})
+      trpc.app.saveSessions.mutate(data as unknown as Record<string, unknown>).catch(() => {})
     })
 
     return session
@@ -210,7 +211,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
       debouncedPersist(() => {
         const data = serializeState(get())
-        window.electronAPI.app.saveSessions(data).catch(() => {})
+        trpc.app.saveSessions.mutate(data as unknown as Record<string, unknown>).catch(() => {})
       })
 
       return { sessions }
@@ -218,7 +219,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   loadSessions: async () => {
     try {
-      const data: SessionsFile = await window.electronAPI.app.loadSessions()
+      const data = await trpc.app.loadSessions.query() as SessionsFile
 
       const sessions = new Map<string, Session>()
       const sessionOrder: string[] = []
@@ -231,12 +232,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         const s = { ...rawSession, agentType: rawSession.agentType ?? 'claude' as const }
         if (s.tmuxSessionName) {
           try {
-            const result = await window.electronAPI.session.reattach(
-              s.tmuxSessionName,
-              s.hookId || '',
-              s.name,
-              s.cwd,
-            )
+            const result = await trpc.session.reattach.mutate({
+              tmuxSessionName: s.tmuxSessionName,
+              hookId: s.hookId || '',
+              name: s.name,
+              cwd: s.cwd,
+            })
             if (result) {
               // Determine initial status from pane title (✳ prefix = idle, Claude Code only)
               const isIdle = s.agentType === 'claude' && result.paneTitle

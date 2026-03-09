@@ -1,17 +1,20 @@
-import { app, BrowserWindow, ipcMain, dialog, Notification } from 'electron'
+import { app, BrowserWindow, Notification } from 'electron'
 import { fileURLToPath } from 'node:url'
 import * as path from 'node:path'
 import * as fs from 'node:fs'
 import * as http from 'node:http'
 import { execSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { createIPCHandler } from 'electron-trpc/main'
 import { PtyManager } from './ptyManager'
 import { FileWatcher } from './fileWatcher'
 import { GitManager } from './gitManager'
 import { LspManager } from './lspManager'
-import { initAutoUpdater } from './updater'
+import { initAutoUpdater, autoUpdater } from './updater'
 import { getAdapter } from './agents/registry'
 import { cleanupCodexConfig } from './agents/codex'
+import { ee } from './trpc/events'
+import { createRouter } from './trpc/router'
 import type { AgentType } from './agents/types'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -101,13 +104,6 @@ const fileWatcher = new FileWatcher()
 const gitManager = new GitManager()
 const lspManager = new LspManager()
 
-/** Safely send an IPC message to the renderer — no-op if the window is destroyed. */
-function sendToRenderer(channel: string, ...args: unknown[]) {
-  if (win && !win.isDestroyed()) {
-    win.webContents.send(channel, ...args)
-  }
-}
-
 function loadSettings() {
   try {
     return JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
@@ -116,16 +112,14 @@ function loadSettings() {
   }
 }
 
-function saveSettings(settings: Record<string, unknown>) {
-  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
-}
-
 const themeBgMap: Record<string, string> = {
   obsidian: '#0e0e10',
   midnight: '#0b0d14',
   ember: '#110e0c',
   dawn: '#faf8f5',
 }
+
+let ipcHandler: ReturnType<typeof createIPCHandler> | null = null
 
 function createWindow() {
   const settings = loadSettings()
@@ -152,24 +146,29 @@ function createWindow() {
     if (!url.startsWith(baseURL)) event.preventDefault()
   })
 
+  // Attach tRPC IPC handler to this window
+  if (ipcHandler) {
+    ipcHandler.attachWindow(win)
+  }
+
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL)
     win.webContents.openDevTools()
   } else {
     win.loadURL(rendererURL!)
-    initAutoUpdater(win)
+    initAutoUpdater()
   }
 }
 
-// --- PTY IPC ---
+// --- PTY events → event emitter ---
 ptyManager.onData((id, data) => {
-  sendToRenderer('session:data', { id, data })
+  ee.emit('session:data', { id, data })
 })
 
 const lastTitleStatus = new Map<string, string>()
 
 ptyManager.onTitle((id, title) => {
-  sendToRenderer('session:title', { id, title })
+  ee.emit('session:title', { id, title })
 
   // Debug: log raw title and codepoints to main process console
   const codepoints = [...title].map((c) => 'U+' + (c.codePointAt(0) ?? 0).toString(16).padStart(4, '0'))
@@ -218,8 +217,8 @@ ptyManager.onExit((id, exitCode) => {
   }
 
   // Clear statusDetail before sending exit
-  sendToRenderer('session:statusDetail', { id, detail: null })
-  sendToRenderer('session:exit', { id, exitCode })
+  ee.emit('session:statusDetail', { id, detail: null })
+  ee.emit('session:exit', { id, exitCode })
 
   const settings = loadSettings()
   if (settings.desktopNotifications !== false && Notification.isSupported()) {
@@ -284,12 +283,12 @@ function startSharedPoll() {
         const event = JSON.parse(raw)
         const adapter = getAdapter(info.agentType)
         const detail = adapter.parseStatusDetail?.(event) ?? null
-        sendToRenderer('session:statusDetail', { id: ptyId, detail })
+        ee.emit('session:statusDetail', { id: ptyId, detail })
 
         // Emit agent status changes (e.g. Codex idle on agent-turn-complete)
         const status = adapter.parseStatus?.(event) ?? null
         if (status) {
-          sendToRenderer('session:agentStatus', { id: ptyId, status })
+          ee.emit('session:agentStatus', { id: ptyId, status })
         }
       } catch {
         // file not ready or malformed JSON
@@ -362,7 +361,7 @@ function spawnAgent(name: string, cwd: string, agentType: AgentType, resumeId?: 
       const outputPath = hookSetup.outputPath
       waitForSessionId(outputPath, adapter, abortCtrl.signal).then((claudeSessionId) => {
         if (claudeSessionId) {
-          sendToRenderer('session:claudeSessionId', { id: result.id, claudeSessionId })
+          ee.emit('session:claudeSessionId', { id: result.id, claudeSessionId })
         }
         try { fs.unlinkSync(outputPath) } catch { /* already deleted */ }
       })
@@ -372,27 +371,7 @@ function spawnAgent(name: string, cwd: string, agentType: AgentType, resumeId?: 
   return { id: result.id, pid: result.pid, tmuxSessionName: result.tmuxSessionName, hookId }
 }
 
-ipcMain.handle('session:create', (_e, name: string, cwd: string, agentType?: AgentType) => {
-  return spawnAgent(name, cwd, agentType ?? 'claude')
-})
-
-ipcMain.handle('session:resume', (_e, resumeId: string, name: string, cwd: string, agentType?: AgentType) => {
-  return spawnAgent(name, cwd, agentType ?? 'claude', resumeId)
-})
-
-ipcMain.handle('session:write', (_e, id: string, data: string) => {
-  ptyManager.write(id, data)
-})
-
-ipcMain.handle('session:resize', (_e, id: string, cols: number, rows: number) => {
-  ptyManager.resize(id, cols, rows)
-})
-
-ipcMain.handle('session:kill', (_e, id: string) => {
-  ptyManager.killWithTmux(id)
-})
-
-ipcMain.handle('session:reattach', (_e, tmuxSessionName: string, hookId: string, name: string, cwd: string, agentType?: AgentType) => {
+function reattachAgent(tmuxSessionName: string, hookId: string, name: string, cwd: string, agentType?: AgentType): { id: string; pid: number; tmuxSessionName: string; paneTitle?: string; initialStatusDetail?: string | null; recoveredClaudeSessionId?: string } | null {
   const result = ptyManager.reattachAgent(name, cwd, tmuxSessionName)
   if (!result) return null
 
@@ -445,188 +424,34 @@ ipcMain.handle('session:reattach', (_e, tmuxSessionName: string, hookId: string,
   }
 
   return { ...result, paneTitle, initialStatusDetail, recoveredClaudeSessionId }
-})
+}
 
-ipcMain.handle('session:list', () => {
-  return ptyManager.list()
-})
-
-// --- Terminal (shell) IPC ---
+// --- Terminal (shell) events → event emitter ---
 ptyManager.onShellData((id, data) => {
-  sendToRenderer('terminal:data', { id, data })
+  ee.emit('terminal:data', { id, data })
 })
 
 ptyManager.onShellExit((id, exitCode) => {
-  sendToRenderer('terminal:exit', { id, exitCode })
+  ee.emit('terminal:exit', { id, exitCode })
 })
 
-ipcMain.handle('terminal:create', (_e, name: string, cwd: string) => {
-  return ptyManager.createShell(name, cwd)
-})
-
-ipcMain.handle('terminal:write', (_e, id: string, data: string) => {
-  ptyManager.write(id, data)
-})
-
-ipcMain.handle('terminal:resize', (_e, id: string, cols: number, rows: number) => {
-  ptyManager.resize(id, cols, rows)
-})
-
-ipcMain.handle('terminal:kill', (_e, id: string) => {
-  ptyManager.kill(id)
-})
-
-// --- File IPC ---
+// --- File events → event emitter ---
 fileWatcher.onChanged((eventType, filePath, watchRoot) => {
-  sendToRenderer('file:changed', { eventType, path: filePath, watchRoot })
+  ee.emit('file:changed', { eventType: eventType as 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir', path: filePath, watchRoot })
 })
 
-ipcMain.handle('file:readDir', (_e, dirPath: string) => {
-  return fileWatcher.readDir(dirPath)
-})
-
-ipcMain.handle('file:readFile', async (_e, filePath: string) => {
-  return fs.readFileSync(filePath, 'utf-8')
-})
-
-ipcMain.handle('file:writeFile', async (_e, filePath: string, content: string) => {
-  fs.writeFileSync(filePath, content, 'utf-8')
-})
-
-ipcMain.handle('file:watch', async (_e, dirPath: string) => {
-  await fileWatcher.watch(dirPath)
-})
-
-ipcMain.handle('file:unwatchDir', async (_e, dirPath: string) => {
-  await fileWatcher.unwatchDir(dirPath)
-})
-
-ipcMain.handle('file:unwatch', async () => {
-  await fileWatcher.unwatch()
-})
-
-// --- Dialog IPC ---
-ipcMain.handle('dialog:selectDirectory', async () => {
-  if (!win) return null
-  const result = await dialog.showOpenDialog(win, {
-    properties: ['openDirectory'],
-  })
-  return result.canceled ? null : result.filePaths[0]
-})
-
-// --- Git IPC ---
-ipcMain.handle('git:isRepo', (_e, dirPath: string) => {
-  return gitManager.isRepo(dirPath)
-})
-
-ipcMain.handle('git:status', (_e, dirPath: string) => {
-  return gitManager.status(dirPath)
-})
-
-ipcMain.handle('git:worktree:create', (_e, repoPath: string, name?: string) => {
-  return gitManager.createWorktree(repoPath, name)
-})
-
-ipcMain.handle('git:worktree:remove', (_e, repoPath: string, worktreePath: string) => {
-  return gitManager.removeWorktree(repoPath, worktreePath)
-})
-
-ipcMain.handle('git:worktree:list', (_e, repoPath: string) => {
-  return gitManager.listWorktrees(repoPath)
-})
-
-ipcMain.handle('git:stage', (_e, repoPath: string, paths: string[]) => {
-  return gitManager.stage(repoPath, paths)
-})
-
-ipcMain.handle('git:unstage', (_e, repoPath: string, paths: string[]) => {
-  return gitManager.unstage(repoPath, paths)
-})
-
-ipcMain.handle('git:commit', (_e, repoPath: string, message: string) => {
-  return gitManager.commit(repoPath, message)
-})
-
-ipcMain.handle('git:push', (_e, repoPath: string) => {
-  return gitManager.push(repoPath)
-})
-
-ipcMain.handle('git:pull', (_e, repoPath: string) => {
-  return gitManager.pull(repoPath)
-})
-
-ipcMain.handle('git:branches', (_e, repoPath: string) => {
-  return gitManager.listBranches(repoPath)
-})
-
-ipcMain.handle('git:switchBranch', (_e, repoPath: string, branch: string) => {
-  return gitManager.switchBranch(repoPath, branch)
-})
-
-ipcMain.handle('git:createBranch', (_e, repoPath: string, name: string, checkout?: boolean) => {
-  return gitManager.createBranch(repoPath, name, checkout)
-})
-
-ipcMain.handle('git:stash', (_e, repoPath: string, message?: string) => {
-  return gitManager.stash(repoPath, message)
-})
-
-ipcMain.handle('git:stashPop', (_e, repoPath: string) => {
-  return gitManager.stashPop(repoPath)
-})
-
-ipcMain.handle('git:showFile', (_e, repoPath: string, ref: string, filePath: string) => {
-  return gitManager.showFile(repoPath, ref, filePath)
-})
-
-// --- LSP IPC ---
-ipcMain.handle('lsp:start', async (_e, languageId: string, projectRoot: string) => {
-  return lspManager.start(languageId, projectRoot)
-})
-
-ipcMain.handle('lsp:stop', (_e, languageId: string, projectRoot: string) => {
-  lspManager.stop(languageId, projectRoot)
-})
-
-ipcMain.handle('lsp:status', (_e, languageId: string, projectRoot: string) => {
-  return lspManager.status(languageId, projectRoot)
-})
-
-ipcMain.handle('lsp:listAvailable', () => {
-  return lspManager.listAvailable()
-})
-
-// --- App IPC ---
-ipcMain.handle('app:getSettings', () => {
-  return loadSettings()
-})
-
-ipcMain.handle('app:saveSettings', (_e, settings: Record<string, unknown>) => {
-  saveSettings(settings)
-})
-
-ipcMain.handle('app:loadSessions', () => {
-  try {
-    return JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
-  } catch {
-    return { sessions: [], archived: [], activeSessionId: null }
-  }
-})
-
-ipcMain.handle('app:saveSessions', (_e, data: Record<string, unknown>) => {
-  fs.writeFileSync(sessionsPath, JSON.stringify(data, null, 2))
-})
-
-ipcMain.handle('app:getVersion', () => {
-  return app.getVersion()
-})
-
-ipcMain.handle('app:getPlatform', () => {
-  return process.platform
-})
-
-ipcMain.handle('app:getHomePath', () => {
-  return app.getPath('home')
+// --- Create tRPC router ---
+const appRouter = createRouter({
+  ptyManager,
+  fileWatcher,
+  gitManager,
+  lspManager,
+  settingsPath,
+  sessionsPath,
+  getWindow: () => win,
+  getAutoUpdater: () => autoUpdater,
+  spawnAgent,
+  reattachAgent,
 })
 
 // --- Lifecycle ---
@@ -693,6 +518,9 @@ app.whenReady().then(async () => {
 
   // Clean up orphaned tmux sessions from previous runs/crashes
   ptyManager.cleanupOrphanedSessions(activeTmuxNames)
+
+  // Initialize tRPC IPC handler — must be before createWindow so the handler is ready
+  ipcHandler = createIPCHandler({ router: appRouter })
 
   createWindow()
 })

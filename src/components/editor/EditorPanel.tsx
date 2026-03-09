@@ -4,6 +4,7 @@ import { useProjectStore } from '../../stores/projectStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useLspStore } from '../../stores/lspStore'
 import { useLspClient } from '../../hooks/useLspClient'
+import { trpc } from '../../trpc'
 import { themes, getMonacoThemeData } from '../../themes'
 import { EditorTabBar } from './EditorTabBar'
 import { DiffViewer } from './DiffViewer'
@@ -136,7 +137,7 @@ export function EditorPanel() {
     }
     let cancelled = false
     setLoading(true)
-    window.electronAPI.file.readFile(selectedFilePath).then((data) => {
+    trpc.file.readFile.query({ filePath: selectedFilePath }).then((data) => {
       if (cancelled) return
       contentCache.current.set(selectedFilePath, { content: data, savedContent: data })
       setContent(data)
@@ -153,12 +154,12 @@ export function EditorPanel() {
 
   // React to external file changes (file watcher)
   useEffect(() => {
-    const unsub = window.electronAPI.file.onChanged((event) => {
+    const sub = trpc.file.onChanged.subscribe(undefined, { onData: (event) => {
       if (event.eventType !== 'change') return
       const entry = contentCache.current.get(event.path)
       if (!entry) return // file not open in editor
 
-      window.electronAPI.file.readFile(event.path).then((diskContent) => {
+      trpc.file.readFile.query({ filePath: event.path }).then((diskContent) => {
         // Ignore if disk content matches what we already have saved
         if (diskContent === entry.savedContent) return
 
@@ -181,14 +182,14 @@ export function EditorPanel() {
       }).catch(() => {
         // File may have been deleted — ignore
       })
-    })
-    return unsub
+    } })
+    return () => sub.unsubscribe()
   }, [dirtyFiles, selectedFilePath])
 
   // Handle conflict resolution: reload from disk
   const handleConflictReload = useCallback(async (path: string) => {
     try {
-      const diskContent = await window.electronAPI.file.readFile(path)
+      const diskContent = await trpc.file.readFile.query({ filePath: path })
       const entry = contentCache.current.get(path)
       if (entry) {
         entry.content = diskContent
@@ -217,7 +218,7 @@ export function EditorPanel() {
   // Handle conflict resolution: keep user's edits
   const handleConflictKeep = useCallback(async (path: string) => {
     try {
-      const diskContent = await window.electronAPI.file.readFile(path)
+      const diskContent = await trpc.file.readFile.query({ filePath: path })
       const entry = contentCache.current.get(path)
       if (entry) {
         // Update the baseline so dirty diff is correct, keep user edits
@@ -262,7 +263,7 @@ export function EditorPanel() {
     if (!entry || entry.content === entry.savedContent) return
     setSaving(true)
     try {
-      await window.electronAPI.file.writeFile(selectedFilePath, entry.content)
+      await trpc.file.writeFile.mutate({ filePath: selectedFilePath, content: entry.content })
       entry.savedContent = entry.content
       setDirtyFiles((prev) => {
         const next = new Set(prev)
@@ -319,7 +320,7 @@ export function EditorPanel() {
     const entry = contentCache.current.get(pendingClose)
     if (entry && entry.content !== entry.savedContent) {
       try {
-        await window.electronAPI.file.writeFile(pendingClose, entry.content)
+        await trpc.file.writeFile.mutate({ filePath: pendingClose, content: entry.content })
         entry.savedContent = entry.content
         setDirtyFiles((prev) => {
           const next = new Set(prev)

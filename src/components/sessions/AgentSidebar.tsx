@@ -3,6 +3,7 @@ import { useSessionStore } from '../../stores/sessionStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { useNotificationStore } from '../../stores/notificationStore'
+import { trpc } from '../../trpc'
 import { ProjectGroup } from './ProjectGroup'
 import type { AgentType } from '../../types'
 
@@ -42,7 +43,7 @@ export function AgentSidebar({ onNewSession, onNewSessionInProject, onNewSession
       setActiveIsRepo(false)
       return
     }
-    window.electronAPI.git.isRepo(activeProjectId).then(setActiveIsRepo).catch(() => setActiveIsRepo(false))
+    trpc.git.isRepo.query({ dirPath: activeProjectId }).then(setActiveIsRepo).catch(() => setActiveIsRepo(false))
   }, [activeProjectId])
 
   // Close dropdown on click outside
@@ -65,7 +66,7 @@ export function AgentSidebar({ onNewSession, onNewSessionInProject, onNewSession
   }, [showNameInput])
 
   const handleAddProject = useCallback(async () => {
-    const dir = await window.electronAPI.dialog.selectDirectory()
+    const dir = await trpc.dialog.selectDirectory.query()
     if (dir) addProject(dir)
   }, [addProject])
 
