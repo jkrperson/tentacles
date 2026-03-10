@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Notification } from 'electron'
+import { app, BrowserWindow, Notification, nativeTheme, shell } from 'electron'
 import { fileURLToPath } from 'node:url'
 import * as path from 'node:path'
 import * as fs from 'node:fs'
@@ -116,6 +116,7 @@ const themeBgMap: Record<string, string> = {
   obsidian: '#0e0e10',
   midnight: '#0b0d14',
   ember: '#110e0c',
+  monokai: '#272822',
   dawn: '#faf8f5',
 }
 
@@ -123,7 +124,10 @@ let ipcHandler: ReturnType<typeof createIPCHandler> | null = null
 
 function createWindow() {
   const settings = loadSettings()
-  const bgColor = themeBgMap[settings.theme] ?? '#0e0e10'
+  const resolvedTheme = settings.theme === 'system'
+    ? (nativeTheme.shouldUseDarkColors ? 'obsidian' : 'dawn')
+    : settings.theme
+  const bgColor = themeBgMap[resolvedTheme] ?? '#0e0e10'
 
   win = new BrowserWindow({
     width: 1400,
@@ -140,10 +144,18 @@ function createWindow() {
     },
   })
 
-  // Prevent iframes (e.g. YouTube/Twitch embeds) from navigating the top-level window
+  // Open external links in the default browser instead of in-app
   win.webContents.on('will-navigate', (event, url) => {
     const baseURL = VITE_DEV_SERVER_URL ?? rendererURL ?? 'file://'
-    if (!url.startsWith(baseURL)) event.preventDefault()
+    if (!url.startsWith(baseURL)) {
+      event.preventDefault()
+      shell.openExternal(url)
+    }
+  })
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url)
+    return { action: 'deny' }
   })
 
   // Attach tRPC IPC handler to this window
