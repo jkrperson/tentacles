@@ -5,7 +5,8 @@ import { useSettingsStore } from '../../stores/settingsStore'
 import { useLspStore } from '../../stores/lspStore'
 import { useLspClient } from '../../hooks/useLspClient'
 import { trpc } from '../../trpc'
-import { themes, getMonacoThemeData } from '../../themes'
+import { getMonacoThemeData } from '../../themes'
+import { useResolvedTheme, useCustomThemes } from '../../hooks/useResolvedTheme'
 import { EditorTabBar } from './EditorTabBar'
 import { DiffViewer } from './DiffViewer'
 import { getLang } from '../../utils/lang'
@@ -41,18 +42,19 @@ export function EditorPanel() {
   const setActiveDiff = useProjectStore((s) => s.setActiveDiff)
   const closeFile = useProjectStore((s) => s.closeFile)
   const openFile = useProjectStore((s) => s.openFile)
-  const themeName = useSettingsStore((s) => s.settings.theme)
+  const themeSetting = useSettingsStore((s) => s.settings.theme)
   const enabledLspLanguages = useSettingsStore((s) => s.settings.enabledLspLanguages)
-  const monacoTheme = (themes[themeName] ?? themes.obsidian).monacoTheme
+  const { customThemes } = useCustomThemes()
+  const { theme: resolvedThemeDef } = useResolvedTheme(themeSetting, customThemes)
+  const monacoTheme = resolvedThemeDef.monacoTheme
   const monaco = useMonaco()
 
   // Register the custom Monaco theme whenever Monaco is ready or the theme changes
   useEffect(() => {
     if (!monaco) return
-    const themeDef = themes[themeName] ?? themes.obsidian
-    monaco.editor.defineTheme(themeDef.monacoTheme, getMonacoThemeData(themeDef))
-    monaco.editor.setTheme(themeDef.monacoTheme)
-  }, [monaco, themeName])
+    monaco.editor.defineTheme(resolvedThemeDef.monacoTheme, getMonacoThemeData(resolvedThemeDef))
+    monaco.editor.setTheme(resolvedThemeDef.monacoTheme)
+  }, [monaco, resolvedThemeDef])
 
   const contentCache = useRef(new Map<string, CacheEntry>())
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)

@@ -5,6 +5,12 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Tentacles</title>
+    <script>
+      try {
+        var bg = localStorage.getItem('tentacles-theme-bg');
+        if (bg) document.documentElement.style.backgroundColor = bg;
+      } catch(e) {}
+    </script>
   </head>
   <body class="h-full">
     <div id="root"></div>

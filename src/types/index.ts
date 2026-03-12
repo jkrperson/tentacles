@@ -116,6 +116,12 @@ export interface ShellTerminal {
   exitCode?: number | null
 }
 
+export interface CustomThemeFile {
+  name: string
+  base: string
+  colors?: Partial<import('../themes').ThemeDefinition>
+}
+
 export type NotificationType = 'info' | 'success' | 'warning' | 'error'
 
 export interface AppNotification {

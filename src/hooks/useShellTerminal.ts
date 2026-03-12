@@ -6,7 +6,8 @@ import { Unicode11Addon } from '@xterm/addon-unicode11'
 import '@xterm/xterm/css/xterm.css'
 import { trpc } from '../trpc'
 import { useSettingsStore } from '../stores/settingsStore'
-import { themes, getTerminalTheme } from '../themes'
+import { getTerminalTheme } from '../themes'
+import { useResolvedTheme, useCustomThemes } from './useResolvedTheme'
 
 interface UseShellTerminalOptions {
   terminalId: string
@@ -18,7 +19,9 @@ export function useShellTerminal({ terminalId, isActive }: UseShellTerminalOptio
   const termRef = useRef<{ terminal: Terminal; fitAddon: FitAddon } | null>(null)
   const writeBufferRef = useRef<string[]>([])
   const rafRef = useRef<number>(0)
-  const theme = useSettingsStore((s) => s.settings.theme)
+  const themeSetting = useSettingsStore((s) => s.settings.theme)
+  const { customThemes } = useCustomThemes()
+  const { theme: resolvedThemeDef } = useResolvedTheme(themeSetting, customThemes)
   const terminalFontSize = useSettingsStore((s) => s.settings.terminalFontSize)
   const terminalFontFamily = useSettingsStore((s) => s.settings.terminalFontFamily)
   const scrollSpeed = useSettingsStore((s) => s.settings.scrollSpeed)
@@ -33,7 +36,7 @@ export function useShellTerminal({ terminalId, isActive }: UseShellTerminalOptio
       cursorBlink: true,
       fontSize: terminalFontSize,
       fontFamily: terminalFontFamily,
-      theme: getTerminalTheme(themes[theme] ?? themes.obsidian),
+      theme: getTerminalTheme(resolvedThemeDef),
       allowProposedApi: true,
       scrollback: 10000,
     })
@@ -65,9 +68,12 @@ export function useShellTerminal({ terminalId, isActive }: UseShellTerminalOptio
     termRef.current = { terminal, fitAddon }
 
     // Accelerate scroll speed by calling xterm's scrollLines() directly.
+    // When mouse tracking is active (tmux mouse mode, vim, etc.),
+    // let the event pass through so xterm forwards it to the application.
     const handleWheel = (e: WheelEvent) => {
       const speed = scrollSpeedRef.current
       if (speed <= 1) return
+      if (terminal.modes.mouseTrackingMode !== 'none') return
 
       e.preventDefault()
       e.stopImmediatePropagation()
@@ -99,9 +105,8 @@ export function useShellTerminal({ terminalId, isActive }: UseShellTerminalOptio
   // Update theme on live terminals when theme setting changes
   useEffect(() => {
     if (!termRef.current) return
-    const themeObj = themes[theme] ?? themes.obsidian
-    termRef.current.terminal.options.theme = getTerminalTheme(themeObj)
-  }, [theme])
+    termRef.current.terminal.options.theme = getTerminalTheme(resolvedThemeDef)
+  }, [resolvedThemeDef])
 
   // Refit + repaint when becoming active; track container resizes
   useEffect(() => {

@@ -22,6 +22,7 @@ export interface RouterDeps {
   lspManager: LspManager
   settingsPath: string
   sessionsPath: string
+  themesDir: string
   getWindow: () => BrowserWindow | null
   getAutoUpdater: () => typeof AutoUpdaterType | null
   spawnAgent: (name: string, cwd: string, agentType: AgentType, resumeId?: string) => { id: string; pid: number; tmuxSessionName?: string; hookId: string }
@@ -56,6 +57,7 @@ export function createRouter(deps: RouterDeps) {
     app: createAppRouter({
       settingsPath: deps.settingsPath,
       sessionsPath: deps.sessionsPath,
+      themesDir: deps.themesDir,
     }),
   })
 }

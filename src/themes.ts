@@ -197,6 +197,53 @@ export const themes: Record<string, ThemeDefinition> = {
     monacoTheme: 'tentacles-ember',
   },
 
+  monokai: {
+    bgBase: '#272822',
+    bgSurface: '#2d2e27',
+    bgElevated: '#33342d',
+    bgHover: '#3e3f38',
+    bgActive: '#383930',
+
+    border: '#3e3f38',
+    borderInput: '#4a4b44',
+    borderInputHover: '#5a5b54',
+
+    textPrimary: '#f8f8f2',
+    textSecondary: '#a6a68a',
+    textMuted: '#75715e',
+    textFaint: '#5a5950',
+
+    scrollbar: '#3e3f38',
+    scrollbarHover: '#4a4b44',
+    scrollbarXterm: '#44453e',
+
+    accent: '#a6e22e',
+    accentHover: '#b6f23e',
+
+    termBg: '#272822',
+    termFg: '#f8f8f2',
+    termCursor: '#f8f8f0',
+    termSelection: '#49483e',
+    termBlack: '#272822',
+    termRed: '#f92672',
+    termGreen: '#a6e22e',
+    termYellow: '#e6db74',
+    termBlue: '#66d9ef',
+    termMagenta: '#ae81ff',
+    termCyan: '#a1efe4',
+    termWhite: '#f8f8f2',
+    termBrightBlack: '#75715e',
+    termBrightRed: '#f92672',
+    termBrightGreen: '#a6e22e',
+    termBrightYellow: '#e6db74',
+    termBrightBlue: '#66d9ef',
+    termBrightMagenta: '#ae81ff',
+    termBrightCyan: '#a1efe4',
+    termBrightWhite: '#f9f8f5',
+
+    monacoTheme: 'tentacles-monokai',
+  },
+
   dawn: {
     bgBase: '#faf8f5',
     bgSurface: '#f2efe9',
@@ -259,6 +306,18 @@ export const themes: Record<string, ThemeDefinition> = {
   },
 }
 
+export const builtinThemeKeys = Object.keys(themes) as string[]
+
+export function mergeCustomTheme(base: ThemeDefinition, custom: { colors?: Partial<ThemeDefinition> }, key: string): ThemeDefinition {
+  return {
+    ...base,
+    ...custom.colors,
+    monacoTheme: `tentacles-custom-${key}`,
+    // Preserve zincOverrides from base if custom doesn't override
+    zincOverrides: custom.colors?.zincOverrides ?? base.zincOverrides,
+  }
+}
+
 const cssVarMap: Array<[keyof ThemeDefinition, string]> = [
   ['bgBase', '--t-bg-base'],
   ['bgSurface', '--t-bg-surface'],
@@ -288,6 +347,9 @@ export function applyThemeToDOM(theme: ThemeDefinition) {
 
   // Derived variable: base bg with 50% alpha for opacity modifiers
   root.style.setProperty('--t-bg-base-50', theme.bgBase + '80')
+
+  // Mirror bg color to localStorage for flash prevention
+  try { localStorage.setItem('tentacles-theme-bg', theme.bgBase) } catch { /* ignore */ }
 
   root.setAttribute('data-theme', theme.zincOverrides ? 'dawn' : 'dark')
 

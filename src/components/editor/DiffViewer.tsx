@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { DiffEditor, useMonaco } from '@monaco-editor/react'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { trpc } from '../../trpc'
-import { themes, getMonacoThemeData } from '../../themes'
+import { getMonacoThemeData } from '../../themes'
+import { useResolvedTheme, useCustomThemes } from '../../hooks/useResolvedTheme'
 import { getLang } from '../../utils/lang'
 
 interface DiffViewerProps {
@@ -17,17 +18,18 @@ export function DiffViewer({ filePath, staged, projectRoot, onClose }: DiffViewe
   const [modified, setModified] = useState('')
   const [loading, setLoading] = useState(true)
   const [sideBySide, setSideBySide] = useState(true)
-  const themeName = useSettingsStore((s) => s.settings.theme)
-  const monacoTheme = (themes[themeName] ?? themes.obsidian).monacoTheme
+  const themeSetting = useSettingsStore((s) => s.settings.theme)
+  const { customThemes } = useCustomThemes()
+  const { theme: resolvedThemeDef } = useResolvedTheme(themeSetting, customThemes)
+  const monacoTheme = resolvedThemeDef.monacoTheme
   const monaco = useMonaco()
 
   // Register the custom Monaco theme
   useEffect(() => {
     if (!monaco) return
-    const themeDef = themes[themeName] ?? themes.obsidian
-    monaco.editor.defineTheme(themeDef.monacoTheme, getMonacoThemeData(themeDef))
-    monaco.editor.setTheme(themeDef.monacoTheme)
-  }, [monaco, themeName])
+    monaco.editor.defineTheme(resolvedThemeDef.monacoTheme, getMonacoThemeData(resolvedThemeDef))
+    monaco.editor.setTheme(resolvedThemeDef.monacoTheme)
+  }, [monaco, resolvedThemeDef])
 
   const language = getLang(filePath)
   const fileName = filePath.split('/').pop() ?? filePath

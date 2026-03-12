@@ -97,6 +97,7 @@ function startRendererServer(root: string): Promise<string> {
 
 const settingsPath = path.join(app.getPath('userData'), 'settings.json')
 const sessionsPath = path.join(app.getPath('userData'), 'sessions.json')
+const themesDir = path.join(app.getPath('userData'), 'themes')
 
 let win: BrowserWindow | null = null
 const ptyManager = new PtyManager()
@@ -127,7 +128,22 @@ function createWindow() {
   const resolvedTheme = settings.theme === 'system'
     ? (nativeTheme.shouldUseDarkColors ? 'obsidian' : 'dawn')
     : settings.theme
-  const bgColor = themeBgMap[resolvedTheme] ?? '#0e0e10'
+  let bgColor = themeBgMap[resolvedTheme] ?? '#0e0e10'
+
+  // Resolve custom theme bg color
+  if (typeof resolvedTheme === 'string' && resolvedTheme.startsWith('custom:')) {
+    try {
+      const fileName = resolvedTheme.replace(/^custom:/, '')
+      const themeFile = JSON.parse(fs.readFileSync(path.join(themesDir, `${fileName}.json`), 'utf-8'))
+      if (themeFile.colors?.bgBase) {
+        bgColor = themeFile.colors.bgBase
+      } else if (themeFile.base && themeBgMap[themeFile.base]) {
+        bgColor = themeBgMap[themeFile.base]
+      }
+    } catch {
+      // Fall back to default
+    }
+  }
 
   win = new BrowserWindow({
     width: 1400,
@@ -460,6 +476,7 @@ const appRouter = createRouter({
   lspManager,
   settingsPath,
   sessionsPath,
+  themesDir,
   getWindow: () => win,
   getAutoUpdater: () => autoUpdater,
   spawnAgent,

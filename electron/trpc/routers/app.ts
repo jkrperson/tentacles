@@ -1,12 +1,20 @@
 import { z } from 'zod'
-import { app } from 'electron'
+import { app, shell } from 'electron'
 import * as fs from 'node:fs'
+import * as path from 'node:path'
 import { t } from '../trpc'
 
 interface AppDeps {
   settingsPath: string
   sessionsPath: string
+  themesDir: string
 }
+
+const customThemeSchema = z.object({
+  name: z.string().min(1).max(50),
+  base: z.enum(['obsidian', 'midnight', 'ember', 'monokai', 'dawn']),
+  colors: z.record(z.string(), z.string()).optional(),
+})
 
 export function createAppRouter(deps: AppDeps) {
   return t.router({
@@ -53,6 +61,80 @@ export function createAppRouter(deps: AppDeps) {
       .input(z.record(z.string(), z.unknown()))
       .mutation(({ input }) => {
         fs.writeFileSync(deps.sessionsPath, JSON.stringify(input, null, 2))
+      }),
+
+    listCustomThemes: t.procedure
+      .query(() => {
+        try {
+          if (!fs.existsSync(deps.themesDir)) return []
+          const files = fs.readdirSync(deps.themesDir).filter((f) => f.endsWith('.json'))
+          const results: Array<{ key: string; file: z.infer<typeof customThemeSchema> }> = []
+          for (const file of files) {
+            try {
+              const raw = JSON.parse(fs.readFileSync(path.join(deps.themesDir, file), 'utf-8'))
+              const parsed = customThemeSchema.parse(raw)
+              const key = `custom:${file.replace(/\.json$/, '')}`
+              results.push({ key, file: parsed })
+            } catch {
+              // Skip malformed files
+            }
+          }
+          return results
+        } catch {
+          return []
+        }
+      }),
+
+    duplicateTheme: t.procedure
+      .input(z.object({ base: z.string(), fileName: z.string() }))
+      .mutation(({ input }) => {
+        if (!fs.existsSync(deps.themesDir)) {
+          fs.mkdirSync(deps.themesDir, { recursive: true })
+        }
+        // Sanitize filename
+        const safeName = input.fileName.replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase()
+        const filePath = path.join(deps.themesDir, `${safeName}.json`)
+        // Resolve base: if it's a custom: key, use its base; otherwise use directly
+        const resolvedBase = input.base.startsWith('custom:') ? 'obsidian' : input.base
+        const validBases = ['obsidian', 'midnight', 'ember', 'monokai', 'dawn']
+        const base = validBases.includes(resolvedBase) ? resolvedBase : 'obsidian'
+        const themeFile = {
+          name: input.fileName,
+          base,
+          colors: {},
+        }
+        fs.writeFileSync(filePath, JSON.stringify(themeFile, null, 2))
+        return `custom:${safeName}`
+      }),
+
+    deleteCustomTheme: t.procedure
+      .input(z.object({ key: z.string() }))
+      .mutation(({ input }) => {
+        const fileName = input.key.replace(/^custom:/, '')
+        const filePath = path.join(deps.themesDir, `${fileName}.json`)
+        try {
+          fs.unlinkSync(filePath)
+        } catch {
+          // Already deleted
+        }
+        // If active theme matches, reset to obsidian
+        try {
+          const settings = JSON.parse(fs.readFileSync(deps.settingsPath, 'utf-8'))
+          if (settings.theme === input.key) {
+            settings.theme = 'obsidian'
+            fs.writeFileSync(deps.settingsPath, JSON.stringify(settings, null, 2))
+          }
+        } catch {
+          // Ignore
+        }
+      }),
+
+    openThemesFolder: t.procedure
+      .mutation(() => {
+        if (!fs.existsSync(deps.themesDir)) {
+          fs.mkdirSync(deps.themesDir, { recursive: true })
+        }
+        shell.openPath(deps.themesDir)
       }),
   })
 }
