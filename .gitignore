@@ -30,5 +30,8 @@ website/node_modules/
 website/dist/
 website/.astro/
 
+# Generated file icons
+public/file-icons/
+
 # Git worktrees
 .worktrees/

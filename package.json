@@ -15,7 +15,10 @@
   "type": "module",
   "scripts": {
     "postinstall": "CXXFLAGS='-Wno-missing-field-initializers' electron-rebuild -f -w node-pty",
+    "generate:icons": "bun scripts/generate-file-icons.ts",
+    "predev": "bun run generate:icons",
     "dev": "vite",
+    "prebuild": "bun run generate:icons",
     "build": "tsc && vite build && electron-builder",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "typecheck": "tsc --noEmit",
@@ -58,6 +61,7 @@
     "eslint": "^8.57.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
+    "material-icon-theme": "^5.32.0",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.2.2",
     "vite": "^5.1.6",
