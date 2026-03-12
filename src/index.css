@@ -31,7 +31,8 @@ html, body, #root {
 }
 
 /* xterm */
-.xterm { padding: 4px; }
+.xterm { padding: 4px; background: var(--t-bg-base) !important; }
+.xterm .xterm-viewport { background-color: var(--t-bg-base) !important; }
 .xterm-viewport::-webkit-scrollbar { width: 6px; }
 .xterm-viewport::-webkit-scrollbar-thumb {
   background-color: var(--t-scrollbar-xterm, #27272a);
