@@ -121,6 +121,7 @@ export class PtyManager {
         ';', 'set-option', 'status', 'off',
         ';', 'set-option', 'set-titles', 'on',
         ';', 'set-option', 'set-titles-string', '#{pane_title}',
+      ';', 'set-option', 'allow-passthrough', 'on',
         ';', 'set-option', 'default-terminal', 'xterm-256color',
         ';', 'set-option', '-a', 'terminal-overrides', ',xterm-256color:Tc',
       ], 'agent', tmuxName, env)
