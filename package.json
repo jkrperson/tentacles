@@ -21,6 +21,7 @@
     "prebuild": "bun run generate:icons",
     "build": "tsc && vite build && electron-builder",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "pretypecheck": "bun run generate:icons",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "website:dev": "cd website && bun run dev",
