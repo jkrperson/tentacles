@@ -124,11 +124,14 @@ export const useSessionStore = create<SessionState>((set, get) => {
       set((state) => {
         const session = state.sessions.get(id)
         if (!session) return state
-        const updates: Partial<Session> = { hasUnread: false }
+        const updates: Partial<Session> = {}
+        if (session.hasUnread) updates.hasUnread = false
+        // Only transition completed→idle when the process is still alive (no exit code)
+        // Never touch needs_input or running — those are live statuses
         if (session.status === 'completed' && session.exitCode == null) {
           updates.status = 'idle'
         }
-        if (!updates.status && !session.hasUnread) return state
+        if (Object.keys(updates).length === 0) return state
         const sessions = new Map(state.sessions)
         sessions.set(id, { ...session, ...updates })
         persist()

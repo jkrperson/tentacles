@@ -80,6 +80,10 @@ export function useSessionSubscriptions() {
         if (!session || session.status === 'errored') return
         if (session.exitCode != null) return
 
+        // Don't let a stale 'idle' overwrite 'needs_input' —
+        // needs_input should only be cleared by 'running' or an exit.
+        if (rawStatus === 'idle' && session.status === 'needs_input') return
+
         let finalStatus = rawStatus
         if (rawStatus === 'idle' && id !== activeSessionRef.current) {
           finalStatus = 'completed'
