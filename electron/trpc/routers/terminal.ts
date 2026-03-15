@@ -1,7 +1,6 @@
 import { z } from 'zod'
-import { observable } from '@trpc/server/observable'
 import { t } from '../trpc'
-import { ee } from '../events'
+import { createSubscription } from '../helpers'
 import type { PtyManager } from '../../ptyManager'
 
 interface TerminalDeps {
@@ -34,20 +33,7 @@ export function createTerminalRouter(deps: TerminalDeps) {
         deps.ptyManager.kill(input.id)
       }),
 
-    onData: t.procedure.subscription(() => {
-      return observable<{ id: string; data: string }>((emit) => {
-        const handler = (data: { id: string; data: string }) => emit.next(data)
-        ee.on('terminal:data', handler)
-        return () => { ee.off('terminal:data', handler) }
-      })
-    }),
-
-    onExit: t.procedure.subscription(() => {
-      return observable<{ id: string; exitCode: number }>((emit) => {
-        const handler = (data: { id: string; exitCode: number }) => emit.next(data)
-        ee.on('terminal:exit', handler)
-        return () => { ee.off('terminal:exit', handler) }
-      })
-    }),
+    onData: createSubscription('terminal:data'),
+    onExit: createSubscription('terminal:exit'),
   })
 }

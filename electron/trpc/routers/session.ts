@@ -1,7 +1,6 @@
 import { z } from 'zod'
-import { observable } from '@trpc/server/observable'
 import { t } from '../trpc'
-import { ee } from '../events'
+import { createSubscription } from '../helpers'
 import type { PtyManager } from '../../ptyManager'
 import type { DaemonClient } from '../../daemon/client'
 import type { AgentType } from '../../agents/types'
@@ -68,52 +67,11 @@ export function createSessionRouter(deps: SessionDeps) {
       }),
 
     // Subscriptions for main→renderer events
-    onData: t.procedure.subscription(() => {
-      return observable<{ id: string; data: string }>((emit) => {
-        const handler = (data: { id: string; data: string }) => emit.next(data)
-        ee.on('session:data', handler)
-        return () => { ee.off('session:data', handler) }
-      })
-    }),
-
-    onExit: t.procedure.subscription(() => {
-      return observable<{ id: string; exitCode: number }>((emit) => {
-        const handler = (data: { id: string; exitCode: number }) => emit.next(data)
-        ee.on('session:exit', handler)
-        return () => { ee.off('session:exit', handler) }
-      })
-    }),
-
-    onTitle: t.procedure.subscription(() => {
-      return observable<{ id: string; title: string }>((emit) => {
-        const handler = (data: { id: string; title: string }) => emit.next(data)
-        ee.on('session:title', handler)
-        return () => { ee.off('session:title', handler) }
-      })
-    }),
-
-    onClaudeSessionId: t.procedure.subscription(() => {
-      return observable<{ id: string; claudeSessionId: string }>((emit) => {
-        const handler = (data: { id: string; claudeSessionId: string }) => emit.next(data)
-        ee.on('session:claudeSessionId', handler)
-        return () => { ee.off('session:claudeSessionId', handler) }
-      })
-    }),
-
-    onStatusDetail: t.procedure.subscription(() => {
-      return observable<{ id: string; detail: string | null }>((emit) => {
-        const handler = (data: { id: string; detail: string | null }) => emit.next(data)
-        ee.on('session:statusDetail', handler)
-        return () => { ee.off('session:statusDetail', handler) }
-      })
-    }),
-
-    onAgentStatus: t.procedure.subscription(() => {
-      return observable<{ id: string; status: 'running' | 'needs_input' | 'completed' | 'idle' }>((emit) => {
-        const handler = (data: { id: string; status: 'running' | 'needs_input' | 'completed' | 'idle' }) => emit.next(data)
-        ee.on('session:agentStatus', handler)
-        return () => { ee.off('session:agentStatus', handler) }
-      })
-    }),
+    onData: createSubscription('session:data'),
+    onExit: createSubscription('session:exit'),
+    onTitle: createSubscription('session:title'),
+    onClaudeSessionId: createSubscription('session:claudeSessionId'),
+    onStatusDetail: createSubscription('session:statusDetail'),
+    onAgentStatus: createSubscription('session:agentStatus'),
   })
 }
