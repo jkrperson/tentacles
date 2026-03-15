@@ -44,7 +44,9 @@ export function useTerminal({ sessionId, isActive }: UseTerminalOptions) {
 
     const fitAddon = new FitAddon()
     terminal.loadAddon(fitAddon)
-    terminal.loadAddon(new WebLinksAddon())
+    terminal.loadAddon(new WebLinksAddon((_event, url) => {
+      trpc.app.openExternal.mutate({ url })
+    }))
     const unicodeAddon = new Unicode11Addon()
     terminal.loadAddon(unicodeAddon)
     terminal.unicode.activeVersion = '11'

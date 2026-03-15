@@ -136,5 +136,11 @@ export function createAppRouter(deps: AppDeps) {
         }
         shell.openPath(deps.themesDir)
       }),
+
+    openExternal: t.procedure
+      .input(z.object({ url: z.string() }))
+      .mutation(({ input }) => {
+        shell.openExternal(input.url)
+      }),
   })
 }

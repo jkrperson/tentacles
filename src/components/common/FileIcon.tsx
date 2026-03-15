@@ -9,7 +9,7 @@ interface FileIconProps {
   className?: string
 }
 
-export const FileIcon = memo(function FileIcon({ name, isDirectory, isExpanded, size = 16, className }: FileIconProps) {
+export const FileIcon = memo(function FileIcon({ name, isDirectory, isExpanded, size = 13, className }: FileIconProps) {
   const iconName = useMemo(() => {
     if (isDirectory) return getFolderIconName(name, isExpanded ?? false)
     return getFileIconName(name)

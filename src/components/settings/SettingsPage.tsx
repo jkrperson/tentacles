@@ -299,21 +299,21 @@ export function SettingsPage() {
               </div>
 
               <div>
-                <label className="block text-[13px] text-zinc-300 mb-2">Claude Code CLI Path</label>
+                <label className="block text-[13px] text-zinc-300 mb-2">Claude Code Command</label>
                 <input type="text" value={draft.claudeCliPath}
                   onChange={(e) => setDraft((d) => ({ ...d, claudeCliPath: e.target.value }))}
-                  className={inputClass} placeholder="claude" />
+                  className={inputClass} placeholder="claude --dangerously-skip-permissions" />
               </div>
 
               <div>
-                <label className="block text-[13px] text-zinc-300 mb-2">Codex CLI Path</label>
+                <label className="block text-[13px] text-zinc-300 mb-2">Codex Command</label>
                 <input type="text" value={draft.codexCliPath}
                   onChange={(e) => setDraft((d) => ({ ...d, codexCliPath: e.target.value }))}
                   className={inputClass} placeholder="codex" />
               </div>
 
               <div>
-                <label className="block text-[13px] text-zinc-300 mb-2">opencode CLI Path</label>
+                <label className="block text-[13px] text-zinc-300 mb-2">opencode Command</label>
                 <input type="text" value={draft.opencodeCliPath}
                   onChange={(e) => setDraft((d) => ({ ...d, opencodeCliPath: e.target.value }))}
                   className={inputClass} placeholder="opencode" />

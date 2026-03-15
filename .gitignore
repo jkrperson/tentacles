@@ -35,3 +35,6 @@ public/file-icons/
 
 # Git worktrees
 .worktrees/
+
+# Private docs (not committed)
+docs/private/

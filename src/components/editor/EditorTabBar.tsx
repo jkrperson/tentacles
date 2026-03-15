@@ -62,7 +62,7 @@ export function EditorTabBar({ dirtyFiles, conflictedFiles, onCloseTab }: Editor
                 : 'text-zinc-500 hover:text-zinc-300 hover:bg-[var(--t-bg-base-50)]'
             }`}
           >
-            <FileIcon name={basename(path)} size={14} />
+            <FileIcon name={basename(path)} size={12} />
             <span className="truncate max-w-40">{basename(path)}</span>
             {isConflicted ? (
               <span className="flex-shrink-0 text-amber-400 group-hover/tab:hidden" title="File changed on disk">
