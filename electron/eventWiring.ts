@@ -15,6 +15,7 @@ interface WiringDeps {
 
 export function wireEvents({ ptyManager, fileWatcher, hookManager }: WiringDeps) {
   const lastTitleStatus = new Map<string, string>()
+  const sessionNames = new Map<string, string>()
 
   // --- PTY events → event emitter ---
   ptyManager.onData((id, data) => {
@@ -23,6 +24,12 @@ export function wireEvents({ ptyManager, fileWatcher, hookManager }: WiringDeps)
 
   ptyManager.onTitle((id, title) => {
     ee.emit('session:title', { id, title })
+
+    // Track session name from title (strip spinner/status prefixes)
+    const cleanName = title.replace(/^[\u2800-\u28FF\u2733]\s*/, '')
+    if (cleanName && cleanName !== 'Claude Code' && cleanName !== 'Codex CLI' && cleanName !== 'opencode') {
+      sessionNames.set(id, cleanName)
+    }
 
     const codepoints = [...title].map((c) => 'U+' + (c.codePointAt(0) ?? 0).toString(16).padStart(4, '0'))
     console.log(`[title] id=${id.slice(0, 8)} chars=[${codepoints.join(', ')}] raw="${title}"`)
@@ -39,15 +46,6 @@ export function wireEvents({ ptyManager, fileWatcher, hookManager }: WiringDeps)
       if (parsed.status !== prev) {
         ee.emit('session:agentStatus', { id, status: parsed.status })
       }
-
-      // Desktop notification when agent needs input
-      if (parsed.status === 'needs_input' && prev !== 'needs_input' && Notification.isSupported()) {
-        const displayName = parsed.name || 'Agent'
-        new Notification({
-          title: `${displayName} needs input`,
-          body: `${adapter.name} is waiting for permission`,
-        }).show()
-      }
     }
   })
 
@@ -63,13 +61,45 @@ export function wireEvents({ ptyManager, fileWatcher, hookManager }: WiringDeps)
     ee.emit('session:statusDetail', { id, detail: null })
     ee.emit('session:exit', { id, exitCode })
 
-    // Desktop notification when agent completes
+    // Desktop notification when agent exits
     if (Notification.isSupported()) {
+      const name = sessionNames.get(id) ?? 'Agent'
       new Notification({
-        title: 'Agent completed',
-        body: exitCode === 0 ? 'Agent finished successfully' : `Agent exited with code ${exitCode}`,
+        title: `${name} exited`,
+        body: exitCode === 0 ? `${name} finished successfully` : `${name} exited with code ${exitCode}`,
       }).show()
     }
+    sessionNames.delete(id)
+  })
+
+  // --- Desktop notifications for agent status changes ---
+  // Tracks sessions that have been active, so we don't notify on initial spawn idle
+  const hasBeenActive = new Set<string>()
+  ee.on('session:agentStatus', ({ id, status }) => {
+    if (status === 'running') {
+      hasBeenActive.add(id)
+      return
+    }
+
+    if (!Notification.isSupported()) return
+
+    const name = sessionNames.get(id) ?? 'Agent'
+    if (status === 'needs_input') {
+      new Notification({
+        title: `${name} needs input`,
+        body: `${name} is waiting for permission`,
+      }).show()
+    } else if (status === 'idle' && hasBeenActive.has(id)) {
+      new Notification({
+        title: `${name} completed`,
+        body: `${name} finished its task`,
+      }).show()
+    }
+  })
+
+  // Clean up tracking on exit
+  ee.on('session:exit', ({ id }) => {
+    hasBeenActive.delete(id)
   })
 
   // --- Terminal (shell) events → event emitter ---
