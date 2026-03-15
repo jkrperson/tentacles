@@ -11,10 +11,9 @@ interface WiringDeps {
   ptyManager: PtyManager
   fileWatcher: FileWatcher
   hookManager: HookManager
-  loadSettings: () => Record<string, unknown>
 }
 
-export function wireEvents({ ptyManager, fileWatcher, hookManager, loadSettings }: WiringDeps) {
+export function wireEvents({ ptyManager, fileWatcher, hookManager }: WiringDeps) {
   const lastTitleStatus = new Map<string, string>()
 
   // --- PTY events → event emitter ---
@@ -41,15 +40,13 @@ export function wireEvents({ ptyManager, fileWatcher, hookManager, loadSettings 
         ee.emit('session:agentStatus', { id, status: parsed.status })
       }
 
-      if (parsed.status === 'idle' && prev !== 'idle') {
-        const settings = loadSettings()
-        if (settings.desktopNotifications !== false && Notification.isSupported()) {
-          const displayName = parsed.name || 'Agent'
-          new Notification({
-            title: `${displayName} is waiting`,
-            body: `${adapter.name} is waiting for input`,
-          }).show()
-        }
+      // Desktop notification when agent needs input
+      if (parsed.status === 'needs_input' && prev !== 'needs_input' && Notification.isSupported()) {
+        const displayName = parsed.name || 'Agent'
+        new Notification({
+          title: `${displayName} needs input`,
+          body: `${adapter.name} is waiting for permission`,
+        }).show()
       }
     }
   })
@@ -66,11 +63,11 @@ export function wireEvents({ ptyManager, fileWatcher, hookManager, loadSettings 
     ee.emit('session:statusDetail', { id, detail: null })
     ee.emit('session:exit', { id, exitCode })
 
-    const settings = loadSettings()
-    if (settings.desktopNotifications !== false && Notification.isSupported()) {
+    // Desktop notification when agent completes
+    if (Notification.isSupported()) {
       new Notification({
-        title: 'Session ended',
-        body: `Agent session exited with code ${exitCode}`,
+        title: 'Agent completed',
+        body: exitCode === 0 ? 'Agent finished successfully' : `Agent exited with code ${exitCode}`,
       }).show()
     }
   })
