@@ -2,7 +2,6 @@ import { create } from 'zustand'
 import { trpc } from '../trpc'
 import { useSettingsStore } from './settingsStore'
 import { useProjectStore } from './projectStore'
-import { useNotificationStore } from './notificationStore'
 import { getErrorMessage } from '../utils/errors'
 import type { Session, SessionStatus, SessionsFile, AgentType } from '../types'
 
@@ -151,13 +150,9 @@ export const useSessionStore = create<SessionState>((set, get) => {
     createSession: async (agentType?: AgentType) => {
       const { sessionOrder } = get()
       const settings = useSettingsStore.getState().settings
-      const notify = useNotificationStore.getState().notify
       const { activeProjectId, addProject } = useProjectStore.getState()
 
-      if (sessionOrder.length >= settings.maxSessions) {
-        notify('warning', 'Max agents reached', `Limit is ${settings.maxSessions}`)
-        return
-      }
+      if (sessionOrder.length >= settings.maxSessions) return
 
       let cwd = activeProjectId
       if (!cwd) {
@@ -177,20 +172,16 @@ export const useSessionStore = create<SessionState>((set, get) => {
         })
         addProject(cwd)
       } catch (err: unknown) {
-        notify('error', 'Failed to spawn agent', getErrorMessage(err))
+        console.error('Failed to spawn agent', getErrorMessage(err))
       }
     },
 
     createSessionInProject: async (projectPath: string, agentType?: AgentType) => {
       const { sessionOrder } = get()
       const settings = useSettingsStore.getState().settings
-      const notify = useNotificationStore.getState().notify
       const { setActiveProject } = useProjectStore.getState()
 
-      if (sessionOrder.length >= settings.maxSessions) {
-        notify('warning', 'Max agents reached', `Limit is ${settings.maxSessions}`)
-        return
-      }
+      if (sessionOrder.length >= settings.maxSessions) return
 
       const resolvedAgent = agentType ?? settings.defaultAgent
       const name = `Agent ${sessionOrder.length + 1}`
@@ -202,20 +193,16 @@ export const useSessionStore = create<SessionState>((set, get) => {
         })
         setActiveProject(projectPath)
       } catch (err: unknown) {
-        notify('error', 'Failed to spawn agent', getErrorMessage(err))
+        console.error('Failed to spawn agent', getErrorMessage(err))
       }
     },
 
     createSessionInWorktree: async (projectPath: string, worktreeName?: string, agentType?: AgentType) => {
       const { sessionOrder } = get()
       const settings = useSettingsStore.getState().settings
-      const notify = useNotificationStore.getState().notify
       const { setActiveProject } = useProjectStore.getState()
 
-      if (sessionOrder.length >= settings.maxSessions) {
-        notify('warning', 'Max agents reached', `Limit is ${settings.maxSessions}`)
-        return
-      }
+      if (sessionOrder.length >= settings.maxSessions) return
 
       const resolvedAgent = agentType ?? settings.defaultAgent
       try {
@@ -229,7 +216,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
         })
         setActiveProject(projectPath)
       } catch (err: unknown) {
-        notify('error', 'Failed to create worktree', getErrorMessage(err))
+        console.error('Failed to create worktree', getErrorMessage(err))
       }
     },
 

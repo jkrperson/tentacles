@@ -3,7 +3,6 @@ import { trpc } from '../trpc'
 import { useSessionStore } from '../stores/sessionStore'
 import { useTerminalStore } from '../stores/terminalStore'
 import { useProjectStore } from '../stores/projectStore'
-import { useNotificationStore } from '../stores/notificationStore'
 
 export function useSessionSubscriptions() {
   const activeSessionId = useSessionStore((s) => s.activeSessionId)
@@ -15,8 +14,6 @@ export function useSessionSubscriptions() {
   const updateTerminalStatus = useTerminalStore((s) => s.updateTerminalStatus)
   const setActiveTerminal = useTerminalStore((s) => s.setActiveTerminal)
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
-  const notify = useNotificationStore((s) => s.notify)
-
   const activeSessionRef = useRef(activeSessionId)
   activeSessionRef.current = activeSessionId
 
@@ -50,17 +47,10 @@ export function useSessionSubscriptions() {
         const status = exitCode === 0 ? 'completed' : 'errored'
         updateStatus(id, status, exitCode)
         if (id !== activeSessionRef.current) setHasUnread(id, true)
-        const session = useSessionStore.getState().sessions.get(id)
-        notify(
-          exitCode === 0 ? 'success' : 'error',
-          `${session?.name ?? 'Agent'} finished`,
-          `Exit code: ${exitCode}`,
-          id,
-        )
       },
     })
     return () => sub.unsubscribe()
-  }, [updateStatus, notify, setHasUnread])
+  }, [updateStatus, setHasUnread])
 
   // Listen for detailed status updates from hook events
   useEffect(() => {
@@ -74,18 +64,25 @@ export function useSessionSubscriptions() {
 
   // Listen for agent status changes from hook events
   useEffect(() => {
+    // Track sessions that have reported 'running' at least once from the hook,
+    // so we can distinguish a real "finished" idle from the initial idle on spawn.
+    const hasBeenActive = new Set<string>()
+
     const sub = trpc.session.onAgentStatus.subscribe(undefined, {
       onData: ({ id, status: rawStatus }) => {
         const session = useSessionStore.getState().sessions.get(id)
         if (!session || session.status === 'errored') return
         if (session.exitCode != null) return
 
+        if (rawStatus === 'running') hasBeenActive.add(id)
+
         // Don't let a stale 'idle' overwrite 'needs_input' —
         // needs_input should only be cleared by 'running' or an exit.
         if (rawStatus === 'idle' && session.status === 'needs_input') return
 
         let finalStatus = rawStatus
-        if (rawStatus === 'idle' && id !== activeSessionRef.current) {
+        // Only mark as completed if this session has actually worked before
+        if (rawStatus === 'idle' && id !== activeSessionRef.current && hasBeenActive.has(id)) {
           finalStatus = 'completed'
         }
 
@@ -99,15 +96,10 @@ export function useSessionSubscriptions() {
           }
         }
 
-        if (rawStatus === 'needs_input') {
-          notify('warning', `${session.name} needs input`, 'Agent is waiting for permission', id)
-        } else if (rawStatus === 'idle') {
-          notify('info', `${session.name} finished`, 'Agent completed its task', id)
-        }
       },
     })
     return () => sub.unsubscribe()
-  }, [updateStatus, notify, setHasUnread])
+  }, [updateStatus, setHasUnread])
 
   // Switch active terminal when project changes
   useEffect(() => {

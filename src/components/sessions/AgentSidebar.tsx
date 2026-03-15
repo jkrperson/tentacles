@@ -2,7 +2,6 @@ import { useCallback, useState, useEffect, useRef } from 'react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useProjectStore } from '../../stores/projectStore'
-import { useNotificationStore } from '../../stores/notificationStore'
 import { trpc } from '../../trpc'
 import { ProjectGroup } from './ProjectGroup'
 import type { AgentType } from '../../types'
@@ -23,8 +22,6 @@ export function AgentSidebar() {
   const projectOrder = useProjectStore((s) => s.projectOrder)
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
   const addProject = useProjectStore((s) => s.addProject)
-  const notify = useNotificationStore((s) => s.notify)
-
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [activeIsRepo, setActiveIsRepo] = useState(false)
   const [worktreeName, setWorktreeName] = useState('')
@@ -66,12 +63,9 @@ export function AgentSidebar() {
   }, [addProject])
 
   const handleWorktreeClick = useCallback(() => {
-    if (!activeProjectId) {
-      notify('warning', 'No active project', 'Select a project first')
-      return
-    }
+    if (!activeProjectId) return
     setShowNameInput(true)
-  }, [activeProjectId, notify])
+  }, [activeProjectId])
 
   const handleWorktreeSubmit = useCallback(() => {
     if (!activeProjectId) return

@@ -1,6 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useProjectStore } from '../../stores/projectStore'
-import { useNotificationStore } from '../../stores/notificationStore'
 import { trpc } from '../../trpc'
 import type { GitFileDetail, GitFileStatus, GitStatusDetailResult } from '../../types'
 
@@ -35,8 +34,6 @@ export function GitPanel({ onToggle }: GitPanelProps) {
   })
   const setGitStatuses = useProjectStore((s) => s.setGitStatuses)
   const setActiveDiff = useProjectStore((s) => s.setActiveDiff)
-  const notify = useNotificationStore((s) => s.notify)
-
   const [commitMsg, setCommitMsg] = useState('')
   const [loading, setLoading] = useState<string | null>(null)
   const [stagedCollapsed, setStagedCollapsed] = useState(false)
@@ -83,11 +80,11 @@ export function GitPanel({ onToggle }: GitPanelProps) {
       await trpc.git.stage.mutate({ repoPath: activeProjectId, paths })
       await refreshStatus()
     } catch (err) {
-      notify('error', 'Stage failed', String(err))
+      console.error('Stage failed', err)
     } finally {
       setLoading(null)
     }
-  }, [activeProjectId, refreshStatus, notify])
+  }, [activeProjectId, refreshStatus])
 
   const handleUnstage = useCallback(async (paths: string[]) => {
     if (!activeProjectId) return
@@ -96,26 +93,25 @@ export function GitPanel({ onToggle }: GitPanelProps) {
       await trpc.git.unstage.mutate({ repoPath: activeProjectId, paths })
       await refreshStatus()
     } catch (err) {
-      notify('error', 'Unstage failed', String(err))
+      console.error('Unstage failed', err)
     } finally {
       setLoading(null)
     }
-  }, [activeProjectId, refreshStatus, notify])
+  }, [activeProjectId, refreshStatus])
 
   const handleCommit = useCallback(async () => {
     if (!activeProjectId || !commitMsg.trim() || stagedFiles.length === 0) return
     setLoading('commit')
     try {
-      const result = await trpc.git.commit.mutate({ repoPath: activeProjectId, message: commitMsg.trim() })
+      await trpc.git.commit.mutate({ repoPath: activeProjectId, message: commitMsg.trim() })
       setCommitMsg('')
       await refreshStatus()
-      notify('success', 'Committed', result.hash ? `Commit ${result.hash}` : 'Changes committed')
     } catch (err) {
-      notify('error', 'Commit failed', String(err))
+      console.error('Commit failed', err)
     } finally {
       setLoading(null)
     }
-  }, [activeProjectId, commitMsg, stagedFiles.length, refreshStatus, notify])
+  }, [activeProjectId, commitMsg, stagedFiles.length, refreshStatus])
 
   const handlePush = useCallback(async () => {
     if (!activeProjectId) return
@@ -123,13 +119,12 @@ export function GitPanel({ onToggle }: GitPanelProps) {
     try {
       await trpc.git.push.mutate({ repoPath: activeProjectId })
       await refreshStatus()
-      notify('success', 'Pushed', 'Changes pushed to remote')
     } catch (err) {
-      notify('error', 'Push failed', String(err))
+      console.error('Push failed', err)
     } finally {
       setLoading(null)
     }
-  }, [activeProjectId, refreshStatus, notify])
+  }, [activeProjectId, refreshStatus])
 
   const handlePull = useCallback(async () => {
     if (!activeProjectId) return
@@ -137,13 +132,12 @@ export function GitPanel({ onToggle }: GitPanelProps) {
     try {
       await trpc.git.pull.mutate({ repoPath: activeProjectId })
       await refreshStatus()
-      notify('success', 'Pulled', 'Changes pulled from remote')
     } catch (err) {
-      notify('error', 'Pull failed', String(err))
+      console.error('Pull failed', err)
     } finally {
       setLoading(null)
     }
-  }, [activeProjectId, refreshStatus, notify])
+  }, [activeProjectId, refreshStatus])
 
   const handleStash = useCallback(async () => {
     if (!activeProjectId) return
@@ -151,13 +145,12 @@ export function GitPanel({ onToggle }: GitPanelProps) {
     try {
       await trpc.git.stash.mutate({ repoPath: activeProjectId })
       await refreshStatus()
-      notify('success', 'Stashed', 'Changes stashed')
     } catch (err) {
-      notify('error', 'Stash failed', String(err))
+      console.error('Stash failed', err)
     } finally {
       setLoading(null)
     }
-  }, [activeProjectId, refreshStatus, notify])
+  }, [activeProjectId, refreshStatus])
 
   const handleStashPop = useCallback(async () => {
     if (!activeProjectId) return
@@ -165,13 +158,12 @@ export function GitPanel({ onToggle }: GitPanelProps) {
     try {
       await trpc.git.stashPop.mutate({ repoPath: activeProjectId })
       await refreshStatus()
-      notify('success', 'Stash popped', 'Stashed changes restored')
     } catch (err) {
-      notify('error', 'Stash pop failed', String(err))
+      console.error('Stash pop failed', err)
     } finally {
       setLoading(null)
     }
-  }, [activeProjectId, refreshStatus, notify])
+  }, [activeProjectId, refreshStatus])
 
   const handleFetchBranches = useCallback(async () => {
     if (!activeProjectId) return
@@ -180,9 +172,9 @@ export function GitPanel({ onToggle }: GitPanelProps) {
       setBranches(result.branches)
       setShowBranchMenu(true)
     } catch (err) {
-      notify('error', 'Failed to list branches', String(err))
+      console.error('Failed to list branches', err)
     }
-  }, [activeProjectId, notify])
+  }, [activeProjectId])
 
   const handleSwitchBranch = useCallback(async (branch: string) => {
     if (!activeProjectId) return
@@ -191,13 +183,12 @@ export function GitPanel({ onToggle }: GitPanelProps) {
     try {
       await trpc.git.switchBranch.mutate({ repoPath: activeProjectId, branch })
       await refreshStatus()
-      notify('success', 'Branch switched', `Now on ${branch}`)
     } catch (err) {
-      notify('error', 'Switch failed', String(err))
+      console.error('Switch failed', err)
     } finally {
       setLoading(null)
     }
-  }, [activeProjectId, refreshStatus, notify])
+  }, [activeProjectId, refreshStatus])
 
   const handleCreateBranch = useCallback(async () => {
     if (!activeProjectId || !newBranchName.trim()) return
@@ -207,13 +198,12 @@ export function GitPanel({ onToggle }: GitPanelProps) {
       await trpc.git.createBranch.mutate({ repoPath: activeProjectId, name: newBranchName.trim(), checkout: true })
       setNewBranchName('')
       await refreshStatus()
-      notify('success', 'Branch created', `Now on ${newBranchName.trim()}`)
     } catch (err) {
-      notify('error', 'Create branch failed', String(err))
+      console.error('Create branch failed', err)
     } finally {
       setLoading(null)
     }
-  }, [activeProjectId, newBranchName, refreshStatus, notify])
+  }, [activeProjectId, newBranchName, refreshStatus])
 
   const handleFileClick = useCallback((filePath: string, staged: boolean) => {
     if (!activeProjectId) return

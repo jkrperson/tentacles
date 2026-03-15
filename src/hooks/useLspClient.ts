@@ -15,7 +15,6 @@ import {
   lspCodeActionToMonaco,
   lspWorkspaceEditToMonaco,
 } from '../lib/lspConversions'
-import { useNotificationStore } from '../stores/notificationStore'
 
 type Monaco = typeof monacoNs
 
@@ -88,7 +87,6 @@ export function useLspClient(options: LspClientOptions): void {
     const ws = new WebSocket(`ws://127.0.0.1:${port}`)
     wsRef.current = ws
     initializedRef.current = false
-    const notify = useNotificationStore.getState().notify
 
     // --- JSON-RPC helpers ---
     function sendRequest(method: string, params: unknown): Promise<unknown> {
@@ -135,15 +133,6 @@ export function useLspClient(options: LspClientOptions): void {
         if (model) {
           m.editor.setModelMarkers(model, 'lsp', markers)
         }
-      }
-
-      // Server request (e.g., workspace/applyEdit, window/showMessage)
-      if (msg.method === 'window/showMessage' && msg.params) {
-        const p = msg.params as lsp.ShowMessageParams
-        const typeMap: Record<number, 'error' | 'warning' | 'info'> = {
-          1: 'error', 2: 'warning', 3: 'info', 4: 'info',
-        }
-        notify(typeMap[p.type] ?? 'info', 'Language Server', p.message)
       }
 
       if (msg.method === 'workspace/applyEdit' && msg.id !== undefined) {

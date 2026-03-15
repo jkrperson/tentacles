@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import { trpc } from '../trpc'
 import { useProjectStore } from './projectStore'
-import { useNotificationStore } from './notificationStore'
 import { getErrorMessage } from '../utils/errors'
 import type { ShellTerminal } from '../types'
 
@@ -73,8 +72,6 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
 
   createTerminal: async () => {
     const { activeProjectId, addProject } = useProjectStore.getState()
-    const notify = useNotificationStore.getState().notify
-
     let cwd = activeProjectId
     if (!cwd) {
       const dir = await trpc.dialog.selectDirectory.query()
@@ -93,7 +90,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
         id, name, cwd, status: 'running', createdAt: Date.now(), pid,
       })
     } catch (err: unknown) {
-      notify('error', 'Failed to spawn terminal', getErrorMessage(err))
+      console.error('Failed to spawn terminal', getErrorMessage(err))
     }
   },
 }))

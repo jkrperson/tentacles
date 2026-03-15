@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
 import { Layout } from './components/Layout'
-import { ToastContainer } from './components/notifications/ToastContainer'
 import { SettingsPage } from './components/settings/SettingsPage'
 import { useSessionStore } from './stores/sessionStore'
 import { useSettingsStore } from './stores/settingsStore'
@@ -64,7 +63,6 @@ function App() {
         <div className="flex-1 min-h-0">
           <SettingsPage />
         </div>
-        <ToastContainer />
       </div>
     )
   }
@@ -87,7 +85,6 @@ function App() {
       <div className="flex-1 min-h-0">
         <Layout />
       </div>
-      <ToastContainer />
     </div>
   )
 }
