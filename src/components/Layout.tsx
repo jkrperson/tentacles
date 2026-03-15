@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { FileTree } from './sidebar/FileTree'
 import { GitPanel } from './sidebar/GitPanel'
 import { MediaPanel } from './sidebar/MediaPanel'
@@ -8,28 +8,11 @@ import { EditorPanel } from './editor/EditorPanel'
 import { AgentSidebar } from './sessions/AgentSidebar'
 import { useProjectStore } from '../stores/projectStore'
 import { useSettingsStore } from '../stores/settingsStore'
-import type { AgentType } from '../types'
+import { useTerminalStore } from '../stores/terminalStore'
+import { useDrag } from '../hooks/useDrag'
 
-interface LayoutProps {
-  onNewSession: (agentType?: AgentType) => void
-  onNewSessionInProject: (projectPath: string, agentType?: AgentType) => void
-  onNewSessionInWorktree: (projectPath: string, name?: string, agentType?: AgentType) => void
-  onNewTerminal: () => void
-  onResumeSession: (archivedSessionId: string) => void
-  defaultAgent: AgentType
-}
-
-export function Layout({ onNewSession, onNewSessionInProject, onNewSessionInWorktree, onNewTerminal, onResumeSession, defaultAgent }: LayoutProps) {
+export function Layout() {
   const enableMediaPanel = useSettingsStore((s) => s.settings.enableMediaPanel)
-  const [leftWidth, setLeftWidth] = useState(240)
-  const [rightWidth, setRightWidth] = useState(260)
-  const [editorWidth, setEditorWidth] = useState(480)
-  const [bottomHeight, setBottomHeight] = useState(220)
-  const [mediaPanelHeight, setMediaPanelHeight] = useState(250)
-  const [bottomExpanded, setBottomExpanded] = useState(false)
-  const [rightVisible, setRightVisible] = useState(true)
-  const [rightTab, setRightTab] = useState<'explorer' | 'git'>('explorer')
-  const [isDragging, setIsDragging] = useState(false)
   const hasOpenFiles = useProjectStore((s) => {
     const apId = s.activeProjectId
     if (!apId) return false
@@ -38,114 +21,33 @@ export function Layout({ onNewSession, onNewSessionInProject, onNewSessionInWork
     return cache.openFiles.length > 0 || cache.activeDiff !== null
   })
 
-  const dragging = useRef<'left' | 'right' | 'editor' | 'bottom' | 'mediaSplit' | null>(null)
-  const startX = useRef(0)
-  const startY = useRef(0)
-  const startWidth = useRef(0)
-  const startHeight = useRef(0)
+  const leftDrag = useDrag({ axis: 'x', initial: 240, min: 180, max: 400 })
+  const rightDrag = useDrag({ axis: 'x', initial: 260, min: 180, max: 450, invert: true })
+  const editorDrag = useDrag({ axis: 'x', initial: 480, min: 280, max: 800, invert: true })
+  const bottomDrag = useDrag({ axis: 'y', initial: 220, min: 100, max: 600, invert: true })
+  const mediaDrag = useDrag({ axis: 'y', initial: 250, min: 100, max: 500, invert: true })
 
-  const onHorizontalMouseDown = useCallback((side: 'left' | 'right' | 'editor', e: React.MouseEvent) => {
-    dragging.current = side
-    setIsDragging(true)
-    startX.current = e.clientX
-    startWidth.current = side === 'left' ? leftWidth : side === 'editor' ? editorWidth : rightWidth
+  const isDragging = leftDrag.isDragging || rightDrag.isDragging || editorDrag.isDragging || bottomDrag.isDragging || mediaDrag.isDragging
 
-    const onMouseMove = (ev: MouseEvent) => {
-      if (!dragging.current) return
-      const delta = ev.clientX - startX.current
-      if (dragging.current === 'left') {
-        setLeftWidth(Math.max(180, Math.min(400, startWidth.current + delta)))
-      } else if (dragging.current === 'editor') {
-        setEditorWidth(Math.max(280, Math.min(800, startWidth.current - delta)))
-      } else {
-        setRightWidth(Math.max(180, Math.min(450, startWidth.current - delta)))
-      }
-    }
-
-    const onMouseUp = () => {
-      dragging.current = null
-      setIsDragging(false)
-      document.removeEventListener('mousemove', onMouseMove)
-      document.removeEventListener('mouseup', onMouseUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
-
-    document.addEventListener('mousemove', onMouseMove)
-    document.addEventListener('mouseup', onMouseUp)
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-  }, [leftWidth, rightWidth, editorWidth])
-
-  const onBottomMouseDown = useCallback((e: React.MouseEvent) => {
-    dragging.current = 'bottom'
-    setIsDragging(true)
-    startY.current = e.clientY
-    startHeight.current = bottomHeight
-
-    const onMouseMove = (ev: MouseEvent) => {
-      if (dragging.current !== 'bottom') return
-      const delta = startY.current - ev.clientY
-      setBottomHeight(Math.max(100, Math.min(600, startHeight.current + delta)))
-    }
-
-    const onMouseUp = () => {
-      dragging.current = null
-      setIsDragging(false)
-      document.removeEventListener('mousemove', onMouseMove)
-      document.removeEventListener('mouseup', onMouseUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
-
-    document.addEventListener('mousemove', onMouseMove)
-    document.addEventListener('mouseup', onMouseUp)
-    document.body.style.cursor = 'row-resize'
-    document.body.style.userSelect = 'none'
-  }, [bottomHeight])
-
-  const onMediaSplitMouseDown = useCallback((e: React.MouseEvent) => {
-    dragging.current = 'mediaSplit'
-    setIsDragging(true)
-    startY.current = e.clientY
-    startHeight.current = mediaPanelHeight
-
-    const onMouseMove = (ev: MouseEvent) => {
-      if (dragging.current !== 'mediaSplit') return
-      const delta = startY.current - ev.clientY
-      setMediaPanelHeight(Math.max(100, Math.min(500, startHeight.current + delta)))
-    }
-
-    const onMouseUp = () => {
-      dragging.current = null
-      setIsDragging(false)
-      document.removeEventListener('mousemove', onMouseMove)
-      document.removeEventListener('mouseup', onMouseUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
-
-    document.addEventListener('mousemove', onMouseMove)
-    document.addEventListener('mouseup', onMouseUp)
-    document.body.style.cursor = 'row-resize'
-    document.body.style.userSelect = 'none'
-  }, [mediaPanelHeight])
+  const [bottomExpanded, setBottomExpanded] = useState(false)
+  const [rightVisible, setRightVisible] = useState(true)
+  const [rightTab, setRightTab] = useState<'explorer' | 'git'>('explorer')
 
   const handleNewTerminal = useCallback(() => {
     setBottomExpanded(true)
-    onNewTerminal()
-  }, [onNewTerminal])
+    useTerminalStore.getState().createTerminal()
+  }, [])
 
   return (
     <div className="flex h-full">
       {/* Left: Agent Sidebar */}
-      <div className="flex-shrink-0 overflow-hidden" style={{ width: leftWidth }}>
-        <AgentSidebar onNewSession={onNewSession} onNewSessionInProject={onNewSessionInProject} onNewSessionInWorktree={onNewSessionInWorktree} onResumeSession={onResumeSession} defaultAgent={defaultAgent} />
+      <div className="flex-shrink-0 overflow-hidden" style={{ width: leftDrag.value }}>
+        <AgentSidebar />
       </div>
 
       <div className="group relative w-1 flex-shrink-0 cursor-col-resize"
-        onMouseDown={(e) => onHorizontalMouseDown('left', e)}>
-        <div className="absolute inset-y-0 -left-1 -right-1" />
+        onMouseDown={leftDrag.onMouseDown}>
+        <div className="absolute inset-y-0 -left-2 -right-2" />
         <div className="absolute inset-y-0 left-0 w-px bg-[var(--t-border)] group-hover:bg-violet-500/50 transition-colors" />
       </div>
 
@@ -154,19 +56,19 @@ export function Layout({ onNewSession, onNewSessionInProject, onNewSessionInWork
         {/* Top: Agent terminal + Editor */}
         <div className="flex-1 min-h-0 flex overflow-hidden">
           <div className="flex-1 min-w-0 overflow-hidden">
-            <TerminalView onNewSession={onNewSession} />
+            <TerminalView />
           </div>
 
           {/* Editor Panel */}
           {hasOpenFiles && (
             <>
               <div className="group relative w-1 flex-shrink-0 cursor-col-resize"
-                onMouseDown={(e) => onHorizontalMouseDown('editor', e)}>
-                <div className="absolute inset-y-0 -left-1 -right-1" />
+                onMouseDown={editorDrag.onMouseDown}>
+                <div className="absolute inset-y-0 -left-2 -right-2" />
                 <div className="absolute inset-y-0 left-0 w-px bg-[var(--t-border)] group-hover:bg-violet-500/50 transition-colors" />
               </div>
 
-              <div className="flex-shrink-0 overflow-hidden" style={{ width: editorWidth }}>
+              <div className="flex-shrink-0 overflow-hidden" style={{ width: editorDrag.value }}>
                 <EditorPanel />
               </div>
             </>
@@ -177,14 +79,14 @@ export function Layout({ onNewSession, onNewSessionInProject, onNewSessionInWork
         {bottomExpanded && (
           <div
             className="group relative h-1 flex-shrink-0 cursor-row-resize"
-            onMouseDown={onBottomMouseDown}
+            onMouseDown={bottomDrag.onMouseDown}
           >
-            <div className="absolute inset-x-0 -top-1 -bottom-1" />
+            <div className="absolute inset-x-0 -top-2 -bottom-2" />
             <div className="absolute inset-x-0 top-0 h-px bg-[var(--t-border)] group-hover:bg-violet-500/50 transition-colors" />
           </div>
         )}
 
-        <div className="flex-shrink-0 overflow-hidden" style={{ height: bottomExpanded ? bottomHeight : undefined }}>
+        <div className="flex-shrink-0 overflow-hidden" style={{ height: bottomExpanded ? bottomDrag.value : undefined }}>
           <TerminalBottomPanel
             onNewTerminal={handleNewTerminal}
             expanded={bottomExpanded}
@@ -196,13 +98,13 @@ export function Layout({ onNewSession, onNewSessionInProject, onNewSessionInWork
       {rightVisible && (
         <>
           <div className="group relative w-1 flex-shrink-0 cursor-col-resize"
-            onMouseDown={(e) => onHorizontalMouseDown('right', e)}>
-            <div className="absolute inset-y-0 -left-1 -right-1" />
+            onMouseDown={rightDrag.onMouseDown}>
+            <div className="absolute inset-y-0 -left-2 -right-2" />
             <div className="absolute inset-y-0 right-0 w-px bg-[var(--t-border)] group-hover:bg-violet-500/50 transition-colors" />
           </div>
 
           {/* Right: Tabbed Sidebar */}
-          <div className="flex-shrink-0 overflow-hidden flex flex-col" style={{ width: rightWidth }}>
+          <div className="flex-shrink-0 overflow-hidden flex flex-col" style={{ width: rightDrag.value }}>
             {/* Tab bar */}
             <div className="flex items-center border-b border-[var(--t-border)] flex-shrink-0 bg-[var(--t-bg-surface)]">
               <button
@@ -251,12 +153,12 @@ export function Layout({ onNewSession, onNewSessionInProject, onNewSessionInWork
               <>
                 <div
                   className="group relative h-1 flex-shrink-0 cursor-row-resize"
-                  onMouseDown={onMediaSplitMouseDown}
+                  onMouseDown={mediaDrag.onMouseDown}
                 >
-                  <div className="absolute inset-x-0 -top-1 -bottom-1" />
+                  <div className="absolute inset-x-0 -top-2 -bottom-2" />
                   <div className="absolute inset-x-0 top-0 h-px bg-[var(--t-border)] group-hover:bg-violet-500/50 transition-colors" />
                 </div>
-                <div className="flex-shrink-0 overflow-hidden relative" style={{ height: mediaPanelHeight }}>
+                <div className="flex-shrink-0 overflow-hidden relative" style={{ height: mediaDrag.value }}>
                   {isDragging && (
                     <div className="absolute inset-0 z-10" />
                   )}
