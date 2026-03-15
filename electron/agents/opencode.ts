@@ -146,11 +146,8 @@ export const opencodeAdapter: AgentAdapter = {
   defaultBinary: 'opencode',
   settingsKey: 'opencodeCliPath',
 
-  buildSpawnConfig({ binaryPath, cwd, resumeId, extraArgs = [] }): SpawnConfig {
-    const args = resumeId
-      ? ['--session', resumeId, ...extraArgs]
-      : [...extraArgs, cwd]
-    return { command: binaryPath, args, cwd }
+  buildSpawnConfig({ binaryPath, cwd, extraArgs = [] }): SpawnConfig {
+    return { command: binaryPath, args: [...extraArgs, cwd], cwd }
   },
 
   setupHooks(hookId: string, hookServerPort?: number): HookSetup {

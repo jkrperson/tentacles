@@ -16,14 +16,10 @@ export function ProjectGroup({ project }: ProjectGroupProps) {
   const setActiveSession = useSessionStore((s) => s.setActiveSession)
   const createSessionInProject = useSessionStore((s) => s.createSessionInProject)
   const createSessionInWorktree = useSessionStore((s) => s.createSessionInWorktree)
-  const resumeSession = useSessionStore((s) => s.resumeSession)
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
   const setActiveProject = useProjectStore((s) => s.setActiveProject)
   const removeProject = useProjectStore((s) => s.removeProject)
-  const archivedSessions = useSessionStore((s) => s.archivedSessions)
-  const archivedOrder = useSessionStore((s) => s.archivedOrder)
   const [collapsed, setCollapsed] = useState(false)
-  const [recentCollapsed, setRecentCollapsed] = useState(true)
   const [isRepo, setIsRepo] = useState(false)
   const [showNameInput, setShowNameInput] = useState(false)
   const [worktreeName, setWorktreeName] = useState('')
@@ -65,13 +61,6 @@ export function ProjectGroup({ project }: ProjectGroupProps) {
       return s?.cwd === project.path || s?.originalRepo === project.path
     })
   }, [sessionOrder, sessions, project.path])
-
-  const archivedForProject = useMemo(() => {
-    return archivedOrder.filter((id) => {
-      const s = archivedSessions.get(id)
-      return s?.cwd === project.path || s?.originalRepo === project.path
-    })
-  }, [archivedOrder, archivedSessions, project.path])
 
   return (
     <div className={`mb-1 ${isActive ? 'bg-[var(--t-bg-elevated)] rounded-lg' : ''}`}>
@@ -169,48 +158,9 @@ export function ProjectGroup({ project }: ProjectGroupProps) {
             const session = sessions.get(id)
             return session ? <SessionCard key={id} session={session} isActive={id === activeSessionId} /> : null
           })}
-          {sorted.length === 0 && archivedForProject.length === 0 && (
+          {sorted.length === 0 && (
             <div className="text-center py-3 px-2">
               <div className="text-zinc-700 text-[11px]">No agents yet</div>
-            </div>
-          )}
-
-          {/* Archived / Recent */}
-          {archivedForProject.length > 0 && (
-            <div className="mt-1">
-              <button
-                onClick={() => setRecentCollapsed(!recentCollapsed)}
-                className="flex items-center gap-1 px-2 py-1 w-full text-left group/recent"
-              >
-                <svg
-                  width="12" height="12" viewBox="0 0 16 16" fill="currentColor"
-                  className={`text-zinc-600 transition-transform duration-150 ${recentCollapsed ? '' : 'rotate-90'}`}
-                >
-                  <path d="M6.3 3.3a1 1 0 0 1 1.4 0l4 4a1 1 0 0 1 0 1.4l-4 4a1 1 0 0 1-1.4-1.4L9.58 8 6.3 4.7a1 1 0 0 1 0-1.4z"/>
-                </svg>
-                <span className="text-[10px] font-medium text-zinc-600 uppercase tracking-wider">
-                  Recent
-                </span>
-                <span className="text-[10px] text-zinc-700 tabular-nums">
-                  ({archivedForProject.length})
-                </span>
-              </button>
-              {!recentCollapsed && (
-                <div>
-                  {archivedForProject.map((id) => {
-                    const session = archivedSessions.get(id)
-                    return session ? (
-                      <SessionCard
-                        key={id}
-                        session={session}
-                        isActive={false}
-                        isArchived
-                        onResume={session.claudeSessionId ? () => resumeSession(id) : undefined}
-                      />
-                    ) : null
-                  })}
-                </div>
-              )}
             </div>
           )}
         </div>

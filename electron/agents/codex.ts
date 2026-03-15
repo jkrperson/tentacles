@@ -128,11 +128,8 @@ export const codexAdapter: AgentAdapter = {
   defaultBinary: 'codex',
   settingsKey: 'codexCliPath',
 
-  buildSpawnConfig({ binaryPath, cwd, resumeId, extraArgs = [] }): SpawnConfig {
-    const args = resumeId
-      ? ['resume', resumeId, ...extraArgs]
-      : [...extraArgs]
-    return { command: binaryPath, args, cwd }
+  buildSpawnConfig({ binaryPath, cwd, extraArgs = [] }): SpawnConfig {
+    return { command: binaryPath, args: [...extraArgs], cwd }
   },
 
   setupHooks(hookId: string, hookServerPort?: number): HookSetup {
@@ -174,11 +171,6 @@ export const codexAdapter: AgentAdapter = {
       return firstLine.slice(0, 57) + '...'
     }
     return firstLine || 'Turn complete'
-  },
-
-  parseSessionId(output: unknown): string | null {
-    const data = output as CodexNotifyEvent
-    return data['thread-id'] ?? null
   },
 
   parseStatus(event: unknown): 'running' | 'idle' | null {

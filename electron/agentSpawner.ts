@@ -23,7 +23,7 @@ export function createAgentSpawner(deps: SpawnerDeps) {
   // Cache daemon session IDs to avoid per-session round-trips during reattach.
   let cachedDaemonSessionIds: Set<string> | null = null
 
-  async function spawn(name: string, cwd: string, agentType: AgentType, resumeId?: string): Promise<{ id: string; pid: number; hookId: string }> {
+  async function spawn(name: string, cwd: string, agentType: AgentType): Promise<{ id: string; pid: number; hookId: string }> {
     const settings = loadSettings()
     const adapter = getAdapter(agentType)
     const rawCommand = ((settings[adapter.settingsKey] as string) || adapter.defaultBinary).trim()
@@ -39,7 +39,6 @@ export function createAgentSpawner(deps: SpawnerDeps) {
     const spawnConfig = adapter.buildSpawnConfig({
       binaryPath,
       cwd,
-      resumeId,
       extraArgs: [...userArgs, ...extraArgs],
     })
 
@@ -56,7 +55,7 @@ export function createAgentSpawner(deps: SpawnerDeps) {
     return { id: result.id, pid: result.pid, hookId }
   }
 
-  async function reattach(sessionId: string, hookId: string, _name: string, _cwd: string, agentType?: AgentType): Promise<{ id: string; scrollbackAvailable: boolean; initialStatus?: SessionStatus; initialStatusDetail?: string | null; recoveredClaudeSessionId?: string } | null> {
+  async function reattach(sessionId: string, hookId: string, _name: string, _cwd: string, agentType?: AgentType): Promise<{ id: string; scrollbackAvailable: boolean; initialStatus?: SessionStatus; initialStatusDetail?: string | null } | null> {
     if (!daemonClient.isConnected()) return null
 
     let alive: boolean
@@ -102,26 +101,11 @@ export function createAgentSpawner(deps: SpawnerDeps) {
       }
     }
 
-    let recoveredClaudeSessionId: string | undefined
-    if (hookId && adapter.parseSessionId) {
-      try {
-        const outputPath = path.join(hooksDir, `${hookId}.out`)
-        if (fs.existsSync(outputPath)) {
-          const raw = fs.readFileSync(outputPath, 'utf-8').trim()
-          if (raw) {
-            const parsed = JSON.parse(raw)
-            recoveredClaudeSessionId = adapter.parseSessionId(parsed) ?? undefined
-          }
-        }
-      } catch { /* file missing or malformed */ }
-    }
-
     return {
       id: sessionId,
       scrollbackAvailable: true,
       initialStatus,
       initialStatusDetail,
-      recoveredClaudeSessionId,
     }
   }
 

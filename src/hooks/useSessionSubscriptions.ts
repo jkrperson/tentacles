@@ -11,7 +11,6 @@ export function useSessionSubscriptions() {
   const setHasUnread = useSessionStore((s) => s.setHasUnread)
   const acknowledgeSession = useSessionStore((s) => s.acknowledgeSession)
   const renameSession = useSessionStore((s) => s.renameSession)
-  const setClaudeSessionId = useSessionStore((s) => s.setClaudeSessionId)
   const setStatusDetail = useSessionStore((s) => s.setStatusDetail)
   const updateTerminalStatus = useTerminalStore((s) => s.updateTerminalStatus)
   const setActiveTerminal = useTerminalStore((s) => s.setActiveTerminal)
@@ -62,16 +61,6 @@ export function useSessionSubscriptions() {
     })
     return () => sub.unsubscribe()
   }, [updateStatus, notify, setHasUnread])
-
-  // Capture Claude CLI session ID for resume support
-  useEffect(() => {
-    const sub = trpc.session.onClaudeSessionId.subscribe(undefined, {
-      onData: ({ id, claudeSessionId }) => {
-        setClaudeSessionId(id, claudeSessionId)
-      },
-    })
-    return () => sub.unsubscribe()
-  }, [setClaudeSessionId])
 
   // Listen for detailed status updates from hook events
   useEffect(() => {

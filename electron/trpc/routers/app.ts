@@ -12,8 +12,14 @@ interface AppDeps {
 
 const customThemeSchema = z.object({
   name: z.string().min(1).max(50),
+  appearance: z.enum(['dark', 'light']).optional(),
+  author: z.string().max(100).optional(),
   base: z.enum(['obsidian', 'midnight', 'ember', 'monokai', 'dawn']),
-  colors: z.record(z.string(), z.string()).optional(),
+  ui: z.record(z.string(), z.string()).optional(),
+  terminal: z.record(z.string(), z.string()).optional(),
+  git: z.record(z.string(), z.string()).optional(),
+  status: z.record(z.string(), z.string()).optional(),
+  zincOverrides: z.record(z.string(), z.string()).optional(),
 })
 
 export function createAppRouter(deps: AppDeps) {
@@ -53,7 +59,7 @@ export function createAppRouter(deps: AppDeps) {
         try {
           return JSON.parse(fs.readFileSync(deps.sessionsPath, 'utf-8'))
         } catch {
-          return { sessions: [], archived: [], activeSessionId: null }
+          return { sessions: [], activeSessionId: null }
         }
       }),
 
@@ -101,7 +107,8 @@ export function createAppRouter(deps: AppDeps) {
         const themeFile = {
           name: input.fileName,
           base,
-          colors: {},
+          ui: {},
+          terminal: {},
         }
         fs.writeFileSync(filePath, JSON.stringify(themeFile, null, 2))
         return `custom:${safeName}`

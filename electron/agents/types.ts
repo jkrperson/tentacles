@@ -27,7 +27,6 @@ export interface AgentAdapter {
   buildSpawnConfig(opts: {
     binaryPath: string
     cwd: string
-    resumeId?: string
     extraArgs?: string[]
   }): SpawnConfig
 
@@ -36,8 +35,6 @@ export interface AgentAdapter {
   parseTitle?(title: string): { status: 'running' | 'needs_input' | 'idle'; name?: string } | null
 
   parseStatusDetail?(event: unknown): string | null
-
-  parseSessionId?(output: unknown): string | null
 
   parseStatus?(event: unknown): SessionStatus | null
 }

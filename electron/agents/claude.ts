@@ -45,11 +45,8 @@ export const claudeAdapter: AgentAdapter = {
   defaultBinary: 'claude',
   settingsKey: 'claudeCliPath',
 
-  buildSpawnConfig({ binaryPath, cwd, resumeId, extraArgs = [] }): SpawnConfig {
-    const args = resumeId
-      ? ['--resume', resumeId, ...extraArgs]
-      : [...extraArgs]
-    return { command: binaryPath, args, cwd }
+  buildSpawnConfig({ binaryPath, cwd, extraArgs = [] }): SpawnConfig {
+    return { command: binaryPath, args: [...extraArgs], cwd }
   },
 
   setupHooks(hookId: string, hookServerPort?: number): HookSetup {
@@ -147,8 +144,4 @@ export const claudeAdapter: AgentAdapter = {
     return null
   },
 
-  parseSessionId(output: unknown): string | null {
-    const data = output as { session_id?: string }
-    return data.session_id ?? null
-  },
 }

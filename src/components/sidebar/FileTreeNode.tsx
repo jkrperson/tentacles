@@ -4,13 +4,13 @@ import { trpc } from '../../trpc'
 import { FileIcon } from '../common/FileIcon'
 import type { FileNode, GitFileStatus } from '../../types'
 
-const GIT_STATUS_COLORS: Record<GitFileStatus, string> = {
-  modified: 'text-amber-300',
-  untracked: 'text-green-400',
-  added: 'text-green-400',
-  deleted: 'text-red-400',
-  conflicted: 'text-red-400',
-  renamed: 'text-green-400',
+const GIT_STATUS_VARS: Record<GitFileStatus, string> = {
+  modified: 'var(--t-git-modified)',
+  untracked: 'var(--t-git-untracked)',
+  added: 'var(--t-git-added)',
+  deleted: 'var(--t-git-deleted)',
+  conflicted: 'var(--t-git-conflicting)',
+  renamed: 'var(--t-git-renamed)',
 }
 
 function ChevronIcon({ expanded }: { expanded: boolean }) {
@@ -92,9 +92,10 @@ export const FileTreeNode = memo(function FileTreeNode({ node, depth }: { node: 
             <FileIcon name={node.name} />
           </>
         )}
-        <span className={`truncate ml-0.5 ${
-          isSelected ? '' : gitStatus ? GIT_STATUS_COLORS[gitStatus] : ''
-        }`}>{node.name}</span>
+        <span
+          className="truncate ml-0.5"
+          style={!isSelected && gitStatus ? { color: GIT_STATUS_VARS[gitStatus] } : undefined}
+        >{node.name}</span>
       </div>
       {node.type === 'directory' && isExpanded && children.map((child) => (
         <FileTreeNode key={child.path} node={child} depth={depth + 1} />

@@ -131,9 +131,9 @@ export function SettingsPage() {
                         }`}
                       >
                         <div className="flex gap-1">
-                          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: t.bgBase }} />
-                          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: t.accent }} />
-                          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: t.bgSurface }} />
+                          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: t.ui.background }} />
+                          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: t.ui.accent }} />
+                          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: t.ui.surface }} />
                         </div>
                         <span className="text-[12px] text-zinc-300 capitalize">{key}</span>
                       </button>
@@ -177,9 +177,9 @@ export function SettingsPage() {
                             }`}
                           >
                             <div className="flex gap-1">
-                              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: ct.bgBase }} />
-                              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: ct.accent }} />
-                              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: ct.bgSurface }} />
+                              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: ct.ui.background }} />
+                              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: ct.ui.accent }} />
+                              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: ct.ui.surface }} />
                             </div>
                             <span className="text-[12px] text-zinc-300 truncate">{file.name}</span>
                             <span

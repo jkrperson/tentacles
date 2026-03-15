@@ -9,9 +9,7 @@ export interface Session {
   createdAt: number
   hasUnread: boolean
   agentType: AgentType
-  claudeSessionId?: string
   statusDetail?: string
-  archivedAt?: number
   pid?: number
   exitCode?: number | null
   isWorktree?: boolean
@@ -23,7 +21,6 @@ export interface Session {
 
 export interface SessionsFile {
   sessions: Session[]
-  archived: Session[]
   activeSessionId: string | null
 }
 
@@ -115,11 +112,7 @@ export interface ShellTerminal {
   exitCode?: number | null
 }
 
-export interface CustomThemeFile {
-  name: string
-  base: string
-  colors?: Partial<import('../themes').ThemeDefinition>
-}
+export type { CustomThemeFile } from '../themes'
 
 export type NotificationType = 'info' | 'success' | 'warning' | 'error'
 

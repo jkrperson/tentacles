@@ -4,13 +4,13 @@ import { useNotificationStore } from '../../stores/notificationStore'
 import { trpc } from '../../trpc'
 import type { GitFileDetail, GitFileStatus, GitStatusDetailResult } from '../../types'
 
-const GIT_STATUS_COLORS: Record<GitFileStatus, string> = {
-  modified: 'text-amber-300',
-  untracked: 'text-green-400',
-  added: 'text-green-400',
-  deleted: 'text-red-400',
-  conflicted: 'text-red-400',
-  renamed: 'text-green-400',
+const GIT_STATUS_VARS: Record<GitFileStatus, string> = {
+  modified: 'var(--t-git-modified)',
+  untracked: 'var(--t-git-untracked)',
+  added: 'var(--t-git-added)',
+  deleted: 'var(--t-git-deleted)',
+  conflicted: 'var(--t-git-conflicting)',
+  renamed: 'var(--t-git-renamed)',
 }
 
 const GIT_STATUS_LETTER: Record<string, string> = {
@@ -225,7 +225,7 @@ export function GitPanel({ onToggle }: GitPanelProps) {
     const relativePath = activeProjectId ? file.absolutePath.slice(activeProjectId.length + 1) : file.absolutePath
     const parentDir = relativePath.slice(0, relativePath.lastIndexOf('/'))
     const statusKey = staged ? file.indexStatus : file.workTreeStatus
-    const colorClass = GIT_STATUS_COLORS[file.status as GitFileStatus] ?? 'text-zinc-400'
+    const statusColor = GIT_STATUS_VARS[file.status as GitFileStatus]
     const letter = GIT_STATUS_LETTER[statusKey] ?? '?'
 
     return (
@@ -234,10 +234,16 @@ export function GitPanel({ onToggle }: GitPanelProps) {
         className="flex items-center gap-1 px-3 py-[3px] cursor-pointer text-[12px] hover:bg-[var(--t-bg-hover)] transition-colors overflow-hidden group/row"
         onClick={() => handleFileClick(file.absolutePath, staged)}
       >
-        <span className={`flex-shrink-0 w-4 text-center font-mono text-[11px] ${colorClass}`}>
+        <span
+          className="flex-shrink-0 w-4 text-center font-mono text-[11px]"
+          style={statusColor ? { color: statusColor } : undefined}
+        >
           {letter}
         </span>
-        <span className={`truncate ${colorClass}`}>
+        <span
+          className="truncate"
+          style={statusColor ? { color: statusColor } : undefined}
+        >
           {fileName}
         </span>
         {parentDir && (

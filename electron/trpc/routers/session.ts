@@ -8,8 +8,8 @@ import type { SessionStatus } from '../../../src/types'
 
 interface SessionDeps {
   ptyManager: PtyManager
-  spawnAgent: (name: string, cwd: string, agentType: AgentType, resumeId?: string) => Promise<{ id: string; pid: number; hookId: string }>
-  reattachAgent: (sessionId: string, hookId: string, name: string, cwd: string, agentType?: AgentType) => Promise<{ id: string; scrollbackAvailable: boolean; initialStatus?: SessionStatus; initialStatusDetail?: string | null; recoveredClaudeSessionId?: string } | null>
+  spawnAgent: (name: string, cwd: string, agentType: AgentType) => Promise<{ id: string; pid: number; hookId: string }>
+  reattachAgent: (sessionId: string, hookId: string, name: string, cwd: string, agentType?: AgentType) => Promise<{ id: string; scrollbackAvailable: boolean; initialStatus?: SessionStatus; initialStatusDetail?: string | null } | null>
   daemonClient: DaemonClient
 }
 
@@ -19,12 +19,6 @@ export function createSessionRouter(deps: SessionDeps) {
       .input(z.object({ name: z.string(), cwd: z.string(), agentType: z.string().optional() }))
       .mutation(async ({ input }) => {
         return await deps.spawnAgent(input.name, input.cwd, (input.agentType as AgentType) ?? 'claude')
-      }),
-
-    resume: t.procedure
-      .input(z.object({ claudeSessionId: z.string(), name: z.string(), cwd: z.string(), agentType: z.string().optional() }))
-      .mutation(async ({ input }) => {
-        return await deps.spawnAgent(input.name, input.cwd, (input.agentType as AgentType) ?? 'claude', input.claudeSessionId)
       }),
 
     reattach: t.procedure
@@ -70,7 +64,6 @@ export function createSessionRouter(deps: SessionDeps) {
     onData: createSubscription('session:data'),
     onExit: createSubscription('session:exit'),
     onTitle: createSubscription('session:title'),
-    onClaudeSessionId: createSubscription('session:claudeSessionId'),
     onStatusDetail: createSubscription('session:statusDetail'),
     onAgentStatus: createSubscription('session:agentStatus'),
   })

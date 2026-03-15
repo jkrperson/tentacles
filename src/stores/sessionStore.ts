@@ -18,20 +18,13 @@ interface SessionState {
   activeSessionId: string | null
   sessionOrder: string[]
 
-  archivedSessions: Map<string, Session>
-  archivedOrder: string[]
-
   addSession: (session: Session) => void
   removeSession: (id: string) => void
-  archiveSession: (id: string) => void
-  deleteArchivedSession: (id: string) => void
   setActiveSession: (id: string | null) => void
   updateStatus: (id: string, status: SessionStatus, exitCode?: number | null) => void
   setStatusDetail: (id: string, detail: string | null) => void
   setHasUnread: (id: string, hasUnread: boolean) => void
   acknowledgeSession: (id: string) => void
-  setClaudeSessionId: (id: string, claudeSessionId: string) => void
-  restoreSession: (id: string) => Session | null
   renameSession: (id: string, name: string) => void
   loadSessions: () => Promise<void>
   persistSessions: () => void
@@ -40,13 +33,11 @@ interface SessionState {
   createSession: (agentType?: AgentType) => Promise<void>
   createSessionInProject: (projectPath: string, agentType?: AgentType) => Promise<void>
   createSessionInWorktree: (projectPath: string, name?: string, agentType?: AgentType) => Promise<void>
-  resumeSession: (archivedSessionId: string) => Promise<void>
 }
 
 function serializeState(state: SessionState): SessionsFile {
   return {
     sessions: state.sessionOrder.map((id) => state.sessions.get(id)!).filter(Boolean),
-    archived: state.archivedOrder.map((id) => state.archivedSessions.get(id)!).filter(Boolean),
     activeSessionId: state.activeSessionId,
   }
 }
@@ -64,8 +55,6 @@ export const useSessionStore = create<SessionState>((set, get) => {
     sessions: new Map(),
     activeSessionId: null,
     sessionOrder: [],
-    archivedSessions: new Map(),
-    archivedOrder: [],
 
     persistSessions: persist,
 
@@ -82,11 +71,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
         return next
       }),
 
-    removeSession: (id) => {
-      get().archiveSession(id)
-    },
-
-    archiveSession: (id) =>
+    removeSession: (id) =>
       set((state) => {
         const session = state.sessions.get(id)
         if (!session) return state
@@ -99,22 +84,8 @@ export const useSessionStore = create<SessionState>((set, get) => {
             ? sessionOrder[sessionOrder.length - 1] ?? null
             : state.activeSessionId
 
-        const archivedSessions = new Map(state.archivedSessions)
-        const archivedSession = { ...session, archivedAt: Date.now(), hasUnread: false }
-        archivedSessions.set(id, archivedSession)
-        const archivedOrder = [id, ...state.archivedOrder]
-
         persist()
-        return { sessions, sessionOrder, activeSessionId, archivedSessions, archivedOrder }
-      }),
-
-    deleteArchivedSession: (id) =>
-      set((state) => {
-        const archivedSessions = new Map(state.archivedSessions)
-        archivedSessions.delete(id)
-        const archivedOrder = state.archivedOrder.filter((sid) => sid !== id)
-        persist()
-        return { archivedSessions, archivedOrder }
+        return { sessions, sessionOrder, activeSessionId }
       }),
 
     setActiveSession: (id) => set({ activeSessionId: id }),
@@ -163,39 +134,6 @@ export const useSessionStore = create<SessionState>((set, get) => {
         persist()
         return { sessions }
       }),
-
-    setClaudeSessionId: (id, claudeSessionId) =>
-      set((state) => {
-        const session = state.sessions.get(id)
-        if (session) {
-          const sessions = new Map(state.sessions)
-          sessions.set(id, { ...session, claudeSessionId })
-          persist()
-          return { sessions }
-        }
-        const archived = state.archivedSessions.get(id)
-        if (archived) {
-          const archivedSessions = new Map(state.archivedSessions)
-          archivedSessions.set(id, { ...archived, claudeSessionId })
-          persist()
-          return { archivedSessions }
-        }
-        return state
-      }),
-
-    restoreSession: (id) => {
-      const state = get()
-      const session = state.archivedSessions.get(id)
-      if (!session) return null
-
-      const archivedSessions = new Map(state.archivedSessions)
-      archivedSessions.delete(id)
-      const archivedOrder = state.archivedOrder.filter((sid) => sid !== id)
-
-      set({ archivedSessions, archivedOrder })
-      persist()
-      return session
-    },
 
     renameSession: (id, name) =>
       set((state) => {
@@ -292,47 +230,12 @@ export const useSessionStore = create<SessionState>((set, get) => {
       }
     },
 
-    resumeSession: async (archivedSessionId: string) => {
-      const notify = useNotificationStore.getState().notify
-      const { setActiveProject } = useProjectStore.getState()
-      const archived = get().restoreSession(archivedSessionId)
-
-      if (!archived) {
-        notify('error', 'Cannot resume', 'Session not found in archive')
-        return
-      }
-      if (!archived.claudeSessionId) {
-        notify('warning', 'Cannot resume', 'No session ID available for resume')
-        return
-      }
-      try {
-        const { id, pid, hookId } = await trpc.session.resume.mutate({
-          claudeSessionId: archived.claudeSessionId,
-          name: archived.name,
-          cwd: archived.cwd,
-          agentType: archived.agentType,
-        })
-        get().addSession({
-          id, name: archived.name, cwd: archived.cwd, status: 'running',
-          createdAt: Date.now(), hasUnread: false, agentType: archived.agentType,
-          pid, hookId, claudeSessionId: archived.claudeSessionId,
-          isWorktree: archived.isWorktree, worktreePath: archived.worktreePath,
-          worktreeBranch: archived.worktreeBranch, originalRepo: archived.originalRepo,
-        })
-        setActiveProject(archived.originalRepo ?? archived.cwd)
-      } catch (err: unknown) {
-        notify('error', 'Failed to resume session', getErrorMessage(err))
-      }
-    },
-
     loadSessions: async () => {
       try {
         const data = await trpc.app.loadSessions.query() as SessionsFile
 
         const sessions = new Map<string, Session>()
         const sessionOrder: string[] = []
-        const archivedSessions = new Map<string, Session>()
-        const archivedOrder: string[] = []
 
         for (const rawSession of data.sessions) {
           const s = { ...rawSession, agentType: rawSession.agentType ?? 'claude' as const }
@@ -347,14 +250,12 @@ export const useSessionStore = create<SessionState>((set, get) => {
             })
             if (result) {
               const initialStatus = (result.initialStatus as SessionStatus) || 'idle'
-              const claudeSessionId = s.claudeSessionId || result.recoveredClaudeSessionId
 
               const restored: Session = {
                 ...s,
                 id: result.id,
                 status: initialStatus,
                 statusDetail: result.initialStatusDetail ?? undefined,
-                claudeSessionId,
                 hasUnread: false,
               }
               sessions.set(restored.id, restored)
@@ -363,28 +264,13 @@ export const useSessionStore = create<SessionState>((set, get) => {
             }
           } catch { /* reattach failed — daemon session not found */ }
 
-          const archived: Session = {
-            ...s,
-            status: s.status === 'running' || s.status === 'idle' || s.status === 'needs_input' ? 'completed' : s.status,
-            archivedAt: s.archivedAt ?? Date.now(),
-            hasUnread: false,
-          }
-          archivedSessions.set(s.id, archived)
-          archivedOrder.push(s.id)
-        }
-
-        for (const rawArchived of data.archived) {
-          const s = { ...rawArchived, agentType: rawArchived.agentType ?? 'claude' as const }
-          archivedSessions.set(s.id, { ...s, hasUnread: false })
-          archivedOrder.push(s.id)
+          // Session couldn't be reattached — discard it
         }
 
         set({
           sessions,
           sessionOrder,
           activeSessionId: sessionOrder[0] ?? null,
-          archivedSessions,
-          archivedOrder,
         })
       } catch {
         // No saved sessions — nothing to load

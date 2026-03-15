@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { themes, mergeCustomTheme, type ThemeDefinition } from '../themes'
+import { themes, mergeCustomTheme, type ThemeDefinition, type CustomThemeFile } from '../themes'
 import { trpc } from '../trpc'
-import type { CustomThemeFile } from '../types'
 
 function getSystemThemeName(): string {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'obsidian' : 'dawn'

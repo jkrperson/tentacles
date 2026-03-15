@@ -77,12 +77,6 @@ function createApp(): ReturnType<typeof express> {
       ee.emit('session:agentStatus', { id: mapping.ptyId, status: status as 'running' | 'needs_input' | 'completed' | 'idle' })
     }
 
-    // Emit sessionId (for Claude resume support)
-    const sessionId = adapter.parseSessionId?.(event)
-    if (sessionId) {
-      ee.emit('session:claudeSessionId', { id: mapping.ptyId, claudeSessionId: sessionId })
-    }
-
     res.sendStatus(200)
   })
 
