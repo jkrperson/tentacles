@@ -60,18 +60,10 @@ export function ProjectGroup({ project, onNewSessionInProject, onNewSessionInWor
   }
 
   const sorted = useMemo(() => {
-    const projectSessions = sessionOrder.filter((id) => {
+    return sessionOrder.filter((id) => {
       const s = sessions.get(id)
       return s?.cwd === project.path || s?.originalRepo === project.path
     })
-    const active: string[] = []
-    const finished: string[] = []
-    for (const id of projectSessions) {
-      const s = sessions.get(id)?.status
-      if (s === 'running' || s === 'idle') active.push(id)
-      else finished.push(id)
-    }
-    return [...active, ...finished]
   }, [sessionOrder, sessions, project.path])
 
   const archivedForProject = useMemo(() => {

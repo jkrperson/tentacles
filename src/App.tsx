@@ -15,6 +15,7 @@ import type { AgentType } from './types'
 
 function App() {
   const setHasUnread = useSessionStore((s) => s.setHasUnread)
+  const acknowledgeSession = useSessionStore((s) => s.acknowledgeSession)
   const activeSessionId = useSessionStore((s) => s.activeSessionId)
   const updateStatus = useSessionStore((s) => s.updateStatus)
   const sessionOrder = useSessionStore((s) => s.sessionOrder)
@@ -64,34 +65,15 @@ function App() {
     return initDataRouter()
   }, [])
 
-  // Listen for OSC title changes — detect status from leading symbol + rename sessions
-  // Claude Code titles: "⠶ Task Name" (running/spinner) or "✳ Task Name" (idle/waiting)
-  // Non-Claude agents may not emit title sequences (handled gracefully)
+  // Listen for OSC title changes — extract clean session names
+  // Status updates are now handled via onAgentStatus (hook server + title-based emits in main process)
   useEffect(() => {
     const sub = trpc.session.onTitle.subscribe(undefined, {
       onData: ({ id, title }) => {
         const session = useSessionStore.getState().sessions.get(id)
         if (!session || session.status === 'completed' || session.status === 'errored') return
-
-        // Only Claude Code emits meaningful OSC titles; skip parsing for other agents
         if (session.agentType !== 'claude') return
 
-        // Parse leading status symbol (Claude Code specific)
-        const firstChar = title.codePointAt(0) ?? 0
-        const isBrailleSpinner = firstChar >= 0x2800 && firstChar <= 0x28FF
-        const isIdleSymbol = firstChar === 0x2733 // ✳
-
-        if (isBrailleSpinner && session.status !== 'running') {
-          updateStatus(id, 'running')
-        } else if (isIdleSymbol && session.status !== 'idle') {
-          updateStatus(id, 'idle')
-          if (id !== activeSessionRef.current) setHasUnread(id, true)
-          const cleanName = title.replace(/^[\u2800-\u28FF\u2733]\s*/, '') || session.name
-          notify('info', `${cleanName} is waiting`, 'Claude Code is waiting for input', id)
-        }
-
-        // Strip the symbol prefix for a clean session name
-        // Skip generic product names — newer Claude Code CLI only sends "Claude Code" as the title
         const cleanTitle = title.replace(/^[\u2800-\u28FF\u2733]\s*/, '')
         const isGenericName = cleanTitle === 'Claude Code' || cleanTitle === 'Codex CLI' || cleanTitle === 'opencode'
         if (cleanTitle && !isGenericName && cleanTitle !== session.name) {
@@ -100,13 +82,11 @@ function App() {
       },
     })
     return () => sub.unsubscribe()
-  }, [renameSession, updateStatus, notify, setHasUnread])
+  }, [renameSession])
 
   useEffect(() => {
-    if (activeSessionId) {
-      setHasUnread(activeSessionId, false)
-    }
-  }, [activeSessionId, setHasUnread])
+    if (activeSessionId) acknowledgeSession(activeSessionId)
+  }, [activeSessionId, acknowledgeSession])
 
   // Listen for session exits — uses store.getState() to avoid re-subscribing on session changes
   useEffect(() => {
@@ -147,22 +127,40 @@ function App() {
     return () => sub.unsubscribe()
   }, [setStatusDetail])
 
-  // Listen for agent status changes from hook events (e.g. Codex idle on turn-complete)
+  // Listen for agent status changes from hook events — single source of truth for non-exit transitions
   useEffect(() => {
     const sub = trpc.session.onAgentStatus.subscribe(undefined, {
-      onData: ({ id, status }) => {
+      onData: ({ id, status: rawStatus }) => {
         const session = useSessionStore.getState().sessions.get(id)
-        if (!session || session.status === 'completed' || session.status === 'errored') return
-        if (session.status !== status) {
-          updateStatus(id, status)
-          if (status === 'idle') {
-            notify('info', `${session.name} is waiting`, 'Agent is waiting for input', id)
+        if (!session || session.status === 'errored') return
+        if (session.exitCode != null) return  // don't update exited sessions
+
+        let finalStatus = rawStatus
+        // Agent finished a turn while user isn't watching → completed (unreviewed)
+        if (rawStatus === 'idle' && id !== activeSessionRef.current) {
+          finalStatus = 'completed'
+        }
+
+        if (session.status !== finalStatus) {
+          updateStatus(id, finalStatus)
+        }
+
+        if (id !== activeSessionRef.current) {
+          if (rawStatus === 'needs_input' || rawStatus === 'idle') {
+            setHasUnread(id, true)
           }
+        }
+
+        // Notifications
+        if (rawStatus === 'needs_input') {
+          notify('warning', `${session.name} needs input`, 'Agent is waiting for permission', id)
+        } else if (rawStatus === 'idle') {
+          notify('info', `${session.name} finished`, 'Agent completed its task', id)
         }
       },
     })
     return () => sub.unsubscribe()
-  }, [updateStatus, notify])
+  }, [updateStatus, notify, setHasUnread])
 
   // Switch active terminal when project changes
   useEffect(() => {

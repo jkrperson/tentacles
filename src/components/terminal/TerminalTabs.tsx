@@ -16,10 +16,11 @@ const AGENT_LETTER: Record<AgentType, string> = {
 }
 
 const STATUS_DOTS: Record<string, string> = {
-  running: 'bg-emerald-400',
-  idle: 'bg-amber-400',
-  completed: 'bg-zinc-500',
-  errored: 'bg-red-400',
+  running:     'bg-blue-500 animate-pulse',
+  needs_input: 'bg-yellow-500 animate-pulse',
+  completed:   'bg-emerald-500',
+  idle:        'bg-zinc-600',
+  errored:     'bg-red-500',
 }
 
 export function TerminalTabs() {

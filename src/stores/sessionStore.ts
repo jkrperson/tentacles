@@ -25,6 +25,7 @@ interface SessionState {
   updateStatus: (id: string, status: SessionStatus, exitCode?: number | null) => void
   setStatusDetail: (id: string, detail: string | null) => void
   setHasUnread: (id: string, hasUnread: boolean) => void
+  acknowledgeSession: (id: string) => void
   setClaudeSessionId: (id: string, claudeSessionId: string) => void
   restoreSession: (id: string) => Session | null
   renameSession: (id: string, name: string) => void
@@ -152,6 +153,25 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       if (!session || session.hasUnread === hasUnread) return state
       const sessions = new Map(state.sessions)
       sessions.set(id, { ...session, hasUnread })
+      return { sessions }
+    }),
+
+  acknowledgeSession: (id) =>
+    set((state) => {
+      const session = state.sessions.get(id)
+      if (!session) return state
+      const updates: Partial<Session> = { hasUnread: false }
+      // Only clear completed→idle if session is still alive (no exitCode)
+      if (session.status === 'completed' && session.exitCode == null) {
+        updates.status = 'idle'
+      }
+      if (!updates.status && !session.hasUnread) return state
+      const sessions = new Map(state.sessions)
+      sessions.set(id, { ...session, ...updates })
+      debouncedPersist(() => {
+        const data = serializeState(get())
+        trpc.app.saveSessions.mutate(data as unknown as Record<string, unknown>).catch(() => {})
+      })
       return { sessions }
     }),
 

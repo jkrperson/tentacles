@@ -10,11 +10,12 @@ const AGENT_BADGE: Record<AgentType, { letter: string; color: string }> = {
   opencode: { letter: 'O', color: 'bg-blue-500/20 text-blue-300' },
 }
 
-const STATUS_CONFIG: Record<string, { label: string; dotColor: string; textColor: string }> = {
-  running: { label: 'Running', dotColor: 'bg-emerald-400', textColor: 'text-emerald-400' },
-  idle: { label: 'Waiting', dotColor: 'bg-amber-400', textColor: 'text-amber-400' },
-  completed: { label: 'Completed', dotColor: 'bg-zinc-500', textColor: 'text-zinc-500' },
-  errored: { label: 'Errored', dotColor: 'bg-red-400', textColor: 'text-red-400' },
+const STATUS_CONFIG: Record<string, { label: string; dotColor: string; textColor: string; pulse?: boolean }> = {
+  running:     { label: 'Running',     dotColor: 'bg-blue-500',    textColor: 'text-blue-400',    pulse: true },
+  needs_input: { label: 'Needs input', dotColor: 'bg-yellow-500',  textColor: 'text-yellow-400',  pulse: true },
+  completed:   { label: 'Completed',   dotColor: 'bg-emerald-500', textColor: 'text-emerald-400' },
+  idle:        { label: 'Idle',        dotColor: 'bg-zinc-600',    textColor: 'text-zinc-600' },
+  errored:     { label: 'Errored',     dotColor: 'bg-red-500',     textColor: 'text-red-400' },
 }
 
 export const SessionCard = memo(function SessionCard({ session, isActive, isArchived, onResume }: { session: Session; isActive: boolean; isArchived?: boolean; onResume?: () => void }) {
@@ -43,7 +44,7 @@ export const SessionCard = memo(function SessionCard({ session, isActive, isArch
     >
       {/* Status dot */}
       <div className="mt-1.5 flex-shrink-0">
-        <div className={`w-2 h-2 rounded-full ${config.dotColor} ${!isArchived && session.status === 'running' ? 'animate-pulse' : ''}`} />
+        <div className={`w-2 h-2 rounded-full ${config.dotColor} ${!isArchived && config.pulse ? 'animate-pulse' : ''}`} />
       </div>
 
       <div className="flex-1 min-w-0">
@@ -113,7 +114,7 @@ export const SessionCard = memo(function SessionCard({ session, isActive, isArch
             deleteArchivedSession(session.id)
           } else {
             // Archive (kill if still running)
-            if (session.status === 'running' || session.status === 'idle') trpc.session.kill.mutate({ id: session.id })
+            if (session.status === 'running' || session.status === 'idle' || session.status === 'needs_input') trpc.session.kill.mutate({ id: session.id })
             removeSession(session.id)
           }
         }}

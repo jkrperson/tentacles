@@ -144,6 +144,15 @@ export const claudeAdapter: AgentAdapter = {
     return null
   },
 
+  parseStatus(event: unknown): 'running' | 'needs_input' | 'idle' | null {
+    const e = event as HookEvent
+    const hookName = e.hook_event_name
+    if (hookName === 'PermissionRequest') return 'needs_input'
+    if (hookName === 'PostToolUse' || hookName === 'PreToolUse') return 'running'
+    if (hookName === 'Stop') return 'idle'
+    return null
+  },
+
   parseSessionId(output: unknown): string | null {
     const data = output as { session_id?: string }
     return data.session_id ?? null

@@ -196,7 +196,8 @@ export const codexAdapter: AgentAdapter = {
 
   parseStatus(event: unknown): 'running' | 'idle' | null {
     const e = event as CodexNotifyEvent
-    // agent-turn-complete means the agent finished its turn and is waiting for input
+    // agent-turn-complete means the agent finished its turn — maps to idle (task done, waiting for new prompt)
+    // Note: Codex doesn't fire notify events for approval/permission requests (only agent-turn-complete)
     if (e.event === 'agent-turn-complete') return 'idle'
     return null
   },
