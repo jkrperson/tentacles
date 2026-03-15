@@ -17,7 +17,7 @@ const defaultSettings: AppSettings = {
   projectPaths: [],
   theme: 'obsidian',
   enabledLspLanguages: [],
-  scrollSpeed: 5,
+  scrollSpeed: 3,
   enableMediaPanel: false,
 }
 
