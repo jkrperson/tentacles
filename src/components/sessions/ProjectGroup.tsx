@@ -7,16 +7,16 @@ import type { Project } from '../../types'
 
 interface ProjectGroupProps {
   project: Project
-  onNewSessionInProject: (projectPath: string) => void
-  onNewSessionInWorktree: (projectPath: string, name?: string) => void
-  onResumeSession: (archivedSessionId: string) => void
 }
 
-export function ProjectGroup({ project, onNewSessionInProject, onNewSessionInWorktree, onResumeSession }: ProjectGroupProps) {
+export function ProjectGroup({ project }: ProjectGroupProps) {
   const sessions = useSessionStore((s) => s.sessions)
   const sessionOrder = useSessionStore((s) => s.sessionOrder)
   const activeSessionId = useSessionStore((s) => s.activeSessionId)
   const setActiveSession = useSessionStore((s) => s.setActiveSession)
+  const createSessionInProject = useSessionStore((s) => s.createSessionInProject)
+  const createSessionInWorktree = useSessionStore((s) => s.createSessionInWorktree)
+  const resumeSession = useSessionStore((s) => s.resumeSession)
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
   const setActiveProject = useProjectStore((s) => s.setActiveProject)
   const removeProject = useProjectStore((s) => s.removeProject)
@@ -56,7 +56,7 @@ export function ProjectGroup({ project, onNewSessionInProject, onNewSessionInWor
     const name = worktreeName.trim() || undefined
     setShowNameInput(false)
     setWorktreeName('')
-    onNewSessionInWorktree(project.path, name)
+    createSessionInWorktree(project.path, name)
   }
 
   const sorted = useMemo(() => {
@@ -116,7 +116,7 @@ export function ProjectGroup({ project, onNewSessionInProject, onNewSessionInWor
             </button>
           )}
           <button
-            onClick={() => onNewSessionInProject(project.path)}
+            onClick={() => createSessionInProject(project.path)}
             className="text-zinc-600 hover:text-zinc-300 p-0.5 rounded hover:bg-[var(--t-border)] transition-colors"
             title="Add agent to project"
           >
@@ -205,7 +205,7 @@ export function ProjectGroup({ project, onNewSessionInProject, onNewSessionInWor
                         session={session}
                         isActive={false}
                         isArchived
-                        onResume={session.claudeSessionId ? () => onResumeSession(id) : undefined}
+                        onResume={session.claudeSessionId ? () => resumeSession(id) : undefined}
                       />
                     ) : null
                   })}

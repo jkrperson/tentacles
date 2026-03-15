@@ -4,14 +4,11 @@ import { TerminalPanel } from './TerminalPanel'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useProjectStore } from '../../stores/projectStore'
 
-interface TerminalViewProps {
-  onNewSession: () => void
-}
-
-export function TerminalView({ onNewSession }: TerminalViewProps) {
+export function TerminalView() {
   const activeSessionId = useSessionStore((s) => s.activeSessionId)
   const sessionOrder = useSessionStore((s) => s.sessionOrder)
   const sessions = useSessionStore((s) => s.sessions)
+  const createSession = useSessionStore((s) => s.createSession)
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
 
   const projectSessions = useMemo(
@@ -32,7 +29,7 @@ export function TerminalView({ onNewSession }: TerminalViewProps) {
                 {activeProjectId ? 'No agents in this project' : 'No active agents'}
               </div>
               <button
-                onClick={() => onNewSession()}
+                onClick={() => createSession()}
                 className="px-4 py-2 bg-[var(--t-accent)] hover:bg-[var(--t-accent-hover)] text-white text-[13px] font-medium rounded-lg transition-colors"
               >
                 Spawn Agent

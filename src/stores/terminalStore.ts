@@ -1,4 +1,8 @@
 import { create } from 'zustand'
+import { trpc } from '../trpc'
+import { useProjectStore } from './projectStore'
+import { useNotificationStore } from './notificationStore'
+import { getErrorMessage } from '../utils/errors'
 import type { ShellTerminal } from '../types'
 
 interface TerminalState {
@@ -11,9 +15,10 @@ interface TerminalState {
   setActiveTerminal: (id: string | null) => void
   updateTerminalStatus: (id: string, exitCode: number) => void
   renameTerminal: (id: string, name: string) => void
+  createTerminal: () => Promise<void>
 }
 
-export const useTerminalStore = create<TerminalState>((set) => ({
+export const useTerminalStore = create<TerminalState>((set, get) => ({
   terminals: new Map(),
   activeTerminalId: null,
   terminalOrder: [],
@@ -60,4 +65,28 @@ export const useTerminalStore = create<TerminalState>((set) => ({
       terminals.set(id, { ...terminal, name })
       return { terminals }
     }),
+
+  createTerminal: async () => {
+    const { activeProjectId, addProject } = useProjectStore.getState()
+    const notify = useNotificationStore.getState().notify
+
+    let cwd = activeProjectId
+    if (!cwd) {
+      const dir = await trpc.dialog.selectDirectory.query()
+      if (!dir) return
+      addProject(dir)
+      cwd = dir
+    }
+
+    const { terminalOrder } = get()
+    const name = `Terminal ${terminalOrder.length + 1}`
+    try {
+      const { id, pid } = await trpc.terminal.create.mutate({ name, cwd })
+      get().addTerminal({
+        id, name, cwd, status: 'running', createdAt: Date.now(), pid,
+      })
+    } catch (err: unknown) {
+      notify('error', 'Failed to spawn terminal', getErrorMessage(err))
+    }
+  },
 }))

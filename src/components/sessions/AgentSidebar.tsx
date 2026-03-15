@@ -13,16 +13,11 @@ const AGENT_OPTIONS: { id: AgentType; label: string }[] = [
   { id: 'opencode', label: 'opencode' },
 ]
 
-interface AgentSidebarProps {
-  onNewSession: (agentType?: AgentType) => void
-  onNewSessionInProject: (projectPath: string, agentType?: AgentType) => void
-  onNewSessionInWorktree: (projectPath: string, name?: string, agentType?: AgentType) => void
-  onResumeSession: (archivedSessionId: string) => void
-  defaultAgent: AgentType
-}
-
-export function AgentSidebar({ onNewSession, onNewSessionInProject, onNewSessionInWorktree, onResumeSession, defaultAgent }: AgentSidebarProps) {
+export function AgentSidebar() {
   const sessionOrder = useSessionStore((s) => s.sessionOrder)
+  const createSession = useSessionStore((s) => s.createSession)
+  const createSessionInWorktree = useSessionStore((s) => s.createSessionInWorktree)
+  const defaultAgent = useSettingsStore((s) => s.settings.defaultAgent)
   const toggleSettings = useSettingsStore((s) => s.toggleSettings)
   const projects = useProjectStore((s) => s.projects)
   const projectOrder = useProjectStore((s) => s.projectOrder)
@@ -84,8 +79,8 @@ export function AgentSidebar({ onNewSession, onNewSessionInProject, onNewSession
     setDropdownOpen(false)
     setShowNameInput(false)
     setWorktreeName('')
-    onNewSessionInWorktree(activeProjectId, name)
-  }, [activeProjectId, worktreeName, onNewSessionInWorktree])
+    createSessionInWorktree(activeProjectId, name)
+  }, [activeProjectId, worktreeName, createSessionInWorktree])
 
   const handleWorktreeKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -103,7 +98,7 @@ export function AgentSidebar({ onNewSession, onNewSessionInProject, onNewSession
       <div className="p-3 flex-shrink-0 space-y-2">
         <div className="relative flex" ref={dropdownRef}>
           <button
-            onClick={() => onNewSession()}
+            onClick={() => createSession()}
             className="flex-1 py-2 px-3 bg-[var(--t-accent)] hover:bg-[var(--t-accent-hover)] text-white text-[13px] font-medium rounded-l-lg transition-colors"
           >
             New Agent
@@ -125,7 +120,7 @@ export function AgentSidebar({ onNewSession, onNewSessionInProject, onNewSession
                   {AGENT_OPTIONS.filter((a) => a.id !== defaultAgent).map((agent) => (
                     <button
                       key={agent.id}
-                      onClick={() => { setDropdownOpen(false); onNewSession(agent.id) }}
+                      onClick={() => { setDropdownOpen(false); createSession(agent.id) }}
                       className="w-full px-3 py-1.5 text-left text-[12px] text-zinc-300 hover:bg-[var(--t-bg-hover)] transition-colors flex items-center gap-2"
                     >
                       <span className="w-4 text-center text-[10px] font-bold text-zinc-500 flex-shrink-0">
@@ -189,9 +184,6 @@ export function AgentSidebar({ onNewSession, onNewSessionInProject, onNewSession
             <ProjectGroup
               key={path}
               project={project}
-              onNewSessionInProject={onNewSessionInProject}
-              onNewSessionInWorktree={onNewSessionInWorktree}
-              onResumeSession={onResumeSession}
             />
           )
         })}
