@@ -1,22 +1,13 @@
 import * as path from 'node:path'
 import * as fs from 'node:fs'
 import { homedir } from 'node:os'
-import { app } from 'electron'
+import { ensureHooksDir, getHooksDir, ConfigGuard } from './shared'
 import type { AgentAdapter, HookSetup, SpawnConfig } from './types'
 
-const hooksDir = path.join(app.getPath('userData'), 'hooks')
 const codexConfigPath = path.join(homedir(), '.codex', 'config.toml')
+const hooksDir = getHooksDir()
 const notifyBackupPath = path.join(hooksDir, 'codex-original-notify.bak')
 const notifyScriptPath = path.join(hooksDir, 'codex-notify.sh')
-
-function ensureHooksDir() {
-  if (!fs.existsSync(hooksDir)) {
-    fs.mkdirSync(hooksDir, { recursive: true })
-  }
-}
-
-/** Track active Codex session count for config.toml restoration. */
-let activeCodexSessions = 0
 
 /** Read the current `notify` value from config.toml. Returns null if not set. */
 function readNotifyValue(): string | null {
@@ -69,22 +60,30 @@ function removeNotifyLine() {
   } catch { /* ignore */ }
 }
 
-/** Restore the original notify config when all Codex sessions end. */
-function restoreOriginalNotify() {
-  try {
-    if (fs.existsSync(notifyBackupPath)) {
-      const original = fs.readFileSync(notifyBackupPath, 'utf-8').trim()
-      if (original) {
-        writeNotifyValue(original)
+const configGuard = new ConfigGuard(
+  notifyBackupPath,
+  () => {
+    // Backup current notify value
+    const currentNotify = readNotifyValue()
+    fs.writeFileSync(notifyBackupPath, currentNotify ?? '')
+  },
+  () => {
+    // Restore original notify value
+    try {
+      if (fs.existsSync(notifyBackupPath)) {
+        const original = fs.readFileSync(notifyBackupPath, 'utf-8').trim()
+        if (original) {
+          writeNotifyValue(original)
+        } else {
+          removeNotifyLine()
+        }
+        fs.unlinkSync(notifyBackupPath)
       } else {
         removeNotifyLine()
       }
-      fs.unlinkSync(notifyBackupPath)
-    } else {
-      removeNotifyLine()
-    }
-  } catch { /* ignore */ }
-}
+    } catch { /* ignore */ }
+  },
+)
 
 /** Create the shared notify script that routes events by TENTACLES_HOOK_ID. */
 function ensureNotifyScript(hookServerPort?: number) {
@@ -143,16 +142,10 @@ export const codexAdapter: AgentAdapter = {
     const statusPath = path.join(hooksDir, `${hookId}.status`)
     const outputPath = path.join(hooksDir, `${hookId}.out`)
 
-    // Back up existing notify value only on the first Codex session
-    if (activeCodexSessions === 0) {
-      const currentNotify = readNotifyValue()
-      // Save original (empty string means "was not set")
-      fs.writeFileSync(notifyBackupPath, currentNotify ?? '')
-    }
+    configGuard.acquireSession()
 
     // Set notify to our shared script
     writeNotifyValue(JSON.stringify(notifyScriptPath))
-    activeCodexSessions++
 
     return {
       extraArgs: [],
@@ -161,15 +154,9 @@ export const codexAdapter: AgentAdapter = {
       outputPath,
       env: { TENTACLES_HOOK_ID: hookId },
       cleanup: () => {
-        // Remove per-session hook files
         try { fs.unlinkSync(statusPath) } catch { /* already deleted */ }
         try { fs.unlinkSync(outputPath) } catch { /* already deleted */ }
-
-        activeCodexSessions = Math.max(0, activeCodexSessions - 1)
-        // Restore config.toml when no Codex sessions remain
-        if (activeCodexSessions === 0) {
-          restoreOriginalNotify()
-        }
+        configGuard.releaseSession()
       },
     }
   },
@@ -196,8 +183,6 @@ export const codexAdapter: AgentAdapter = {
 
   parseStatus(event: unknown): 'running' | 'idle' | null {
     const e = event as CodexNotifyEvent
-    // agent-turn-complete means the agent finished its turn — maps to idle (task done, waiting for new prompt)
-    // Note: Codex doesn't fire notify events for approval/permission requests (only agent-turn-complete)
     if (e.event === 'agent-turn-complete') return 'idle'
     return null
   },
@@ -205,8 +190,5 @@ export const codexAdapter: AgentAdapter = {
 
 /** Restore Codex config.toml on app quit regardless of session count. */
 export function cleanupCodexConfig() {
-  if (activeCodexSessions > 0) {
-    activeCodexSessions = 0
-    restoreOriginalNotify()
-  }
+  configGuard.forceRestore()
 }

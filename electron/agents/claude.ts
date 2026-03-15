@@ -1,15 +1,9 @@
 import * as path from 'node:path'
 import * as fs from 'node:fs'
-import { app } from 'electron'
+import { ensureHooksDir, getHooksDir } from './shared'
 import type { AgentAdapter, HookSetup, SpawnConfig } from './types'
 
-const hooksDir = path.join(app.getPath('userData'), 'hooks')
-
-function ensureHooksDir() {
-  if (!fs.existsSync(hooksDir)) {
-    fs.mkdirSync(hooksDir, { recursive: true })
-  }
-}
+const hooksDir = getHooksDir()
 
 interface HookEvent {
   hook_event_name?: string
