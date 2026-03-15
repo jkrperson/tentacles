@@ -29,12 +29,12 @@ export function Layout() {
 
   const isDragging = leftDrag.isDragging || rightDrag.isDragging || editorDrag.isDragging || bottomDrag.isDragging || mediaDrag.isDragging
 
-  const [bottomExpanded, setBottomExpanded] = useState(false)
+  const bottomExpanded = useTerminalStore((s) => s.bottomPanelExpanded)
+  const setBottomExpanded = useTerminalStore((s) => s.setBottomPanelExpanded)
   const [rightVisible, setRightVisible] = useState(true)
   const [rightTab, setRightTab] = useState<'explorer' | 'git'>('explorer')
 
   const handleNewTerminal = useCallback(() => {
-    setBottomExpanded(true)
     useTerminalStore.getState().createTerminal()
   }, [])
 
@@ -90,7 +90,7 @@ export function Layout() {
           <TerminalBottomPanel
             onNewTerminal={handleNewTerminal}
             expanded={bottomExpanded}
-            onToggleExpanded={() => setBottomExpanded((v) => !v)}
+            onToggleExpanded={() => setBottomExpanded(!bottomExpanded)}
           />
         </div>
       </div>

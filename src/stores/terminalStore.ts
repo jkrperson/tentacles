@@ -9,12 +9,14 @@ interface TerminalState {
   terminals: Map<string, ShellTerminal>
   activeTerminalId: string | null
   terminalOrder: string[]
+  bottomPanelExpanded: boolean
 
   addTerminal: (terminal: ShellTerminal) => void
   removeTerminal: (id: string) => void
   setActiveTerminal: (id: string | null) => void
   updateTerminalStatus: (id: string, exitCode: number) => void
   renameTerminal: (id: string, name: string) => void
+  setBottomPanelExpanded: (expanded: boolean) => void
   createTerminal: () => Promise<void>
 }
 
@@ -22,6 +24,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   terminals: new Map(),
   activeTerminalId: null,
   terminalOrder: [],
+  bottomPanelExpanded: false,
 
   addTerminal: (terminal) =>
     set((state) => {
@@ -66,6 +69,8 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       return { terminals }
     }),
 
+  setBottomPanelExpanded: (expanded) => set({ bottomPanelExpanded: expanded }),
+
   createTerminal: async () => {
     const { activeProjectId, addProject } = useProjectStore.getState()
     const notify = useNotificationStore.getState().notify
@@ -77,6 +82,8 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       addProject(dir)
       cwd = dir
     }
+
+    set({ bottomPanelExpanded: true })
 
     const { terminalOrder } = get()
     const name = `Terminal ${terminalOrder.length + 1}`
