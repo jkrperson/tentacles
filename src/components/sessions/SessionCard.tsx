@@ -5,11 +5,60 @@ import { trpc } from '../../trpc'
 import type { Session } from '../../types'
 
 const STATUS_CONFIG: Record<string, { label: string; cssVar: string; pulse?: boolean }> = {
-  running:     { label: 'Running',     cssVar: 'var(--t-status-running)',     pulse: true },
+  running:     { label: 'Working...',  cssVar: 'var(--t-status-running)',     pulse: true },
   needs_input: { label: 'Needs input', cssVar: 'var(--t-status-needs-input)', pulse: true },
   completed:   { label: 'Completed',   cssVar: 'var(--t-status-completed)' },
   idle:        { label: 'Idle',        cssVar: 'var(--t-status-idle)' },
   errored:     { label: 'Errored',     cssVar: 'var(--t-status-errored)' },
+}
+
+function StatusIcon({ status, cssVar }: { status: string; cssVar: string }) {
+  const size = 14
+  // Needs input — circle with exclamation mark
+  if (status === 'needs_input') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 16 16" className="flex-shrink-0" style={{ color: cssVar }}>
+        <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        <line x1="8" y1="4" x2="8" y2="9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <circle cx="8" cy="11.5" r="0.75" fill="currentColor" />
+      </svg>
+    )
+  }
+  // Running — spinning loader
+  if (status === 'running') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 16 16" className="flex-shrink-0 animate-spin" style={{ color: cssVar }}>
+        <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.25" />
+        <path d="M8 2a6 6 0 0 1 6 6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    )
+  }
+  // Errored — circle with X
+  if (status === 'errored') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 16 16" className="flex-shrink-0" style={{ color: cssVar }}>
+        <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        <line x1="5.5" y1="5.5" x2="10.5" y2="10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="10.5" y1="5.5" x2="5.5" y2="10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    )
+  }
+  // Completed — checkmark circle
+  if (status === 'completed') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 16 16" className="flex-shrink-0" style={{ color: cssVar }}>
+        <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M5 8l2 2 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+  // Idle — simple circle
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" className="flex-shrink-0" style={{ color: cssVar }}>
+      <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="8" cy="8" r="2" fill="currentColor" />
+    </svg>
+  )
 }
 
 export const SessionCard = memo(function SessionCard({ session, isActive }: { session: Session; isActive: boolean }) {
@@ -18,62 +67,42 @@ export const SessionCard = memo(function SessionCard({ session, isActive }: { se
   const setActiveProject = useProjectStore((s) => s.setActiveProject)
   const config = STATUS_CONFIG[session.status] ?? STATUS_CONFIG.completed
 
+  // Build subtitle: "worktreeBranch · Status" or just "Status"
+  const subtitle = session.isWorktree && session.worktreeBranch
+    ? `${session.worktreeBranch}  ·  ${config.label}`
+    : config.label
+
   return (
     <div
       onClick={() => {
         setActive(session.id)
         setActiveProject(session.originalRepo ?? session.cwd)
       }}
-      className={`group relative flex items-start gap-2.5 px-3 py-2.5 rounded-lg transition-all ${
+      className={`group relative flex items-start gap-2 px-2 py-1.5 rounded cursor-pointer transition-all ${
         isActive
-          ? 'bg-[var(--t-bg-hover)] ring-1 ring-violet-500/20 cursor-pointer'
-          : 'hover:bg-[var(--t-bg-active)] cursor-pointer'
+          ? 'bg-[var(--t-bg-hover)]'
+          : 'hover:bg-[var(--t-bg-active)]'
       }`}
     >
-      {/* Status dot */}
-      <div className="mt-1.5 flex-shrink-0">
-        <div
-          className={`w-2 h-2 rounded-full ${config.pulse ? 'animate-pulse' : ''}`}
-          style={{ backgroundColor: config.cssVar }}
-        />
+      {/* Status icon */}
+      <div className="mt-0.5 flex-shrink-0">
+        <StatusIcon status={session.status} cssVar={config.cssVar} />
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className={`text-[13px] font-medium truncate ${isActive ? 'text-zinc-100' : 'text-zinc-300'}`}>
-              {session.name}
-            </span>
-          </div>
+        {/* Name + unread */}
+        <div className="flex items-center gap-1.5">
+          <span className={`text-[11px] font-semibold truncate ${isActive ? 'text-zinc-100' : 'text-zinc-300'}`}>
+            {session.name}
+          </span>
           {session.hasUnread && !isActive && (
             <span className="w-1.5 h-1.5 rounded-full bg-violet-400 flex-shrink-0" />
           )}
         </div>
-        <div
-          className={`text-[11px] mt-0.5 truncate ${
-            session.statusDetail && session.statusDetail === 'Thinking...' ? 'italic' : ''
-          }`}
-          style={{
-            color: session.statusDetail
-              ? session.statusDetail.startsWith('Needs permission')
-                ? 'var(--t-status-needs-input)'
-                : 'var(--t-status-completed)'
-              : config.cssVar,
-            opacity: session.statusDetail === 'Thinking...' ? 0.6 : undefined,
-          }}
-        >
-          {session.statusDetail ? session.statusDetail : config.label}
+        {/* Subtitle: branch · status */}
+        <div className="text-[10px] truncate text-zinc-500">
+          {subtitle}
         </div>
-        {session.isWorktree && session.worktreeBranch && (
-          <div className="mt-1">
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded bg-violet-500/20 text-violet-300">
-              <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" className="flex-shrink-0">
-                <path d="M11.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zm-2.25.75a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6A2.5 2.5 0 0 1 3.5 6v-.628a2.25 2.25 0 1 1 1.5 0V6a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-.628A2.251 2.251 0 0 1 9.5 3.25zM4.25 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zM8 11.878v-1.25a.75.75 0 0 0-1.5 0v1.25a2.25 2.25 0 1 0 1.5 0zM7.25 13a.75.75 0 1 1 .001 1.501A.75.75 0 0 1 7.25 13z"/>
-              </svg>
-              {session.worktreeBranch}
-            </span>
-          </div>
-        )}
       </div>
 
       {/* Close button on hover */}
@@ -89,7 +118,7 @@ export const SessionCard = memo(function SessionCard({ session, isActive }: { se
         className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-zinc-300 transition-opacity p-0.5"
         title="Close session"
       >
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
           <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
         </svg>
       </button>
