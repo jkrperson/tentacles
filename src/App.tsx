@@ -204,7 +204,7 @@ function App() {
     const resolvedAgent = agentType ?? settings.defaultAgent
     const name = `Agent ${sessionOrder.length + 1}`
     try {
-      const { id, pid, tmuxSessionName, hookId } = await trpc.session.create.mutate({ name, cwd, agentType: resolvedAgent })
+      const { id, pid, hookId } = await trpc.session.create.mutate({ name, cwd, agentType: resolvedAgent })
       addSession({
         id,
         name,
@@ -214,7 +214,6 @@ function App() {
         hasUnread: false,
         agentType: resolvedAgent,
         pid,
-        tmuxSessionName,
         hookId,
       })
       addProject(cwd) // ensure project exists + activate
@@ -231,7 +230,7 @@ function App() {
     const resolvedAgent = agentType ?? settings.defaultAgent
     const name = `Agent ${sessionOrder.length + 1}`
     try {
-      const { id, pid, tmuxSessionName, hookId } = await trpc.session.create.mutate({ name, cwd: projectPath, agentType: resolvedAgent })
+      const { id, pid, hookId } = await trpc.session.create.mutate({ name, cwd: projectPath, agentType: resolvedAgent })
       addSession({
         id,
         name,
@@ -241,7 +240,6 @@ function App() {
         hasUnread: false,
         agentType: resolvedAgent,
         pid,
-        tmuxSessionName,
         hookId,
       })
       setActiveProject(projectPath)
@@ -259,7 +257,7 @@ function App() {
     try {
       const { worktreePath, branch } = await trpc.git.worktree.create.mutate({ repoPath: projectPath, name: worktreeName })
       const name = worktreeName || `Agent ${sessionOrder.length + 1}`
-      const { id, pid, tmuxSessionName, hookId } = await trpc.session.create.mutate({ name, cwd: worktreePath, agentType: resolvedAgent })
+      const { id, pid, hookId } = await trpc.session.create.mutate({ name, cwd: worktreePath, agentType: resolvedAgent })
       addSession({
         id,
         name,
@@ -269,7 +267,6 @@ function App() {
         hasUnread: false,
         agentType: resolvedAgent,
         pid,
-        tmuxSessionName,
         hookId,
         isWorktree: true,
         worktreePath,
@@ -293,7 +290,7 @@ function App() {
       return
     }
     try {
-      const { id, pid, tmuxSessionName, hookId } = await trpc.session.resume.mutate({
+      const { id, pid, hookId } = await trpc.session.resume.mutate({
         claudeSessionId: archived.claudeSessionId,
         name: archived.name,
         cwd: archived.cwd,
@@ -308,7 +305,6 @@ function App() {
         hasUnread: false,
         agentType: archived.agentType,
         pid,
-        tmuxSessionName,
         hookId,
         claudeSessionId: archived.claudeSessionId,
         isWorktree: archived.isWorktree,
@@ -367,7 +363,7 @@ function App() {
         const { activeSessionId: aid, sessions: sess, removeSession: rm } = useSessionStore.getState()
         if (aid) {
           const session = sess.get(aid)
-          if (session?.status === 'running' || session?.status === 'idle') {
+          if (session?.status === 'running' || session?.status === 'idle' || session?.status === 'needs_input') {
             trpc.session.kill.mutate({ id: aid })
           }
           rm(aid)

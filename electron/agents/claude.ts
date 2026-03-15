@@ -17,6 +17,34 @@ interface HookEvent {
   tool_input?: Record<string, string>
 }
 
+function writeHookSettings(hookId: string, settingsPath: string, statusPath: string, hookServerPort?: number) {
+  const hookCmd = hookServerPort
+    ? `sh -c 'curl -s --connect-timeout 1 --max-time 2 -X POST -H "Content-Type: application/json" --data-binary @- http://127.0.0.1:${hookServerPort}/hook/${hookId}'`
+    : `sh -c 'cat > ${JSON.stringify(statusPath)}'`
+
+  const settings = {
+    hooks: {
+      SessionStart: [
+        { hooks: [{ type: 'command' as const, command: hookCmd }] },
+      ],
+      PreToolUse: [
+        { hooks: [{ type: 'command' as const, command: hookCmd }] },
+      ],
+      PostToolUse: [
+        { hooks: [{ type: 'command' as const, command: hookCmd }] },
+      ],
+      Stop: [
+        { hooks: [{ type: 'command' as const, command: hookCmd }] },
+      ],
+      PermissionRequest: [
+        { hooks: [{ type: 'command' as const, command: hookCmd }] },
+      ],
+    },
+  }
+
+  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
+}
+
 export const claudeAdapter: AgentAdapter = {
   id: 'claude',
   name: 'Claude Code',
@@ -30,36 +58,13 @@ export const claudeAdapter: AgentAdapter = {
     return { command: binaryPath, args, cwd }
   },
 
-  setupHooks(hookId: string): HookSetup {
+  setupHooks(hookId: string, hookServerPort?: number): HookSetup {
     ensureHooksDir()
     const outputPath = path.join(hooksDir, `${hookId}.out`)
-    const statusPath = path.join(hooksDir, `${hookId}.status`)
+    const statusPath = path.join(hooksDir, `${hookId}.status`) // kept for reattach fallback
     const settingsPath = path.join(hooksDir, `${hookId}.json`)
 
-    const statusCmd = `sh -c 'cat > ${JSON.stringify(statusPath)}'`
-    const settings = {
-      hooks: {
-        SessionStart: [
-          {
-            hooks: [{ type: 'command' as const, command: `sh -c 'cat > ${JSON.stringify(outputPath)}'` }],
-          },
-        ],
-        PreToolUse: [
-          { hooks: [{ type: 'command' as const, command: statusCmd }] },
-        ],
-        PostToolUse: [
-          { hooks: [{ type: 'command' as const, command: statusCmd }] },
-        ],
-        Stop: [
-          { hooks: [{ type: 'command' as const, command: statusCmd }] },
-        ],
-        PermissionRequest: [
-          { hooks: [{ type: 'command' as const, command: statusCmd }] },
-        ],
-      },
-    }
-
-    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2))
+    writeHookSettings(hookId, settingsPath, statusPath, hookServerPort)
 
     return {
       extraArgs: ['--settings', settingsPath],

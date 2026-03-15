@@ -226,48 +226,42 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const archivedSessions = new Map<string, Session>()
       const archivedOrder: string[] = []
 
-      // Try to reattach tmux-backed sessions; archive the rest
+      // Try to reattach daemon-managed sessions; archive the rest
       for (const rawSession of data.sessions) {
         // Migration: ensure agentType exists for sessions saved before multi-agent support
         const s = { ...rawSession, agentType: rawSession.agentType ?? 'claude' as const }
-        if (s.tmuxSessionName) {
-          try {
-            const result = await trpc.session.reattach.mutate({
-              tmuxSessionName: s.tmuxSessionName,
-              hookId: s.hookId || '',
-              name: s.name,
-              cwd: s.cwd,
-            })
-            if (result) {
-              // Determine initial status from pane title (✳ prefix = idle, Claude Code only)
-              const isIdle = s.agentType === 'claude' && result.paneTitle
-                ? (result.paneTitle.codePointAt(0) === 0x2733)
-                : false
-              const initialStatus: SessionStatus = isIdle ? 'idle' : 'running'
 
-              // Use recoveredClaudeSessionId as fallback if we didn't persist one
-              const claudeSessionId = s.claudeSessionId || result.recoveredClaudeSessionId
+        // Try daemon-based reattach
+        try {
+          const result = await trpc.session.reattach.mutate({
+            sessionId: s.id,
+            hookId: s.hookId || '',
+            name: s.name,
+            cwd: s.cwd,
+            agentType: s.agentType,
+          })
+          if (result) {
+            const initialStatus = (result.initialStatus as SessionStatus) || 'idle'
+            const claudeSessionId = s.claudeSessionId || result.recoveredClaudeSessionId
 
-              const restored: Session = {
-                ...s,
-                id: result.id,
-                pid: result.pid,
-                status: initialStatus,
-                statusDetail: result.initialStatusDetail ?? undefined,
-                claudeSessionId,
-                hasUnread: false,
-              }
-              sessions.set(restored.id, restored)
-              sessionOrder.push(restored.id)
-              continue
+            const restored: Session = {
+              ...s,
+              id: result.id,
+              status: initialStatus,
+              statusDetail: result.initialStatusDetail ?? undefined,
+              claudeSessionId,
+              hasUnread: false,
             }
-          } catch { /* reattach failed */ }
-        }
+            sessions.set(restored.id, restored)
+            sessionOrder.push(restored.id)
+            continue
+          }
+        } catch { /* reattach failed — daemon session not found */ }
 
         // Archive if not reattachable
         const archived: Session = {
           ...s,
-          status: s.status === 'running' || s.status === 'idle' ? 'completed' : s.status,
+          status: s.status === 'running' || s.status === 'idle' || s.status === 'needs_input' ? 'completed' : s.status,
           archivedAt: s.archivedAt ?? Date.now(),
           hasUnread: false,
         }

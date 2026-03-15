@@ -3,32 +3,45 @@ import { observable } from '@trpc/server/observable'
 import { t } from '../trpc'
 import { ee } from '../events'
 import type { PtyManager } from '../../ptyManager'
+import type { DaemonClient } from '../../daemon/client'
 import type { AgentType } from '../../agents/types'
+import type { SessionStatus } from '../../../src/types'
 
 interface SessionDeps {
   ptyManager: PtyManager
-  spawnAgent: (name: string, cwd: string, agentType: AgentType, resumeId?: string) => { id: string; pid: number; tmuxSessionName?: string; hookId: string }
-  reattachAgent: (tmuxSessionName: string, hookId: string, name: string, cwd: string, agentType?: AgentType) => { id: string; pid: number; tmuxSessionName: string; paneTitle?: string; initialStatusDetail?: string | null; recoveredClaudeSessionId?: string } | null
+  spawnAgent: (name: string, cwd: string, agentType: AgentType, resumeId?: string) => Promise<{ id: string; pid: number; hookId: string }>
+  reattachAgent: (sessionId: string, hookId: string, name: string, cwd: string, agentType?: AgentType) => Promise<{ id: string; scrollbackAvailable: boolean; initialStatus?: SessionStatus; initialStatusDetail?: string | null; recoveredClaudeSessionId?: string } | null>
+  daemonClient: DaemonClient
 }
 
 export function createSessionRouter(deps: SessionDeps) {
   return t.router({
     create: t.procedure
       .input(z.object({ name: z.string(), cwd: z.string(), agentType: z.string().optional() }))
-      .mutation(({ input }) => {
-        return deps.spawnAgent(input.name, input.cwd, (input.agentType as AgentType) ?? 'claude')
+      .mutation(async ({ input }) => {
+        return await deps.spawnAgent(input.name, input.cwd, (input.agentType as AgentType) ?? 'claude')
       }),
 
     resume: t.procedure
       .input(z.object({ claudeSessionId: z.string(), name: z.string(), cwd: z.string(), agentType: z.string().optional() }))
-      .mutation(({ input }) => {
-        return deps.spawnAgent(input.name, input.cwd, (input.agentType as AgentType) ?? 'claude', input.claudeSessionId)
+      .mutation(async ({ input }) => {
+        return await deps.spawnAgent(input.name, input.cwd, (input.agentType as AgentType) ?? 'claude', input.claudeSessionId)
       }),
 
     reattach: t.procedure
-      .input(z.object({ tmuxSessionName: z.string(), hookId: z.string(), name: z.string(), cwd: z.string(), agentType: z.string().optional() }))
-      .mutation(({ input }) => {
-        return deps.reattachAgent(input.tmuxSessionName, input.hookId, input.name, input.cwd, input.agentType as AgentType | undefined)
+      .input(z.object({ sessionId: z.string(), hookId: z.string(), name: z.string(), cwd: z.string(), agentType: z.string().optional() }))
+      .mutation(async ({ input }) => {
+        return await deps.reattachAgent(input.sessionId, input.hookId, input.name, input.cwd, input.agentType as AgentType | undefined)
+      }),
+
+    getScrollback: t.procedure
+      .input(z.object({ id: z.string() }))
+      .query(async ({ input }) => {
+        try {
+          return await deps.daemonClient.getScrollback(input.id)
+        } catch {
+          return ''
+        }
       }),
 
     write: t.procedure
@@ -46,7 +59,7 @@ export function createSessionRouter(deps: SessionDeps) {
     kill: t.procedure
       .input(z.object({ id: z.string() }))
       .mutation(({ input }) => {
-        deps.ptyManager.killWithTmux(input.id)
+        deps.ptyManager.kill(input.id)
       }),
 
     list: t.procedure
@@ -96,8 +109,8 @@ export function createSessionRouter(deps: SessionDeps) {
     }),
 
     onAgentStatus: t.procedure.subscription(() => {
-      return observable<{ id: string; status: 'running' | 'idle' }>((emit) => {
-        const handler = (data: { id: string; status: 'running' | 'idle' }) => emit.next(data)
+      return observable<{ id: string; status: 'running' | 'needs_input' | 'completed' | 'idle' }>((emit) => {
+        const handler = (data: { id: string; status: 'running' | 'needs_input' | 'completed' | 'idle' }) => emit.next(data)
         ee.on('session:agentStatus', handler)
         return () => { ee.off('session:agentStatus', handler) }
       })

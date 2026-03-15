@@ -87,12 +87,17 @@ function restoreOriginalNotify() {
 }
 
 /** Create the shared notify script that routes events by TENTACLES_HOOK_ID. */
-function ensureNotifyScript() {
+function ensureNotifyScript(hookServerPort?: number) {
   ensureHooksDir()
 
-  // The script receives the JSON payload as $1.
-  // It writes to per-session .status and .out files based on the env var.
-  const script = `#!/bin/sh
+  const script = hookServerPort
+    ? `#!/bin/sh
+# Tentacles Codex notify hook — routes events via HTTP.
+HOOK_ID="$TENTACLES_HOOK_ID"
+if [ -z "$HOOK_ID" ]; then exit 0; fi
+curl -s --connect-timeout 1 --max-time 2 -X POST -H "Content-Type: application/json" -d "$1" http://127.0.0.1:${hookServerPort}/hook/$HOOK_ID
+`
+    : `#!/bin/sh
 # Tentacles Codex notify hook — routes agent-turn-complete events per session.
 HOOK_ID="$TENTACLES_HOOK_ID"
 if [ -z "$HOOK_ID" ]; then exit 0; fi
@@ -131,9 +136,9 @@ export const codexAdapter: AgentAdapter = {
     return { command: binaryPath, args, cwd }
   },
 
-  setupHooks(hookId: string): HookSetup {
+  setupHooks(hookId: string, hookServerPort?: number): HookSetup {
     ensureHooksDir()
-    ensureNotifyScript()
+    ensureNotifyScript(hookServerPort)
 
     const statusPath = path.join(hooksDir, `${hookId}.status`)
     const outputPath = path.join(hooksDir, `${hookId}.out`)

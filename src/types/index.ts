@@ -1,4 +1,4 @@
-export type SessionStatus = 'running' | 'idle' | 'completed' | 'errored'
+export type SessionStatus = 'running' | 'needs_input' | 'completed' | 'idle' | 'errored'
 export type AgentType = 'claude' | 'codex' | 'opencode'
 
 export interface Session {
@@ -18,7 +18,6 @@ export interface Session {
   worktreePath?: string
   worktreeBranch?: string
   originalRepo?: string
-  tmuxSessionName?: string
   hookId?: string
 }
 

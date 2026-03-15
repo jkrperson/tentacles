@@ -2,8 +2,7 @@ import { createRequire } from 'node:module'
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { basename } from 'node:path'
-import { execSync } from 'node:child_process'
+import type { DaemonClient } from './daemon/client'
 
 const require = createRequire(import.meta.url)
 const pty = require('node-pty')
@@ -26,7 +25,6 @@ interface ManagedPty {
   pid: number
   kind: PtyKind
   ptyProcess: PtyProcess
-  tmuxSessionName?: string
 }
 
 type DataCallback = (id: string, data: string) => void
@@ -53,18 +51,8 @@ function resolveShell(): string {
   return '/bin/sh'
 }
 
-/** Generate a tmux session name: tentacles-<project>-<shortid> */
-function makeTmuxName(cwd: string): string {
-  const project = basename(cwd)
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 20)
-  return `tentacles-${project || 'session'}-${randomUUID().slice(0, 8)}`
-}
-
 export class PtyManager {
+  // Local PTYs (shell terminals only — agent sessions are daemon-managed)
   private ptys = new Map<string, ManagedPty>()
   private onDataCb: DataCallback | null = null
   private onExitCb: ExitCallback | null = null
@@ -73,23 +61,41 @@ export class PtyManager {
   private onShellExitCb: ExitCallback | null = null
   private lastTitles = new Map<string, string>()
 
-  // Data coalescing — buffers rapid PTY output and flushes once per tick
+  // Data coalescing for local PTYs
   private dataBuffers = new Map<string, string>()
   private flushScheduled = new Set<string>()
 
-  readonly tmuxAvailable: boolean
+  // Daemon client for agent sessions
+  private daemonClient: DaemonClient | null = null
+  // Track daemon-managed session IDs for routing
+  private daemonSessions = new Set<string>()
 
-  constructor() {
-    this.tmuxAvailable = PtyManager.detectTmux()
-  }
+  setDaemonClient(client: DaemonClient) {
+    this.daemonClient = client
 
-  private static detectTmux(): boolean {
-    try {
-      execSync('which tmux', { timeout: 2000, stdio: 'ignore' })
-      return true
-    } catch {
-      return false
-    }
+    // Wire daemon events to callbacks
+    client.on('data', (event: { id: string; data: string }) => {
+      if (!this.daemonSessions.has(event.id)) return
+      this.onDataCb?.(event.id, event.data)
+
+      // Parse OSC title sequences from agent output
+      const match = event.data.match(OSC_TITLE_RE)
+      if (match) {
+        const title = match[1]
+        const normalized = title.replace(BRAILLE_RE, '\u2800')
+        if (title && normalized !== this.lastTitles.get(event.id)) {
+          this.lastTitles.set(event.id, normalized)
+          this.onTitleCb?.(event.id, title)
+        }
+      }
+    })
+
+    client.on('exit', (event: { id: string; exitCode: number }) => {
+      if (!this.daemonSessions.has(event.id)) return
+      this.daemonSessions.delete(event.id)
+      this.lastTitles.delete(event.id)
+      this.onExitCb?.(event.id, event.exitCode)
+    })
   }
 
   onData(cb: DataCallback) {
@@ -112,67 +118,30 @@ export class PtyManager {
     this.onShellExitCb = cb
   }
 
-  create(name: string, cwd: string, command = 'claude', args: string[] = [], env?: Record<string, string>): { id: string; pid: number; tmuxSessionName?: string } {
+  /** Create an agent session via the daemon. */
+  async create(name: string, cwd: string, command = 'claude', args: string[] = [], env?: Record<string, string>): Promise<{ id: string; pid: number }> {
     const safeCwd = existsSync(cwd) ? cwd : homedir()
-    if (this.tmuxAvailable) {
-      const tmuxName = makeTmuxName(safeCwd)
-      return this._spawn(name, safeCwd, 'tmux', [
-        '-u', 'new-session', '-s', tmuxName, command, ...args,
-        ';', 'set-option', 'status', 'off',
-        ';', 'set-option', 'set-titles', 'on',
-        ';', 'set-option', 'set-titles-string', '#{pane_title}',
-      ';', 'set-option', 'allow-passthrough', 'on',
-        ';', 'set-option', 'default-terminal', 'xterm-256color',
-        ';', 'set-option', '-a', 'terminal-overrides', ',xterm-256color:Tc',
-      ], 'agent', tmuxName, env)
+
+    if (this.daemonClient?.isConnected()) {
+      const id = randomUUID()
+      const { pid } = await this.daemonClient.spawn(id, command, args, safeCwd, env ?? {})
+      this.daemonSessions.add(id)
+      return { id, pid }
     }
-    return this._spawn(name, safeCwd, command, args, 'agent', undefined, env)
+
+    // Fallback to local spawn if daemon is not connected
+    return this._spawn(name, safeCwd, command, args, 'agent', env)
   }
 
-  /** Re-attach to an existing tmux agent session. Returns null if the session is dead. */
-  reattachAgent(name: string, cwd: string, tmuxSessionName: string): { id: string; pid: number; tmuxSessionName: string } | null {
-    if (!this.hasTmuxSession(tmuxSessionName)) return null
-    const safeCwd = existsSync(cwd) ? cwd : homedir()
-    const result = this._spawn(name, safeCwd, 'tmux', ['-u', 'attach-session', '-t', tmuxSessionName], 'agent', tmuxSessionName)
-    return { id: result.id, pid: result.pid, tmuxSessionName }
+  /** Register an existing daemon session (for reattach after app restart). */
+  registerDaemonSession(id: string) {
+    this.daemonSessions.add(id)
   }
 
   createShell(name: string, cwd: string): { id: string; pid: number } {
     const safeCwd = existsSync(cwd) ? cwd : homedir()
     const shell = resolveShell()
     return this._spawn(name, safeCwd, shell, ['--login'], 'shell')
-  }
-
-  hasTmuxSession(name: string): boolean {
-    try {
-      execSync(`tmux has-session -t ${name}`, { timeout: 2000, stdio: 'ignore' })
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  /** Query the pane title for a tmux session. Returns null if the session is dead or title is empty. */
-  getTmuxPaneTitle(tmuxSessionName: string): string | null {
-    try {
-      const title = execSync(`tmux display-message -t ${tmuxSessionName} -p '#{pane_title}'`, { encoding: 'utf-8', timeout: 2000 }).trim()
-      return title || null
-    } catch {
-      return null
-    }
-  }
-
-  /** Kill orphaned tentacles tmux sessions that don't match any persisted terminal. */
-  cleanupOrphanedSessions(activeTmuxNames: Set<string>) {
-    if (!this.tmuxAvailable) return
-    try {
-      const output = execSync("tmux list-sessions -F '#{session_name}'", { encoding: 'utf-8', timeout: 2000 })
-      for (const name of output.trim().split('\n')) {
-        if (name.startsWith('tentacles-') && !activeTmuxNames.has(name)) {
-          try { execSync(`tmux kill-session -t ${name}`, { timeout: 2000 }) } catch { /* already dead */ }
-        }
-      }
-    } catch { /* no tmux server running */ }
   }
 
   /** Buffer data for an id and schedule a flush via setImmediate.
@@ -195,7 +164,7 @@ export class PtyManager {
     }
   }
 
-  private _spawn(name: string, cwd: string, command: string, args: string[], kind: PtyKind, tmuxSessionName?: string, extraEnv?: Record<string, string>): { id: string; pid: number; tmuxSessionName?: string } {
+  private _spawn(name: string, cwd: string, command: string, args: string[], kind: PtyKind, extraEnv?: Record<string, string>): { id: string; pid: number } {
     const id = randomUUID()
 
     const ptyProcess = pty.spawn(command, args, {
@@ -211,7 +180,7 @@ export class PtyManager {
       },
     })
 
-    const managed: ManagedPty = { id, name, cwd, pid: ptyProcess.pid, kind, ptyProcess, tmuxSessionName }
+    const managed: ManagedPty = { id, name, cwd, pid: ptyProcess.pid, kind, ptyProcess }
     this.ptys.set(id, managed)
 
     ptyProcess.onData((data: string) => {
@@ -245,14 +214,23 @@ export class PtyManager {
       this.flushScheduled.delete(id)
     })
 
-    return { id, pid: ptyProcess.pid, tmuxSessionName }
+    return { id, pid: ptyProcess.pid }
   }
 
   write(id: string, data: string) {
+    // Route to daemon or local
+    if (this.daemonSessions.has(id)) {
+      this.daemonClient?.write(id, data).catch(() => {})
+      return
+    }
     this.ptys.get(id)?.ptyProcess.write(data)
   }
 
   resize(id: string, cols: number, rows: number) {
+    if (this.daemonSessions.has(id)) {
+      this.daemonClient?.resize(id, cols, rows).catch(() => {})
+      return
+    }
     try {
       this.ptys.get(id)?.ptyProcess.resize(cols, rows)
     } catch {
@@ -261,6 +239,11 @@ export class PtyManager {
   }
 
   kill(id: string) {
+    if (this.daemonSessions.has(id)) {
+      this.daemonClient?.kill(id).catch(() => {})
+      this.daemonSessions.delete(id)
+      return
+    }
     const managed = this.ptys.get(id)
     if (managed) {
       const pid = managed.pid
@@ -279,21 +262,11 @@ export class PtyManager {
     }
   }
 
-  /** Kill a terminal and its tmux session (for explicit tab close). */
-  killWithTmux(id: string) {
-    const managed = this.ptys.get(id)
-    if (managed?.tmuxSessionName) {
-      try {
-        execSync(`tmux kill-session -t ${managed.tmuxSessionName}`, { timeout: 2000 })
-      } catch { /* already dead */ }
-    }
-    this.kill(id)
-  }
-
   list() {
     return Array.from(this.ptys.values()).map(({ id, pid, name, cwd }) => ({ id, pid, name, cwd }))
   }
 
+  /** Kill only local PTYs (shells). Daemon sessions are left alive. */
   killAll() {
     for (const [id, managed] of this.ptys) {
       try {

@@ -16,6 +16,8 @@ export interface HookSetup {
   cleanup: () => void
 }
 
+import type { SessionStatus } from '../../src/types'
+
 export interface AgentAdapter {
   id: AgentType
   name: string
@@ -29,13 +31,13 @@ export interface AgentAdapter {
     extraArgs?: string[]
   }): SpawnConfig
 
-  setupHooks?(hookId: string): HookSetup | null
+  setupHooks?(hookId: string, hookServerPort?: number): HookSetup | null
 
-  parseTitle?(title: string): { status: 'running' | 'idle'; name?: string } | null
+  parseTitle?(title: string): { status: 'running' | 'needs_input' | 'idle'; name?: string } | null
 
   parseStatusDetail?(event: unknown): string | null
 
   parseSessionId?(output: unknown): string | null
 
-  parseStatus?(event: unknown): 'running' | 'idle' | null
+  parseStatus?(event: unknown): SessionStatus | null
 }

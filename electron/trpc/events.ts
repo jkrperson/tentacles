@@ -7,7 +7,7 @@ export interface EventMap {
   'session:title': { id: string; title: string }
   'session:claudeSessionId': { id: string; claudeSessionId: string }
   'session:statusDetail': { id: string; detail: string | null }
-  'session:agentStatus': { id: string; status: 'running' | 'idle' }
+  'session:agentStatus': { id: string; status: 'running' | 'needs_input' | 'completed' | 'idle' }
   'terminal:data': { id: string; data: string }
   'terminal:exit': { id: string; exitCode: number }
   'file:changed': FileChangeEvent

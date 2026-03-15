@@ -10,12 +10,18 @@ import { PtyManager } from './ptyManager'
 import { FileWatcher } from './fileWatcher'
 import { GitManager } from './gitManager'
 import { LspManager } from './lspManager'
+import { DaemonClient } from './daemon/client'
+import { removeScrollback } from './daemon/scrollback'
+import { getScrollbackDir } from './daemon/launcher'
 import { initAutoUpdater, autoUpdater } from './updater'
 import { getAdapter } from './agents/registry'
 import { cleanupCodexConfig } from './agents/codex'
+import { cleanupOpencodeConfig } from './agents/opencode'
+import { startHookServer, stopHookServer, registerHookSession, unregisterHookSession, getHookPort, getLastEvent } from './hookServer'
 import { ee } from './trpc/events'
 import { createRouter } from './trpc/router'
 import type { AgentType } from './agents/types'
+import type { SessionStatus } from '../src/types'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -26,17 +32,12 @@ if (process.platform === 'darwin' || process.platform === 'linux') {
     const raw = execSync('ulimit -n', { encoding: 'utf-8', timeout: 2000 }).trim()
     const current = parseInt(raw, 10)
     if (current < 4096) {
-      // Try to raise the soft limit via a login shell (inherits the new limit back to us
-      // only if we re-exec, so we just log a warning for now and rely on reduced FD usage).
       console.warn(`[tentacles] Low file descriptor limit: ${current}. Recommend running 'ulimit -n 10240' before launching.`)
     }
   } catch { /* ignore */ }
 }
 
 // Fix PATH when launched from Finder/desktop launcher
-// macOS .app bundles and Linux AppImages get a minimal system PATH,
-// missing user shell paths where tools like `claude` are installed.
-// Windows inherits the full user+system PATH from the registry, so no fix needed.
 if ((process.platform === 'darwin' || process.platform === 'linux') && !process.env.VITE_DEV_SERVER_URL) {
   try {
     const shell = process.env.SHELL || '/bin/sh'
@@ -71,8 +72,6 @@ function startRendererServer(root: string): Promise<string> {
       const urlPath = new URL(req.url || '/', 'http://localhost').pathname
       const filePath = path.join(root, decodeURIComponent(urlPath))
 
-      // Serve static assets if the file exists and has an extension;
-      // otherwise fall back to index.html for SPA client-side routing.
       const isAsset = path.extname(filePath) && fs.existsSync(filePath)
       const resolved = isAsset ? filePath : path.join(root, 'index.html')
 
@@ -104,6 +103,7 @@ const ptyManager = new PtyManager()
 const fileWatcher = new FileWatcher()
 const gitManager = new GitManager()
 const lspManager = new LspManager()
+const daemonClient = new DaemonClient()
 
 function loadSettings() {
   try {
@@ -213,6 +213,11 @@ ptyManager.onTitle((id, title) => {
     const prev = lastTitleStatus.get(id)
     lastTitleStatus.set(id, parsed.status)
 
+    // Emit agentStatus from title changes (supplements hook server events)
+    if (parsed.status !== prev) {
+      ee.emit('session:agentStatus', { id, status: parsed.status })
+    }
+
     // Desktop notification when agent transitions to idle
     if (parsed.status === 'idle' && prev !== 'idle') {
       const settings = loadSettings()
@@ -233,15 +238,10 @@ ptyManager.onExit((id, exitCode) => {
   // Clean up hook resources for this session
   const hookInfo = sessionHookMap.get(id)
   if (hookInfo) {
-    hookInfo.abortCtrl?.abort() // Cancel waitForSessionId polling
-    // Preserve hook files if the tmux session is still alive (app quit — will reattach on restart)
-    const tmuxAlive = hookInfo.tmuxSessionName && ptyManager.hasTmuxSession(hookInfo.tmuxSessionName)
-    if (!tmuxAlive) {
-      hookInfo.hookCleanup?.()
-      cleanupHookFiles(hookInfo.hookId)
-    }
+    unregisterHookSession(hookInfo.hookId)
+    hookInfo.hookCleanup?.()
+    cleanupHookFiles(hookInfo.hookId)
     sessionHookMap.delete(id)
-    // Shared poll timer stops itself when the map is empty
   }
 
   // Clear statusDetail before sending exit
@@ -257,37 +257,8 @@ ptyManager.onExit((id, exitCode) => {
   }
 })
 
-// --- Hook-based session ID capture ---
+// --- Hook infrastructure ---
 const hooksDir = path.join(app.getPath('userData'), 'hooks')
-
-function waitForSessionId(outputPath: string, adapter: ReturnType<typeof getAdapter>, signal?: AbortSignal, timeoutMs = 30000): Promise<string | null> {
-  return new Promise((resolve) => {
-    const start = Date.now()
-    const poll = () => {
-      if (signal?.aborted || Date.now() - start > timeoutMs) {
-        resolve(null)
-        return
-      }
-      try {
-        if (fs.existsSync(outputPath)) {
-          const raw = fs.readFileSync(outputPath, 'utf-8').trim()
-          if (raw) {
-            const parsed = JSON.parse(raw)
-            const sessionId = adapter.parseSessionId?.(parsed)
-            if (sessionId) {
-              resolve(sessionId)
-              return
-            }
-          }
-        }
-      } catch {
-        // file not ready yet or malformed
-      }
-      setTimeout(poll, 200)
-    }
-    poll()
-  })
-}
 
 function cleanupHookFiles(hookId: string) {
   try { fs.unlinkSync(path.join(hooksDir, `${hookId}.json`)) } catch { /* already deleted */ }
@@ -296,47 +267,7 @@ function cleanupHookFiles(hookId: string) {
 }
 
 // Track hook resources per PTY session for cleanup.
-// A single shared interval polls all status files to avoid FD exhaustion (EMFILE).
-const sessionHookMap = new Map<string, { hookId: string; statusPath: string; lastContent: string; abortCtrl?: AbortController; tmuxSessionName?: string; agentType: AgentType; hookCleanup?: () => void }>()
-let sharedPollTimer: ReturnType<typeof setInterval> | null = null
-
-function startSharedPoll() {
-  if (sharedPollTimer) return
-  sharedPollTimer = setInterval(() => {
-    for (const [ptyId, info] of sessionHookMap) {
-      try {
-        const raw = fs.readFileSync(info.statusPath, 'utf-8').trim()
-        if (!raw || raw === info.lastContent) continue
-        info.lastContent = raw
-        const event = JSON.parse(raw)
-        const adapter = getAdapter(info.agentType)
-        const detail = adapter.parseStatusDetail?.(event) ?? null
-        ee.emit('session:statusDetail', { id: ptyId, detail })
-
-        // Emit agent status changes (e.g. Codex idle on agent-turn-complete)
-        const status = adapter.parseStatus?.(event) ?? null
-        if (status) {
-          ee.emit('session:agentStatus', { id: ptyId, status })
-        }
-      } catch {
-        // file not ready or malformed JSON
-      }
-    }
-    // Stop polling when no sessions remain
-    if (sessionHookMap.size === 0) {
-      clearInterval(sharedPollTimer!)
-      sharedPollTimer = null
-    }
-  }, 500)
-}
-
-function registerStatusPoll(statusPath: string, ptyId: string, agentType: AgentType, tmuxSessionName?: string) {
-  if (!fs.existsSync(statusPath)) {
-    fs.writeFileSync(statusPath, '')
-  }
-  sessionHookMap.set(ptyId, { hookId: '', statusPath, lastContent: '', tmuxSessionName, agentType })
-  startSharedPoll()
-}
+const sessionHookMap = new Map<string, { hookId: string; agentType: AgentType; hookCleanup?: () => void }>()
 
 /** Remove hook files in the hooks directory, optionally preserving specific hookIds. */
 function cleanupAllHookFiles(preserve = new Set<string>()) {
@@ -351,14 +282,19 @@ function cleanupAllHookFiles(preserve = new Set<string>()) {
   } catch { /* ignore */ }
 }
 
-function spawnAgent(name: string, cwd: string, agentType: AgentType, resumeId?: string): { id: string; pid: number; tmuxSessionName?: string; hookId: string } {
+async function spawnAgent(name: string, cwd: string, agentType: AgentType, resumeId?: string): Promise<{ id: string; pid: number; hookId: string }> {
   const settings = loadSettings()
   const adapter = getAdapter(agentType)
-  const binaryPath = (settings[adapter.settingsKey] as string) || adapter.defaultBinary
+  // Parse the CLI setting as a full command (e.g. "claude --dangerously-skip-permissions")
+  const rawCommand = ((settings[adapter.settingsKey] as string) || adapter.defaultBinary).trim()
+  const commandParts = rawCommand.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? [rawCommand]
+  const binaryPath = commandParts[0]
+  const userArgs = commandParts.slice(1).map(a => a.replace(/^["']|["']$/g, ''))
   const hookId = randomUUID()
+  const hookPort = getHookPort()
 
   // Set up hooks if the adapter supports them
-  const hookSetup = adapter.setupHooks?.(hookId) ?? null
+  const hookSetup = adapter.setupHooks?.(hookId, hookPort) ?? null
   const extraArgs = hookSetup?.extraArgs ?? []
 
   // Build spawn config via adapter
@@ -366,77 +302,82 @@ function spawnAgent(name: string, cwd: string, agentType: AgentType, resumeId?: 
     binaryPath,
     cwd,
     resumeId,
-    extraArgs,
+    extraArgs: [...userArgs, ...extraArgs],
   })
 
-  // Merge hook env (e.g. TENTACLES_HOOK_ID for Codex) into spawn config env
+  // Merge hook env into spawn config env
   const mergedEnv = { ...spawnConfig.env, ...hookSetup?.env }
   const hasEnv = Object.keys(mergedEnv).length > 0
 
-  const result = ptyManager.create(name, spawnConfig.cwd, spawnConfig.command, spawnConfig.args, hasEnv ? mergedEnv : undefined)
+  const result = await ptyManager.create(name, spawnConfig.cwd, spawnConfig.command, spawnConfig.args, hasEnv ? mergedEnv : undefined)
 
-  // Register hook-based polling only if the adapter set up hooks
+  // Register with hook server for instant HTTP event delivery
   if (hookSetup) {
-    registerStatusPoll(hookSetup.statusPath, result.id, agentType, result.tmuxSessionName)
-    const abortCtrl = new AbortController()
-    const entry = sessionHookMap.get(result.id)!
-    entry.hookId = hookId
-    entry.abortCtrl = abortCtrl
-    entry.hookCleanup = hookSetup.cleanup
-
-    // Async: wait for session ID, send to renderer, cleanup .out only
-    if (hookSetup.outputPath) {
-      const outputPath = hookSetup.outputPath
-      waitForSessionId(outputPath, adapter, abortCtrl.signal).then((claudeSessionId) => {
-        if (claudeSessionId) {
-          ee.emit('session:claudeSessionId', { id: result.id, claudeSessionId })
-        }
-        try { fs.unlinkSync(outputPath) } catch { /* already deleted */ }
-      })
-    }
+    registerHookSession(hookId, result.id, agentType)
+    sessionHookMap.set(result.id, { hookId, agentType, hookCleanup: hookSetup.cleanup })
   }
 
-  return { id: result.id, pid: result.pid, tmuxSessionName: result.tmuxSessionName, hookId }
+  return { id: result.id, pid: result.pid, hookId }
 }
 
-function reattachAgent(tmuxSessionName: string, hookId: string, name: string, cwd: string, agentType?: AgentType): { id: string; pid: number; tmuxSessionName: string; paneTitle?: string; initialStatusDetail?: string | null; recoveredClaudeSessionId?: string } | null {
-  const result = ptyManager.reattachAgent(name, cwd, tmuxSessionName)
-  if (!result) return null
+// Cache daemon session IDs to avoid per-session round-trips during reattach.
+// Populated by reconcileSessions(), cleared after loadSessions finishes.
+let cachedDaemonSessionIds: Set<string> | null = null
+
+/** Reattach to a daemon-managed session that survived an app restart.
+ *  Returns null if the session is not alive in the daemon. */
+async function reattachAgent(sessionId: string, hookId: string, _name: string, _cwd: string, agentType?: AgentType): Promise<{ id: string; scrollbackAvailable: boolean; initialStatus?: SessionStatus; initialStatusDetail?: string | null; recoveredClaudeSessionId?: string } | null> {
+  // Verify the session is actually alive in the daemon
+  if (!daemonClient.isConnected()) return null
+
+  // Use cached list if available, otherwise query the daemon
+  let alive: boolean
+  if (cachedDaemonSessionIds) {
+    alive = cachedDaemonSessionIds.has(sessionId)
+  } else {
+    try {
+      const daemonSessions = await daemonClient.list()
+      alive = daemonSessions.some((s) => s.id === sessionId)
+    } catch {
+      return null
+    }
+  }
+  if (!alive) return null
 
   const resolvedAgentType: AgentType = agentType ?? 'claude'
   const adapter = getAdapter(resolvedAgentType)
 
-  // Re-register status polling for this session
+  // Register the daemon session with ptyManager so events route correctly
+  ptyManager.registerDaemonSession(sessionId)
+
+  // Register with hook server
   if (hookId) {
-    const statusPath = path.join(hooksDir, `${hookId}.status`)
-    registerStatusPoll(statusPath, result.id, resolvedAgentType, tmuxSessionName)
-    const entry = sessionHookMap.get(result.id)!
-    entry.hookId = hookId
+    registerHookSession(hookId, sessionId, resolvedAgentType)
+    sessionHookMap.set(sessionId, { hookId, agentType: resolvedAgentType })
   }
 
-  // Immediately read .status file so the renderer shows status without waiting for the poll interval
+  // Try to recover status from hook events
   let initialStatusDetail: string | null = null
-  if (hookId && adapter.parseStatusDetail) {
-    try {
-      const statusPath = path.join(hooksDir, `${hookId}.status`)
-      const raw = fs.readFileSync(statusPath, 'utf-8').trim()
-      if (raw) {
-        const event = JSON.parse(raw)
-        initialStatusDetail = adapter.parseStatusDetail(event)
-      }
-    } catch { /* file missing or malformed */ }
-  }
+  let initialStatus: SessionStatus | undefined
+  let lastHookEvent: unknown | null = null
 
-  // Query pane title to seed lastTitleStatus for desktop notification dedup
-  const paneTitle = ptyManager.getTmuxPaneTitle(tmuxSessionName) ?? undefined
-  if (paneTitle && adapter.parseTitle) {
-    const parsed = adapter.parseTitle(paneTitle)
-    if (parsed) {
-      lastTitleStatus.set(result.id, parsed.status)
+  if (hookId) {
+    lastHookEvent = getLastEvent(hookId)
+    if (!lastHookEvent) {
+      try {
+        const statusPath = path.join(hooksDir, `${hookId}.status`)
+        const raw = fs.readFileSync(statusPath, 'utf-8').trim()
+        if (raw) lastHookEvent = JSON.parse(raw)
+      } catch { /* file missing or malformed */ }
+    }
+    if (lastHookEvent) {
+      initialStatusDetail = adapter.parseStatusDetail?.(lastHookEvent) ?? null
+      const hookStatus = adapter.parseStatus?.(lastHookEvent) ?? null
+      if (hookStatus) initialStatus = hookStatus
     }
   }
 
-  // Try recovering claudeSessionId from .out file (crash before capture edge case)
+  // Try recovering claudeSessionId from .out file
   let recoveredClaudeSessionId: string | undefined
   if (hookId && adapter.parseSessionId) {
     try {
@@ -451,7 +392,13 @@ function reattachAgent(tmuxSessionName: string, hookId: string, name: string, cw
     } catch { /* file missing or malformed */ }
   }
 
-  return { ...result, paneTitle, initialStatusDetail, recoveredClaudeSessionId }
+  return {
+    id: sessionId,
+    scrollbackAvailable: true,
+    initialStatus,
+    initialStatusDetail,
+    recoveredClaudeSessionId,
+  }
 }
 
 // --- Terminal (shell) events → event emitter ---
@@ -481,6 +428,7 @@ const appRouter = createRouter({
   getAutoUpdater: () => autoUpdater,
   spawnAgent,
   reattachAgent,
+  daemonClient,
 })
 
 // --- Lifecycle ---
@@ -498,58 +446,100 @@ app.on('activate', () => {
 })
 
 app.on('will-quit', async () => {
-  // Collect hookIds for tmux-backed sessions BEFORE killing
-  const tmuxHookIds = new Set<string>()
+  // Collect hookIds for daemon-managed sessions BEFORE killing local PTYs
+  const daemonHookIds = new Set<string>()
   for (const [, info] of sessionHookMap) {
-    if (info.tmuxSessionName && info.hookId) {
-      tmuxHookIds.add(info.hookId)
+    if (info.hookId) {
+      daemonHookIds.add(info.hookId)
     }
   }
 
+  // Kill only local PTYs (shells) — daemon sessions survive
   ptyManager.killAll()
   lspManager.stopAll()
   await fileWatcher.unwatch()
 
-  // Restore Codex config.toml notify setting
+  // Restore agent config files
   cleanupCodexConfig()
+  cleanupOpencodeConfig()
 
-  // Stop the shared status file polling timer
-  if (sharedPollTimer) {
-    clearInterval(sharedPollTimer)
-    sharedPollTimer = null
-  }
+  // Stop the hook server
+  stopHookServer()
   sessionHookMap.clear()
 
-  // Clean up hook files, preserving those for tmux-backed sessions
-  cleanupAllHookFiles(tmuxHookIds)
+  // Disconnect from daemon (don't kill it — sessions survive)
+  daemonClient.disconnect()
+
+  // Clean up hook files, preserving those for daemon-managed sessions
+  cleanupAllHookFiles(daemonHookIds)
 })
 
 app.whenReady().then(async () => {
+  // Start hook server for instant hook event delivery from agents
+  await startHookServer()
+
   // Start local HTTP server for production so embeds see a real http:// origin
   if (!VITE_DEV_SERVER_URL) {
     rendererURL = await startRendererServer(RENDERER_DIST)
   }
 
-  // Collect active tmux names and hookIds from persisted state
-  const activeTmuxNames = new Set<string>()
-  const activeHookIds = new Set<string>()
-
+  // Connect to daemon (launches if not running)
   try {
-    const sessions = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
-    for (const s of sessions.sessions || []) {
-      if (s.tmuxSessionName) activeTmuxNames.add(s.tmuxSessionName)
-      if (s.tmuxSessionName && s.hookId) activeHookIds.add(s.hookId)
-    }
-  } catch { /* ignore */ }
+    await daemonClient.ensureAndConnect()
+    ptyManager.setDaemonClient(daemonClient)
+    console.log('[tentacles] Connected to terminal daemon')
+  } catch (err) {
+    console.warn('[tentacles] Failed to connect to daemon, sessions will not persist:', err)
+  }
 
-  // Clean up stale hook files, preserving those for active tmux sessions
-  cleanupAllHookFiles(activeHookIds)
-
-  // Clean up orphaned tmux sessions from previous runs/crashes
-  ptyManager.cleanupOrphanedSessions(activeTmuxNames)
+  // Reconcile daemon sessions with persisted state
+  await reconcileSessions()
 
   // Initialize tRPC IPC handler — must be before createWindow so the handler is ready
   ipcHandler = createIPCHandler({ router: appRouter })
 
   createWindow()
 })
+
+/** Reconcile persisted sessions with daemon state on startup. */
+async function reconcileSessions() {
+  const activeHookIds = new Set<string>()
+
+  // Get sessions alive in daemon
+  let daemonSessions: { id: string; pid: number; cwd: string; createdAt: number }[] = []
+  if (daemonClient.isConnected()) {
+    try {
+      daemonSessions = await daemonClient.list()
+    } catch { /* daemon not responding */ }
+  }
+  const daemonSessionIds = new Set(daemonSessions.map((s) => s.id))
+
+  // Load persisted sessions
+  let persistedSessions: { hookId?: string; id?: string }[] = []
+  try {
+    const data = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
+    persistedSessions = data.sessions || []
+    for (const s of persistedSessions) {
+      if (s.hookId && daemonSessionIds.has(s.id!)) {
+        activeHookIds.add(s.hookId)
+      }
+    }
+  } catch { /* ignore */ }
+
+  // Kill orphaned daemon sessions (in daemon but not in persisted state)
+  const persistedIds = new Set(persistedSessions.map((s) => s.id))
+  for (const ds of daemonSessions) {
+    if (!persistedIds.has(ds.id)) {
+      try {
+        await daemonClient.kill(ds.id)
+        removeScrollback(path.join(getScrollbackDir(), ds.id))
+      } catch { /* ignore */ }
+    }
+  }
+
+  // Cache daemon session IDs for the upcoming loadSessions→reattach calls
+  cachedDaemonSessionIds = daemonSessionIds
+
+  // Clean up stale hook files, preserving those for active daemon sessions
+  cleanupAllHookFiles(activeHookIds)
+}

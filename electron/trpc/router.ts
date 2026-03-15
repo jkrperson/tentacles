@@ -12,7 +12,9 @@ import type { PtyManager } from '../ptyManager'
 import type { FileWatcher } from '../fileWatcher'
 import type { GitManager } from '../gitManager'
 import type { LspManager } from '../lspManager'
+import type { DaemonClient } from '../daemon/client'
 import type { AgentType } from '../agents/types'
+import type { SessionStatus } from '../../src/types'
 import type { autoUpdater as AutoUpdaterType } from 'electron-updater'
 
 export interface RouterDeps {
@@ -25,8 +27,9 @@ export interface RouterDeps {
   themesDir: string
   getWindow: () => BrowserWindow | null
   getAutoUpdater: () => typeof AutoUpdaterType | null
-  spawnAgent: (name: string, cwd: string, agentType: AgentType, resumeId?: string) => { id: string; pid: number; tmuxSessionName?: string; hookId: string }
-  reattachAgent: (tmuxSessionName: string, hookId: string, name: string, cwd: string, agentType?: AgentType) => { id: string; pid: number; tmuxSessionName: string; paneTitle?: string; initialStatusDetail?: string | null; recoveredClaudeSessionId?: string } | null
+  spawnAgent: (name: string, cwd: string, agentType: AgentType, resumeId?: string) => Promise<{ id: string; pid: number; hookId: string }>
+  reattachAgent: (sessionId: string, hookId: string, name: string, cwd: string, agentType?: AgentType) => Promise<{ id: string; scrollbackAvailable: boolean; initialStatus?: SessionStatus; initialStatusDetail?: string | null; recoveredClaudeSessionId?: string } | null>
+  daemonClient: DaemonClient
 }
 
 export function createRouter(deps: RouterDeps) {
@@ -35,6 +38,7 @@ export function createRouter(deps: RouterDeps) {
       ptyManager: deps.ptyManager,
       spawnAgent: deps.spawnAgent,
       reattachAgent: deps.reattachAgent,
+      daemonClient: deps.daemonClient,
     }),
     terminal: createTerminalRouter({
       ptyManager: deps.ptyManager,

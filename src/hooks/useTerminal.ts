@@ -19,6 +19,9 @@ export function useTerminal({ sessionId, isActive }: UseTerminalOptions) {
   const termRef = useRef<{ terminal: Terminal; fitAddon: FitAddon } | null>(null)
   const writeBufferRef = useRef<string[]>([])
   const rafRef = useRef<number>(0)
+  // Gate live data until scrollback is replayed to prevent out-of-order rendering
+  const scrollbackLoadedRef = useRef(false)
+  const pendingLiveDataRef = useRef<string[]>([])
   const themeSetting = useSettingsStore((s) => s.settings.theme)
   const { customThemes } = useCustomThemes()
   const { theme: resolvedThemeDef } = useResolvedTheme(themeSetting, customThemes)
@@ -32,6 +35,10 @@ export function useTerminal({ sessionId, isActive }: UseTerminalOptions) {
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
+
+    // Reset scrollback gate for this session
+    scrollbackLoadedRef.current = false
+    pendingLiveDataRef.current = []
 
     const terminal = new Terminal({
       cursorBlink: true,
@@ -70,20 +77,60 @@ export function useTerminal({ sessionId, isActive }: UseTerminalOptions) {
     terminal.open(el)
     termRef.current = { terminal, fitAddon }
 
-    // Accelerate scroll speed by calling xterm's scrollLines() directly.
-    // When mouse tracking is active (tmux mouse mode, vim, etc.),
-    // let the event pass through so xterm forwards it to the application.
+    // Replay scrollback from daemon (for sessions that survived an app restart),
+    // then flush any live data that arrived in the meantime.
+    trpc.session.getScrollback.query({ id: sessionId }).then((data) => {
+      if (termRef.current?.terminal === terminal) {
+        if (data) terminal.write(data)
+        // Flush any live data that arrived while scrollback was loading
+        const pending = pendingLiveDataRef.current
+        if (pending.length > 0) {
+          terminal.write(pending.join(''))
+          pendingLiveDataRef.current = []
+        }
+        scrollbackLoadedRef.current = true
+      }
+    }).catch(() => {
+      // No scrollback available — ungate immediately
+      scrollbackLoadedRef.current = true
+      const pending = pendingLiveDataRef.current
+      if (pending.length > 0 && termRef.current?.terminal === terminal) {
+        terminal.write(pending.join(''))
+        pendingLiveDataRef.current = []
+      }
+    })
+
+    // Custom scroll handler — takes full control of wheel scrolling so we can
+    // apply the user's scroll-speed multiplier consistently.
+    // When mouse tracking is active (e.g. vim), let the event pass through.
+    // We accumulate sub-line pixel deltas so trackpad scrolling feels smooth.
+    let scrollAccumulator = 0
+    const LINE_HEIGHT = 20 // approximate pixel height of one terminal line
     const handleWheel = (e: WheelEvent) => {
-      const speed = scrollSpeedRef.current
-      if (speed <= 1) return
       if (terminal.modes.mouseTrackingMode !== 'none') return
 
       e.preventDefault()
       e.stopImmediatePropagation()
 
-      const direction = e.deltaY > 0 ? 1 : e.deltaY < 0 ? -1 : 0
-      const lines = direction * speed * (e.metaKey ? 2 : 1)
-      terminal.scrollLines(lines)
+      const speed = scrollSpeedRef.current * (e.metaKey ? 2 : 1)
+
+      // Normalize deltaY to lines depending on deltaMode
+      let deltaLines: number
+      if (e.deltaMode === WheelEvent.DOM_DELTA_PIXEL) {
+        // Trackpad / smooth scroll — accumulate fractional lines
+        scrollAccumulator += (e.deltaY / LINE_HEIGHT) * speed
+        deltaLines = Math.trunc(scrollAccumulator)
+        scrollAccumulator -= deltaLines
+      } else if (e.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+        deltaLines = Math.round(e.deltaY * speed)
+      } else {
+        // DOM_DELTA_PAGE
+        deltaLines = Math.round(e.deltaY * terminal.rows * speed)
+      }
+
+      if (deltaLines !== 0) {
+        terminal.scrollLines(deltaLines)
+      }
     }
     el.addEventListener('wheel', handleWheel, { capture: true, passive: false })
 
@@ -101,6 +148,7 @@ export function useTerminal({ sessionId, isActive }: UseTerminalOptions) {
       el.removeEventListener('wheel', handleWheel, { capture: true })
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       writeBufferRef.current = []
+      pendingLiveDataRef.current = []
       terminal.dispose()
       termRef.current = null
     }
@@ -140,8 +188,13 @@ export function useTerminal({ sessionId, isActive }: UseTerminalOptions) {
     return () => ro.disconnect()
   }, [isActive, sessionId])
 
-  // Batched writes — coalesces rapid IPC data into single xterm.write() per frame
+  // Batched writes — coalesces rapid IPC data into single xterm.write() per frame.
+  // If scrollback hasn't loaded yet, buffer data to replay after scrollback.
   const writeData = useCallback((data: string) => {
+    if (!scrollbackLoadedRef.current) {
+      pendingLiveDataRef.current.push(data)
+      return
+    }
     writeBufferRef.current.push(data)
     if (rafRef.current === 0) {
       rafRef.current = requestAnimationFrame(() => {
