@@ -213,6 +213,7 @@ code {
   max-width: 580px;
   margin: 0 auto 44px;
   line-height: 1.6;
+  text-wrap: balance;
 }
 
 .hero-buttons {
