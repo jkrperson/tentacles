@@ -115,6 +115,20 @@ export interface ShellTerminal {
 
 export type { CustomThemeFile } from '../themes'
 
+export type NotificationEvent = 'completed' | 'needsInput' | 'exited'
+
+export interface NotificationSoundConfig {
+  completed: string   // 'none', 'builtin:chime', 'builtin:ping', 'builtin:bell', or 'custom:filename'
+  needsInput: string
+  exited: string
+}
+
+export interface CustomSoundFile {
+  key: string        // 'custom:filename.mp3'
+  name: string       // display name (filename without extension)
+  filename: string   // actual filename on disk
+}
+
 export interface AppSettings {
   maxSessions: number
   defaultProjectPath: string
@@ -124,6 +138,7 @@ export interface AppSettings {
   opencodeCliPath: string
   desktopNotifications: boolean
   soundEnabled: boolean
+  notificationSounds: NotificationSoundConfig
   idleThresholdMs: number
   terminalFontSize: number
   terminalFontFamily: string

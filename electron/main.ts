@@ -53,6 +53,7 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 
 const settingsPath = path.join(app.getPath('userData'), 'settings.json')
 const sessionsPath = path.join(app.getPath('userData'), 'sessions.json')
 const themesDir = path.join(app.getPath('userData'), 'themes')
+const soundsDir = path.join(app.getPath('userData'), 'sounds')
 const hooksDir = path.join(app.getPath('userData'), 'hooks')
 
 let win: BrowserWindow | null = null
@@ -81,7 +82,7 @@ const themeBgMap: Record<string, string> = {
 }
 
 // Wire PTY/shell/file events to the typed event emitter
-wireEvents({ ptyManager, fileWatcher, hookManager })
+wireEvents({ ptyManager, fileWatcher, hookManager, loadSettings })
 
 // Create agent spawner
 const spawner = createAgentSpawner({
@@ -97,6 +98,7 @@ const appRouter = createRouter({
   settingsPath,
   sessionsPath,
   themesDir,
+  soundsDir,
   getWindow: () => win,
   getAutoUpdater: () => autoUpdater,
   spawnAgent: spawner.spawn,

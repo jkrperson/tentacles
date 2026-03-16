@@ -11,9 +11,10 @@ interface WiringDeps {
   ptyManager: PtyManager
   fileWatcher: FileWatcher
   hookManager: HookManager
+  loadSettings: () => Record<string, unknown>
 }
 
-export function wireEvents({ ptyManager, fileWatcher, hookManager }: WiringDeps) {
+export function wireEvents({ ptyManager, fileWatcher, hookManager, loadSettings }: WiringDeps) {
   const lastTitleStatus = new Map<string, string>()
   const sessionNames = new Map<string, string>()
 
@@ -62,7 +63,7 @@ export function wireEvents({ ptyManager, fileWatcher, hookManager }: WiringDeps)
     ee.emit('session:exit', { id, exitCode })
 
     // Desktop notification when agent exits
-    if (Notification.isSupported()) {
+    if (Notification.isSupported() && loadSettings().desktopNotifications !== false) {
       const name = sessionNames.get(id) ?? 'Agent'
       new Notification({
         title: `${name} exited`,
@@ -81,7 +82,7 @@ export function wireEvents({ ptyManager, fileWatcher, hookManager }: WiringDeps)
       return
     }
 
-    if (!Notification.isSupported()) return
+    if (!Notification.isSupported() || loadSettings().desktopNotifications === false) return
 
     const name = sessionNames.get(id) ?? 'Agent'
     if (status === 'needs_input') {

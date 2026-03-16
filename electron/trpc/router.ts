@@ -25,6 +25,7 @@ export interface RouterDeps {
   settingsPath: string
   sessionsPath: string
   themesDir: string
+  soundsDir: string
   getWindow: () => BrowserWindow | null
   getAutoUpdater: () => typeof AutoUpdaterType | null
   spawnAgent: (name: string, cwd: string, agentType: AgentType, resumeId?: string) => Promise<{ id: string; pid: number; hookId: string }>
@@ -62,6 +63,8 @@ export function createRouter(deps: RouterDeps) {
       settingsPath: deps.settingsPath,
       sessionsPath: deps.sessionsPath,
       themesDir: deps.themesDir,
+      soundsDir: deps.soundsDir,
+      getWindow: deps.getWindow,
     }),
   })
 }

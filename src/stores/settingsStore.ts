@@ -11,6 +11,11 @@ const defaultSettings: AppSettings = {
   opencodeCliPath: 'opencode',
   desktopNotifications: true,
   soundEnabled: false,
+  notificationSounds: {
+    completed: 'builtin:chime',
+    needsInput: 'builtin:ping',
+    exited: 'none',
+  },
   idleThresholdMs: 3000,
   terminalFontSize: 13,
   terminalFontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace",

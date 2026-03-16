@@ -1,13 +1,17 @@
 import { z } from 'zod'
-import { app, shell } from 'electron'
+import { app, dialog, shell, BrowserWindow } from 'electron'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { t } from '../trpc'
+
+const SOUND_EXTENSIONS = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac']
 
 interface AppDeps {
   settingsPath: string
   sessionsPath: string
   themesDir: string
+  soundsDir: string
+  getWindow: () => BrowserWindow | null
 }
 
 const customThemeSchema = z.object({
@@ -148,6 +152,94 @@ export function createAppRouter(deps: AppDeps) {
       .input(z.object({ url: z.string() }))
       .mutation(({ input }) => {
         shell.openExternal(input.url)
+      }),
+
+    // --- Custom Sounds ---
+    listCustomSounds: t.procedure
+      .query(() => {
+        try {
+          if (!fs.existsSync(deps.soundsDir)) return []
+          const files = fs.readdirSync(deps.soundsDir)
+            .filter((f) => SOUND_EXTENSIONS.some((ext) => f.toLowerCase().endsWith(ext)))
+          return files.map((filename) => ({
+            key: `custom:${filename}`,
+            name: filename.replace(/\.[^.]+$/, ''),
+            filename,
+          }))
+        } catch {
+          return []
+        }
+      }),
+
+    addCustomSound: t.procedure
+      .mutation(async () => {
+        const win = deps.getWindow()
+        if (!win) return null
+        const result = await dialog.showOpenDialog(win, {
+          properties: ['openFile', 'multiSelections'],
+          filters: [{ name: 'Audio Files', extensions: ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'] }],
+        })
+        if (result.canceled || result.filePaths.length === 0) return null
+        if (!fs.existsSync(deps.soundsDir)) {
+          fs.mkdirSync(deps.soundsDir, { recursive: true })
+        }
+        const added: Array<{ key: string; name: string; filename: string }> = []
+        for (const filePath of result.filePaths) {
+          const filename = path.basename(filePath)
+          const dest = path.join(deps.soundsDir, filename)
+          fs.copyFileSync(filePath, dest)
+          added.push({
+            key: `custom:${filename}`,
+            name: filename.replace(/\.[^.]+$/, ''),
+            filename,
+          })
+        }
+        return added
+      }),
+
+    deleteCustomSound: t.procedure
+      .input(z.object({ key: z.string() }))
+      .mutation(({ input }) => {
+        const filename = input.key.replace(/^custom:/, '')
+        const filePath = path.join(deps.soundsDir, filename)
+        try {
+          fs.unlinkSync(filePath)
+        } catch {
+          // Already deleted
+        }
+      }),
+
+    getSoundData: t.procedure
+      .input(z.object({ key: z.string() }))
+      .query(({ input }) => {
+        const filename = input.key.replace(/^custom:/, '')
+        const filePath = path.join(deps.soundsDir, filename)
+        try {
+          const data = fs.readFileSync(filePath)
+          const ext = path.extname(filename).toLowerCase()
+          const mimeMap: Record<string, string> = {
+            '.mp3': 'audio/mpeg',
+            '.wav': 'audio/wav',
+            '.ogg': 'audio/ogg',
+            '.m4a': 'audio/mp4',
+            '.aac': 'audio/aac',
+            '.flac': 'audio/flac',
+          }
+          return {
+            data: data.toString('base64'),
+            mimeType: mimeMap[ext] ?? 'audio/mpeg',
+          }
+        } catch {
+          return null
+        }
+      }),
+
+    openSoundsFolder: t.procedure
+      .mutation(() => {
+        if (!fs.existsSync(deps.soundsDir)) {
+          fs.mkdirSync(deps.soundsDir, { recursive: true })
+        }
+        shell.openPath(deps.soundsDir)
       }),
   })
 }
