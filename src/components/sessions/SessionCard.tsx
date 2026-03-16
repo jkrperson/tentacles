@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useProjectStore } from '../../stores/projectStore'
+import { useConfirmStore } from '../../stores/confirmStore'
 import { trpc } from '../../trpc'
 import type { Session } from '../../types'
 
@@ -61,10 +62,25 @@ function StatusIcon({ status, cssVar }: { status: string; cssVar: string }) {
   )
 }
 
-export const SessionCard = memo(function SessionCard({ session, isActive }: { session: Session; isActive: boolean }) {
+interface SessionCardProps {
+  session: Session
+  isActive: boolean
+  draggable?: boolean
+  isDragging?: boolean
+  dropPosition?: 'above' | 'below' | null
+  onDragStart?: (e: React.DragEvent) => void
+  onDragOver?: (e: React.DragEvent) => void
+  onDragEnd?: (e: React.DragEvent) => void
+  onDrop?: (e: React.DragEvent) => void
+}
+
+export const SessionCard = memo(function SessionCard({
+  session, isActive, draggable, isDragging, dropPosition, onDragStart, onDragOver, onDragEnd, onDrop,
+}: SessionCardProps) {
   const setActive = useSessionStore((s) => s.setActiveSession)
   const removeSession = useSessionStore((s) => s.removeSession)
   const setActiveProject = useProjectStore((s) => s.setActiveProject)
+  const showConfirm = useConfirmStore((s) => s.show)
   const config = STATUS_CONFIG[session.status] ?? STATUS_CONFIG.completed
 
   // Build subtitle: "worktreeBranch · Status" or just "Status"
@@ -109,11 +125,24 @@ export const SessionCard = memo(function SessionCard({ session, isActive }: { se
       <button
         onClick={(e) => {
           e.stopPropagation()
-          if (session.status === 'running' || session.status === 'idle' || session.status === 'needs_input') trpc.session.kill.mutate({ id: session.id })
-          if (session.isWorktree && session.originalRepo && session.worktreePath) {
-            trpc.git.worktree.remove.mutate({ repoPath: session.originalRepo, worktreePath: session.worktreePath }).catch(() => {})
+          const isAlive = session.status === 'running' || session.status === 'idle' || session.status === 'needs_input'
+          const doClose = () => {
+            if (isAlive) trpc.session.kill.mutate({ id: session.id })
+            if (session.isWorktree && session.originalRepo && session.worktreePath) {
+              trpc.git.worktree.remove.mutate({ repoPath: session.originalRepo, worktreePath: session.worktreePath }).catch(() => {})
+            }
+            removeSession(session.id)
           }
-          removeSession(session.id)
+          if (isAlive) {
+            showConfirm({
+              title: `Close ${session.name}?`,
+              message: 'This agent is still active. Closing it will kill the running process.',
+              confirmLabel: 'Close',
+              onConfirm: doClose,
+            })
+          } else {
+            doClose()
+          }
         }}
         className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-zinc-300 transition-opacity p-0.5"
         title="Close session"

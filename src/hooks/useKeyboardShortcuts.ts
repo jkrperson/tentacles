@@ -3,6 +3,7 @@ import { useSessionStore } from '../stores/sessionStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useProjectStore } from '../stores/projectStore'
 import { useTerminalStore } from '../stores/terminalStore'
+import { useConfirmStore } from '../stores/confirmStore'
 import { trpc } from '../trpc'
 
 export function useKeyboardShortcuts() {
@@ -27,10 +28,24 @@ export function useKeyboardShortcuts() {
         const { activeSessionId: aid, sessions: sess, removeSession: rm } = useSessionStore.getState()
         if (aid) {
           const session = sess.get(aid)
-          if (session?.status === 'running' || session?.status === 'idle' || session?.status === 'needs_input') {
-            trpc.session.kill.mutate({ id: aid })
+          const isAlive = session?.status === 'running' || session?.status === 'idle' || session?.status === 'needs_input'
+          const doClose = () => {
+            if (isAlive) trpc.session.kill.mutate({ id: aid })
+            if (session?.isWorktree && session.originalRepo && session.worktreePath) {
+              trpc.git.worktree.remove.mutate({ repoPath: session.originalRepo, worktreePath: session.worktreePath }).catch(() => {})
+            }
+            rm(aid)
           }
-          rm(aid)
+          if (isAlive) {
+            useConfirmStore.getState().show({
+              title: `Close ${session!.name}?`,
+              message: 'This agent is still active. Closing it will kill the running process.',
+              confirmLabel: 'Close',
+              onConfirm: doClose,
+            })
+          } else {
+            doClose()
+          }
         }
       }
 

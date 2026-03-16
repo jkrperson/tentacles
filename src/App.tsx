@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Layout } from './components/Layout'
+import { ConfirmModal } from './components/common/ConfirmModal'
 import { SettingsPage } from './components/settings/SettingsPage'
 import { useSessionStore } from './stores/sessionStore'
 import { useSettingsStore } from './stores/settingsStore'
