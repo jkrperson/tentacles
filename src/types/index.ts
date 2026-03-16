@@ -22,6 +22,7 @@ export interface Session {
 export interface SessionsFile {
   sessions: Session[]
   activeSessionId: string | null
+  tabOrder?: string[]
 }
 
 export interface WorktreeInfo {

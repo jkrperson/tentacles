@@ -12,10 +12,44 @@ function debouncedPersist(fn: () => void, ms = 500) {
   persistTimer = setTimeout(fn, ms)
 }
 
+/** Reorder an item within a project-scoped subset of a full order array. */
+function reorderWithinProject(
+  order: string[],
+  fromIndex: number,
+  toIndex: number,
+  projectPath: string,
+  sessions: Map<string, Session>,
+): string[] {
+  // Extract indices of IDs belonging to this project
+  const projectIndices: number[] = []
+  for (let i = 0; i < order.length; i++) {
+    const s = sessions.get(order[i])
+    if (s && (s.cwd === projectPath || s.originalRepo === projectPath)) {
+      projectIndices.push(i)
+    }
+  }
+  if (fromIndex < 0 || fromIndex >= projectIndices.length || toIndex < 0 || toIndex >= projectIndices.length) return order
+  if (fromIndex === toIndex) return order
+
+  // Get the project-scoped IDs in order
+  const projectIds = projectIndices.map((i) => order[i])
+  // Perform the move within the subset
+  const [moved] = projectIds.splice(fromIndex, 1)
+  projectIds.splice(toIndex, 0, moved)
+
+  // Splice reordered subset back into full array
+  const next = [...order]
+  for (let i = 0; i < projectIndices.length; i++) {
+    next[projectIndices[i]] = projectIds[i]
+  }
+  return next
+}
+
 interface SessionState {
   sessions: Map<string, Session>
   activeSessionId: string | null
   sessionOrder: string[]
+  tabOrder: string[]
 
   addSession: (session: Session) => void
   removeSession: (id: string) => void
@@ -25,6 +59,8 @@ interface SessionState {
   setHasUnread: (id: string, hasUnread: boolean) => void
   acknowledgeSession: (id: string) => void
   renameSession: (id: string, name: string) => void
+  reorderSessions: (fromIndex: number, toIndex: number, projectPath: string) => void
+  reorderTabs: (fromIndex: number, toIndex: number, projectPath: string) => void
   loadSessions: () => Promise<void>
   persistSessions: () => void
 
@@ -38,6 +74,7 @@ function serializeState(state: SessionState): SessionsFile {
   return {
     sessions: state.sessionOrder.map((id) => state.sessions.get(id)!).filter(Boolean),
     activeSessionId: state.activeSessionId,
+    tabOrder: state.tabOrder,
   }
 }
 
@@ -54,6 +91,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
     sessions: new Map(),
     activeSessionId: null,
     sessionOrder: [],
+    tabOrder: [],
 
     persistSessions: persist,
 
@@ -64,6 +102,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
         const next = {
           sessions,
           sessionOrder: [...state.sessionOrder, session.id],
+          tabOrder: [...state.tabOrder, session.id],
           activeSessionId: session.id,
         }
         persist()
@@ -78,13 +117,28 @@ export const useSessionStore = create<SessionState>((set, get) => {
         const sessions = new Map(state.sessions)
         sessions.delete(id)
         const sessionOrder = state.sessionOrder.filter((sid) => sid !== id)
+        const tabOrder = state.tabOrder.filter((sid) => sid !== id)
         const activeSessionId =
           state.activeSessionId === id
             ? sessionOrder[sessionOrder.length - 1] ?? null
             : state.activeSessionId
 
         persist()
-        return { sessions, sessionOrder, activeSessionId }
+        return { sessions, sessionOrder, tabOrder, activeSessionId }
+      }),
+
+    reorderSessions: (fromIndex, toIndex, projectPath) =>
+      set((state) => {
+        const sessionOrder = reorderWithinProject(state.sessionOrder, fromIndex, toIndex, projectPath, state.sessions)
+        persist()
+        return { sessionOrder }
+      }),
+
+    reorderTabs: (fromIndex, toIndex, projectPath) =>
+      set((state) => {
+        const tabOrder = reorderWithinProject(state.tabOrder, fromIndex, toIndex, projectPath, state.sessions)
+        persist()
+        return { tabOrder }
       }),
 
     setActiveSession: (id) => set({ activeSessionId: id }),
@@ -226,6 +280,9 @@ export const useSessionStore = create<SessionState>((set, get) => {
 
         const sessions = new Map<string, Session>()
         const sessionOrder: string[] = []
+        const savedTabOrder = data.tabOrder ?? []
+        // Track which old IDs mapped to which new IDs (reattach may change IDs)
+        const idMap = new Map<string, string>()
 
         for (const rawSession of data.sessions) {
           const s = { ...rawSession, agentType: rawSession.agentType ?? 'claude' as const }
@@ -250,6 +307,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
               }
               sessions.set(restored.id, restored)
               sessionOrder.push(restored.id)
+              idMap.set(s.id, restored.id)
               continue
             }
           } catch { /* reattach failed — daemon session not found */ }
@@ -257,9 +315,20 @@ export const useSessionStore = create<SessionState>((set, get) => {
           // Session couldn't be reattached — discard it
         }
 
+        // Restore tabOrder, remapping old IDs and filtering out discarded sessions
+        const restoredIds = new Set(sessionOrder)
+        const tabOrder = savedTabOrder
+          .map((oldId) => idMap.get(oldId) ?? oldId)
+          .filter((id) => restoredIds.has(id))
+        // Append any restored sessions missing from saved tabOrder
+        for (const id of sessionOrder) {
+          if (!tabOrder.includes(id)) tabOrder.push(id)
+        }
+
         set({
           sessions,
           sessionOrder,
+          tabOrder,
           activeSessionId: sessionOrder[0] ?? null,
         })
       } catch {

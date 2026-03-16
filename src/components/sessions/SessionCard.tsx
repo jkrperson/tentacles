@@ -94,11 +94,22 @@ export const SessionCard = memo(function SessionCard({
         setActive(session.id)
         setActiveProject(session.originalRepo ?? session.cwd)
       }}
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragEnd={onDragEnd}
+      onDrop={onDrop}
       className={`group relative flex items-start gap-2 px-2 py-1.5 rounded cursor-pointer transition-all ${
         isActive
           ? 'bg-[var(--t-bg-hover)]'
           : 'hover:bg-[var(--t-bg-active)]'
-      }`}
+      } ${isDragging ? 'opacity-40' : ''} ${
+        dropPosition === 'above' ? 'ring-t-2 ring-violet-500' : ''
+      } ${dropPosition === 'below' ? 'ring-b-2 ring-violet-500' : ''}`}
+      style={dropPosition ? {
+        borderTop: dropPosition === 'above' ? '2px solid rgb(139 92 246)' : undefined,
+        borderBottom: dropPosition === 'below' ? '2px solid rgb(139 92 246)' : undefined,
+      } : undefined}
     >
       {/* Status icon */}
       <div className="mt-0.5 flex-shrink-0">

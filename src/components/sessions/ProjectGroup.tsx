@@ -15,8 +15,12 @@ export function ProjectGroup({ project }: ProjectGroupProps) {
   const setActiveSession = useSessionStore((s) => s.setActiveSession)
   const createSessionInProject = useSessionStore((s) => s.createSessionInProject)
   const createSessionInWorktree = useSessionStore((s) => s.createSessionInWorktree)
+  const reorderSessions = useSessionStore((s) => s.reorderSessions)
   const setActiveProject = useProjectStore((s) => s.setActiveProject)
   const [collapsed, setCollapsed] = useState(false)
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null)
+  const [dropPosition, setDropPosition] = useState<'above' | 'below' | null>(null)
   const [showNameInput, setShowNameInput] = useState(false)
   const [worktreeName, setWorktreeName] = useState('')
   const nameInputRef = useRef<HTMLInputElement>(null)
@@ -126,9 +130,47 @@ export function ProjectGroup({ project }: ProjectGroupProps) {
       {/* Sessions */}
       {!collapsed && (
         <div className="px-1 pb-0.5">
-          {sorted.map((id) => {
+          {sorted.map((id, index) => {
             const session = sessions.get(id)
-            return session ? <SessionCard key={id} session={session} isActive={id === activeSessionId} /> : null
+            if (!session) return null
+            return (
+              <SessionCard
+                key={id}
+                session={session}
+                isActive={id === activeSessionId}
+                draggable
+                isDragging={draggedIndex === index}
+                dropPosition={dropTargetIndex === index ? dropPosition : null}
+                onDragStart={(e) => {
+                  setDraggedIndex(index)
+                  e.dataTransfer.effectAllowed = 'move'
+                  e.dataTransfer.setData('text/plain', id)
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  e.dataTransfer.dropEffect = 'move'
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  const midY = rect.top + rect.height / 2
+                  setDropTargetIndex(index)
+                  setDropPosition(e.clientY < midY ? 'above' : 'below')
+                }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  if (draggedIndex == null || dropTargetIndex == null) return
+                  let toIdx = dropPosition === 'below' ? dropTargetIndex + 1 : dropTargetIndex
+                  if (draggedIndex < toIdx) toIdx -= 1
+                  reorderSessions(draggedIndex, toIdx, project.path)
+                  setDraggedIndex(null)
+                  setDropTargetIndex(null)
+                  setDropPosition(null)
+                }}
+                onDragEnd={() => {
+                  setDraggedIndex(null)
+                  setDropTargetIndex(null)
+                  setDropPosition(null)
+                }}
+              />
+            )
           })}
           {sorted.length === 0 && (
             <div className="px-2 py-1.5">
