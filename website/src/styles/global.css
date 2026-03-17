@@ -1,23 +1,23 @@
 :root {
-  /* Gruvbox Dark (deeper) */
-  --color-bg: #111111;
-  --color-bg-soft: #181818;
-  --color-surface: #1e1e1e;
-  --color-surface-2: #252525;
-  --color-border: #3c3836;
-  --color-border-hover: #504945;
-  --color-text: #ebdbb2;
-  --color-text-muted: #a89984;
-  --color-text-dim: #7c6f64;
-  --color-accent: #fe8019;
-  --color-accent-dim: #d65d0e;
-  --color-accent-glow: rgba(254, 128, 25, 0.1);
-  --color-green: #b8bb26;
-  --color-aqua: #8ec07c;
-  --color-yellow: #fabd2f;
-  --color-red: #fb4934;
-  --color-purple: #d3869b;
-  --color-blue: #83a598;
+  /* Tokyo Night (deeper) */
+  --color-bg: #0a0e14;
+  --color-bg-soft: #11151c;
+  --color-surface: #161a24;
+  --color-surface-2: #1c2030;
+  --color-border: #292e42;
+  --color-border-hover: #3b4261;
+  --color-text: #c0caf5;
+  --color-text-muted: #787c99;
+  --color-text-dim: #565a6e;
+  --color-accent: #9d7cd8;
+  --color-accent-dim: #7c5cbf;
+  --color-accent-glow: rgba(157, 124, 216, 0.1);
+  --color-green: #9ece6a;
+  --color-aqua: #73daca;
+  --color-yellow: #e0af68;
+  --color-red: #f7768e;
+  --color-purple: #bb9af7;
+  --color-blue: #7dcfff;
   --font-heading: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-sans: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
@@ -564,7 +564,7 @@ section {
 }
 
 .mock-status-icon.needs-input {
-  color: #fabd2f;
+  color: #e0af68;
 }
 
 @keyframes mock-spin {
@@ -608,11 +608,11 @@ section {
 }
 
 .mock-diff-add {
-  color: #b8bb26;
+  color: #9ece6a;
 }
 
 .mock-diff-del {
-  color: #fb4934;
+  color: #f7768e;
 }
 
 /* Terminal */
@@ -688,8 +688,8 @@ section {
   white-space: nowrap;
 }
 
-.mock-t-green { color: #b8bb26; }
-.mock-t-blue { color: #83a598; }
+.mock-t-green { color: #9ece6a; }
+.mock-t-blue { color: #7dcfff; }
 .mock-t-dim { color: #555; }
 
 .mock-cursor::after {
