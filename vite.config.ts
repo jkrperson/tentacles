@@ -26,6 +26,11 @@ export default defineConfig({
         entry: 'electron/main.ts',
         vite: {
           build: {
+            lib: {
+              entry: 'electron/main.ts',
+              formats: ['cjs'],
+              fileName: () => '[name].cjs',
+            },
             rollupOptions: {
               external: ['node-pty', 'ws', 'electron-updater', 'electron-trpc', 'express'],
             },
