@@ -23,6 +23,7 @@ export function ProjectGroup({ project, onSpawnAgent, onOpenSpawnDialog, onNewWo
   const workspaces = useWorkspaceStore((s) => s.workspaces)
   const getProjectWorkspaces = useWorkspaceStore((s) => s.getProjectWorkspaces)
 
+  const [projectCollapsed, setProjectCollapsed] = useState(false)
   const [workspacesCollapsed, setWorkspacesCollapsed] = useState(false)
   const [agentsCollapsed, setAgentsCollapsed] = useState(false)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
@@ -40,21 +41,25 @@ export function ProjectGroup({ project, onSpawnAgent, onOpenSpawnDialog, onNewWo
     })
   }, [sessionOrder, sessions, project.path, workspaces])
 
-  // Only show workspaces section if there are worktree workspaces (main is implicit)
-  const hasWorktrees = projectWorkspaces.some((ws) => ws.type === 'worktree')
-
   return (
     <div className="mb-0.5 mt-1">
       {/* Project header */}
       <div className="flex items-center gap-1.5 px-2 py-1.5">
         <button
           onClick={() => {
+            setProjectCollapsed(!projectCollapsed)
             setActiveProject(project.path)
             if (projectSessions[0]) setActiveSession(projectSessions[0])
           }}
-          className="text-[11px] font-bold text-zinc-300 hover:text-zinc-100 truncate text-left transition-colors"
+          className="flex items-center gap-1 text-[11px] font-bold text-zinc-300 hover:text-zinc-100 truncate text-left transition-colors"
           title={project.path}
         >
+          <svg
+            width="8" height="8" viewBox="0 0 16 16" fill="currentColor"
+            className={`flex-shrink-0 transition-transform duration-150 ${projectCollapsed ? '' : 'rotate-90'}`}
+          >
+            <path d="M6.3 3.3a1 1 0 0 1 1.4 0l4 4a1 1 0 0 1 0 1.4l-4 4a1 1 0 0 1-1.4-1.4L9.58 8 6.3 4.7a1 1 0 0 1 0-1.4z"/>
+          </svg>
           {project.name}
         </button>
         {projectSessions.length > 0 && (
@@ -84,9 +89,9 @@ export function ProjectGroup({ project, onSpawnAgent, onOpenSpawnDialog, onNewWo
         </div>
       </div>
 
-      <div className="px-1 pb-0.5">
-        {/* Workspaces section — only shown when worktrees exist */}
-        {hasWorktrees && (
+      {!projectCollapsed && (
+        <div className="px-1 pb-0.5">
+          {/* Workspaces section — always visible */}
           <div className="mb-1">
             <button
               onClick={() => setWorkspacesCollapsed(!workspacesCollapsed)}
@@ -117,11 +122,9 @@ export function ProjectGroup({ project, onSpawnAgent, onOpenSpawnDialog, onNewWo
               </div>
             )}
           </div>
-        )}
 
-        {/* Agents section */}
-        <div>
-          {hasWorktrees && (
+          {/* Agents section */}
+          <div>
             <button
               onClick={() => setAgentsCollapsed(!agentsCollapsed)}
               className="flex items-center gap-1 px-1 py-0.5 text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors w-full text-left"
@@ -134,8 +137,7 @@ export function ProjectGroup({ project, onSpawnAgent, onOpenSpawnDialog, onNewWo
               </svg>
               Agents
             </button>
-          )}
-          {!agentsCollapsed && (
+            {!agentsCollapsed && (
             <div>
               {projectSessions.map((id, index) => {
                 const session = sessions.get(id)
@@ -197,8 +199,9 @@ export function ProjectGroup({ project, onSpawnAgent, onOpenSpawnDialog, onNewWo
               )}
             </div>
           )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Separator */}
       <div className="mx-2 border-b border-[var(--t-border)]" />
