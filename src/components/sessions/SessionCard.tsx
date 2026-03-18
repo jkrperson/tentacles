@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useProjectStore } from '../../stores/projectStore'
+import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useConfirmStore } from '../../stores/confirmStore'
 import { trpc } from '../../trpc'
 import type { Session } from '../../types'
@@ -15,7 +16,6 @@ const STATUS_CONFIG: Record<string, { label: string; cssVar: string; pulse?: boo
 
 function StatusIcon({ status, cssVar }: { status: string; cssVar: string }) {
   const size = 14
-  // Needs input — circle with exclamation mark
   if (status === 'needs_input') {
     return (
       <svg width={size} height={size} viewBox="0 0 16 16" className="flex-shrink-0" style={{ color: cssVar }}>
@@ -25,7 +25,6 @@ function StatusIcon({ status, cssVar }: { status: string; cssVar: string }) {
       </svg>
     )
   }
-  // Running — spinning loader
   if (status === 'running') {
     return (
       <svg width={size} height={size} viewBox="0 0 16 16" className="flex-shrink-0 animate-spin" style={{ color: cssVar }}>
@@ -34,7 +33,6 @@ function StatusIcon({ status, cssVar }: { status: string; cssVar: string }) {
       </svg>
     )
   }
-  // Errored — circle with X
   if (status === 'errored') {
     return (
       <svg width={size} height={size} viewBox="0 0 16 16" className="flex-shrink-0" style={{ color: cssVar }}>
@@ -44,7 +42,6 @@ function StatusIcon({ status, cssVar }: { status: string; cssVar: string }) {
       </svg>
     )
   }
-  // Completed — checkmark circle
   if (status === 'completed') {
     return (
       <svg width={size} height={size} viewBox="0 0 16 16" className="flex-shrink-0" style={{ color: cssVar }}>
@@ -53,7 +50,6 @@ function StatusIcon({ status, cssVar }: { status: string; cssVar: string }) {
       </svg>
     )
   }
-  // Idle — simple circle
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" className="flex-shrink-0" style={{ color: cssVar }}>
       <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.5" />
@@ -80,19 +76,19 @@ export const SessionCard = memo(function SessionCard({
   const setActive = useSessionStore((s) => s.setActiveSession)
   const removeSession = useSessionStore((s) => s.removeSession)
   const setActiveProject = useProjectStore((s) => s.setActiveProject)
+  const workspaces = useWorkspaceStore((s) => s.workspaces)
   const showConfirm = useConfirmStore((s) => s.show)
   const config = STATUS_CONFIG[session.status] ?? STATUS_CONFIG.completed
 
-  // Build subtitle: "worktreeBranch · Status" or just "Status"
-  const subtitle = session.isWorktree && session.worktreeBranch
-    ? `${session.worktreeBranch}  ·  ${config.label}`
-    : config.label
+  // Derive project from workspace
+  const workspace = workspaces.get(session.workspaceId)
+  const projectId = workspace?.projectId ?? session.cwd
 
   return (
     <div
       onClick={() => {
         setActive(session.id)
-        setActiveProject(session.originalRepo ?? session.cwd)
+        setActiveProject(projectId)
       }}
       draggable={draggable}
       onDragStart={onDragStart}
@@ -126,9 +122,9 @@ export const SessionCard = memo(function SessionCard({
             <span className="w-1.5 h-1.5 rounded-full bg-violet-400 flex-shrink-0" />
           )}
         </div>
-        {/* Subtitle: branch · status */}
+        {/* Subtitle: workspace name · status */}
         <div className="text-[10px] truncate text-zinc-500">
-          {subtitle}
+          {workspace && workspace.type !== 'main' ? `${workspace.name}  ·  ` : ''}{config.label}
         </div>
       </div>
 
@@ -139,9 +135,7 @@ export const SessionCard = memo(function SessionCard({
           const isAlive = session.status === 'running' || session.status === 'idle' || session.status === 'needs_input'
           const doClose = () => {
             if (isAlive) trpc.session.kill.mutate({ id: session.id })
-            if (session.isWorktree && session.originalRepo && session.worktreePath) {
-              trpc.git.worktree.remove.mutate({ repoPath: session.originalRepo, worktreePath: session.worktreePath }).catch(() => {})
-            }
+            // Workspace lifecycle is independent — don't remove worktree on session close
             removeSession(session.id)
           }
           if (isAlive) {

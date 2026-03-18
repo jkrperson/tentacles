@@ -3,6 +3,7 @@ import { useSessionStore } from '../stores/sessionStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useProjectStore } from '../stores/projectStore'
 import { useTerminalStore } from '../stores/terminalStore'
+import { useWorkspaceStore, sessionBelongsToProject } from '../stores/workspaceStore'
 import { useConfirmStore } from '../stores/confirmStore'
 import { trpc } from '../trpc'
 
@@ -31,9 +32,7 @@ export function useKeyboardShortcuts() {
           const isAlive = session?.status === 'running' || session?.status === 'idle' || session?.status === 'needs_input'
           const doClose = () => {
             if (isAlive) trpc.session.kill.mutate({ id: aid })
-            if (session?.isWorktree && session.originalRepo && session.worktreePath) {
-              trpc.git.worktree.remove.mutate({ repoPath: session.originalRepo, worktreePath: session.worktreePath }).catch(() => {})
-            }
+            // Workspace lifecycle is independent — don't remove worktree on session close
             rm(aid)
           }
           if (isAlive) {
@@ -59,8 +58,12 @@ export function useKeyboardShortcuts() {
         e.preventDefault()
         const { sessionOrder: order, sessions: sess, setActiveSession: setAs } = useSessionStore.getState()
         const apId = useProjectStore.getState().activeProjectId
+        const workspaces = useWorkspaceStore.getState().workspaces
         const projectSessions = apId
-          ? order.filter((id) => sess.get(id)?.cwd === apId)
+          ? order.filter((id) => {
+              const s = sess.get(id)
+              return s && sessionBelongsToProject(s.workspaceId, apId, workspaces)
+            })
           : order
         const index = parseInt(e.key) - 1
         if (index < projectSessions.length) {
@@ -83,7 +86,11 @@ export function useKeyboardShortcuts() {
         const nextProject = pOrder[nextIdx]
         setAp(nextProject)
         const { sessionOrder: order, sessions: sess, setActiveSession: setAs } = useSessionStore.getState()
-        const firstSession = order.find((id) => sess.get(id)?.cwd === nextProject)
+        const workspaces = useWorkspaceStore.getState().workspaces
+        const firstSession = order.find((id) => {
+          const s = sess.get(id)
+          return s && sessionBelongsToProject(s.workspaceId, nextProject, workspaces)
+        })
         if (firstSession) setAs(firstSession)
       }
     }

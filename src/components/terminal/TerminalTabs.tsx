@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useProjectStore } from '../../stores/projectStore'
+import { useWorkspaceStore, sessionBelongsToProject } from '../../stores/workspaceStore'
 
 const STATUS_DOTS: Record<string, { cssVar: string; pulse?: boolean }> = {
   running:     { cssVar: 'var(--t-status-running)',     pulse: true },
@@ -17,6 +18,7 @@ export function TerminalTabs() {
   const reorderTabs = useSessionStore((s) => s.reorderTabs)
   const setActive = useSessionStore((s) => s.setActiveSession)
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
+  const workspaces = useWorkspaceStore((s) => s.workspaces)
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null)
@@ -26,10 +28,10 @@ export function TerminalTabs() {
     () => activeProjectId
       ? tabOrder.filter((id) => {
           const s = sessions.get(id)
-          return s?.cwd === activeProjectId || s?.originalRepo === activeProjectId
+          return s && sessionBelongsToProject(s.workspaceId, activeProjectId, workspaces)
         })
       : tabOrder,
-    [tabOrder, sessions, activeProjectId],
+    [tabOrder, sessions, activeProjectId, workspaces],
   )
 
   if (projectSessions.length === 0) return null

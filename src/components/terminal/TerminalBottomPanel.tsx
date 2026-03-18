@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { ShellTerminalPanel } from './ShellTerminalPanel'
 import { useTerminalStore } from '../../stores/terminalStore'
 import { useProjectStore } from '../../stores/projectStore'
+import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { trpc } from '../../trpc'
 
 interface TerminalBottomPanelProps {
@@ -17,12 +18,18 @@ export function TerminalBottomPanel({ onNewTerminal, expanded, onToggleExpanded 
   const setActiveTerminal = useTerminalStore((s) => s.setActiveTerminal)
   const removeTerminal = useTerminalStore((s) => s.removeTerminal)
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
+  const workspaces = useWorkspaceStore((s) => s.workspaces)
 
   const projectTerminals = useMemo(
     () => activeProjectId
-      ? terminalOrder.filter((id) => terminals.get(id)?.cwd === activeProjectId)
+      ? terminalOrder.filter((id) => {
+          const t = terminals.get(id)
+          if (!t) return false
+          const ws = workspaces.get(t.workspaceId)
+          return ws?.projectId === activeProjectId
+        })
       : terminalOrder,
-    [terminalOrder, terminals, activeProjectId],
+    [terminalOrder, terminals, activeProjectId, workspaces],
   )
 
   return (
@@ -48,6 +55,8 @@ export function TerminalBottomPanel({ onNewTerminal, expanded, onToggleExpanded 
               const terminal = terminals.get(id)
               if (!terminal) return null
               const isActive = id === activeTerminalId
+              const ws = workspaces.get(terminal.workspaceId)
+              const wsLabel = ws && ws.type !== 'main' ? ws.name : null
               return (
                 <button
                   key={id}
@@ -62,6 +71,9 @@ export function TerminalBottomPanel({ onNewTerminal, expanded, onToggleExpanded 
                     <path d="M4 12l4-4-4-4" />
                   </svg>
                   <span className="truncate max-w-28">{terminal.name}</span>
+                  {wsLabel && (
+                    <span className="text-[9px] text-zinc-600 truncate max-w-16">[{wsLabel}]</span>
+                  )}
                   {terminal.status === 'exited' && (
                     <span className="w-1.5 h-1.5 rounded-full bg-zinc-600 flex-shrink-0" />
                   )}

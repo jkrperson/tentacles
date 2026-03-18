@@ -1,189 +1,206 @@
-import { useMemo, useState, useEffect, useRef } from 'react'
+import { useMemo, useState } from 'react'
 import { SessionCard } from './SessionCard'
+import { WorkspaceItem } from './WorkspaceItem'
 import { useSessionStore } from '../../stores/sessionStore'
+import { useWorkspaceStore, sessionBelongsToProject } from '../../stores/workspaceStore'
 import { useProjectStore } from '../../stores/projectStore'
 import type { Project } from '../../types'
 
 interface ProjectGroupProps {
   project: Project
+  onSpawnAgent: (workspaceId: string) => void
+  onNewWorkspace: (projectId: string) => void
 }
 
-export function ProjectGroup({ project }: ProjectGroupProps) {
+export function ProjectGroup({ project, onSpawnAgent, onNewWorkspace }: ProjectGroupProps) {
   const sessions = useSessionStore((s) => s.sessions)
   const sessionOrder = useSessionStore((s) => s.sessionOrder)
   const activeSessionId = useSessionStore((s) => s.activeSessionId)
   const setActiveSession = useSessionStore((s) => s.setActiveSession)
-  const createSessionInProject = useSessionStore((s) => s.createSessionInProject)
-  const createSessionInWorktree = useSessionStore((s) => s.createSessionInWorktree)
   const reorderSessions = useSessionStore((s) => s.reorderSessions)
   const setActiveProject = useProjectStore((s) => s.setActiveProject)
-  const [collapsed, setCollapsed] = useState(false)
+  const workspaces = useWorkspaceStore((s) => s.workspaces)
+  const getProjectWorkspaces = useWorkspaceStore((s) => s.getProjectWorkspaces)
+
+  const [workspacesCollapsed, setWorkspacesCollapsed] = useState(false)
+  const [agentsCollapsed, setAgentsCollapsed] = useState(false)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null)
   const [dropPosition, setDropPosition] = useState<'above' | 'below' | null>(null)
-  const [showNameInput, setShowNameInput] = useState(false)
-  const [worktreeName, setWorktreeName] = useState('')
-  const nameInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    if (showNameInput) nameInputRef.current?.focus()
-  }, [showNameInput])
+  const projectWorkspaces = useMemo(() => {
+    return getProjectWorkspaces(project.id)
+  }, [getProjectWorkspaces, project.id, workspaces]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Close input on click outside
-  useEffect(() => {
-    if (!showNameInput) return
-    const handler = (e: MouseEvent) => {
-      if (nameInputRef.current && !nameInputRef.current.parentElement?.contains(e.target as Node)) {
-        setShowNameInput(false)
-        setWorktreeName('')
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [showNameInput])
-
-  const handleWorktreeSubmit = () => {
-    const name = worktreeName.trim() || undefined
-    setShowNameInput(false)
-    setWorktreeName('')
-    createSessionInWorktree(project.path, name)
-  }
-
-  const sorted = useMemo(() => {
+  const projectSessions = useMemo(() => {
     return sessionOrder.filter((id) => {
       const s = sessions.get(id)
-      return s?.cwd === project.path || s?.originalRepo === project.path
+      return s && sessionBelongsToProject(s.workspaceId, project.path, workspaces)
     })
-  }, [sessionOrder, sessions, project.path])
+  }, [sessionOrder, sessions, project.path, workspaces])
+
+  // Only show workspaces section if there are worktree workspaces (main is implicit)
+  const hasWorktrees = projectWorkspaces.some((ws) => ws.type === 'worktree')
 
   return (
-    <div className="mb-0.5">
+    <div className="mb-0.5 mt-1">
       {/* Project header */}
-      <div className="flex items-center gap-1 px-2 py-1 group">
+      <div className="flex items-center gap-1.5 px-2 py-1.5">
         <button
           onClick={() => {
             setActiveProject(project.path)
-            const firstSession = sessionOrder.find((id) => {
-              const s = sessions.get(id)
-              return s?.cwd === project.path || s?.originalRepo === project.path
-            })
-            if (firstSession) setActiveSession(firstSession)
+            if (projectSessions[0]) setActiveSession(projectSessions[0])
           }}
           className="text-[11px] font-bold text-zinc-300 hover:text-zinc-100 truncate text-left transition-colors"
           title={project.path}
         >
           {project.name}
         </button>
-        {sorted.length > 0 && (
-          <span className="text-[10px] text-zinc-600 flex-shrink-0">({sorted.length})</span>
+        {projectSessions.length > 0 && (
+          <span className="text-[10px] text-zinc-600 flex-shrink-0">({projectSessions.length})</span>
         )}
-        <div className="flex items-center gap-0.5 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-1 ml-auto">
+          {/* New workspace button */}
           <button
-            onClick={() => createSessionInProject(project.path)}
-            className="text-zinc-500 hover:text-zinc-200 p-1 rounded hover:bg-[var(--t-bg-hover)] transition-colors"
-            title="Add agent"
+            onClick={() => onNewWorkspace(project.id)}
+            className="text-[var(--t-text-faint)] hover:text-[var(--t-text-secondary)] hover:bg-[var(--t-bg-hover)] p-1 transition-all active:scale-[0.9]"
+            title="New workspace"
           >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M11.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zm-2.25.75a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6A2.5 2.5 0 0 1 3.5 6v-.628a2.25 2.25 0 1 1 1.5 0V6a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-.628A2.251 2.251 0 0 1 9.5 3.25zM4.25 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zM8 11.878v-1.25a.75.75 0 0 0-1.5 0v1.25a2.25 2.25 0 1 0 1.5 0zM7.25 13a.75.75 0 1 1 .001 1.501A.75.75 0 0 1 7.25 13z"/>
             </svg>
           </button>
+          {/* Quick add agent (main workspace) */}
           <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="text-zinc-500 hover:text-zinc-200 p-1 rounded hover:bg-[var(--t-bg-hover)] transition-colors"
+            onClick={() => {
+              const mainWs = projectWorkspaces.find((ws) => ws.type === 'main')
+              if (mainWs) onSpawnAgent(mainWs.id)
+            }}
+            className="text-[var(--t-text-faint)] hover:text-[var(--t-text-secondary)] hover:bg-[var(--t-bg-hover)] p-1 transition-all active:scale-[0.9]"
+            title="Add agent"
           >
-            <svg
-              width="14" height="14" viewBox="0 0 16 16" fill="currentColor"
-              className={`transition-transform duration-150 ${collapsed ? '' : 'rotate-90'}`}
-            >
-              <path d="M6.3 3.3a1 1 0 0 1 1.4 0l4 4a1 1 0 0 1 0 1.4l-4 4a1 1 0 0 1-1.4-1.4L9.58 8 6.3 4.7a1 1 0 0 1 0-1.4z"/>
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
             </svg>
           </button>
         </div>
       </div>
 
-      {/* Inline worktree name input */}
-      {showNameInput && (
-        <div className="px-2 pb-1">
-          <div className="flex gap-1">
-            <input
-              ref={nameInputRef}
-              type="text"
-              value={worktreeName}
-              onChange={(e) => setWorktreeName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') { e.preventDefault(); handleWorktreeSubmit() }
-                if (e.key === 'Escape') { setShowNameInput(false); setWorktreeName('') }
-              }}
-              placeholder="Worktree name, e.g. add-auth"
-              className="flex-1 min-w-0 px-2 py-1 text-[11px] bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded text-zinc-200 placeholder-zinc-600 outline-none focus:border-violet-500/50"
-            />
+      <div className="px-1 pb-0.5">
+        {/* Workspaces section — only shown when worktrees exist */}
+        {hasWorktrees && (
+          <div className="mb-1">
             <button
-              onClick={handleWorktreeSubmit}
-              className="px-2 py-1 text-[10px] font-medium bg-violet-600 hover:bg-violet-500 text-white rounded transition-colors"
+              onClick={() => setWorkspacesCollapsed(!workspacesCollapsed)}
+              className="flex items-center gap-1 px-1 py-0.5 text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors w-full text-left"
             >
-              Go
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Sessions */}
-      {!collapsed && (
-        <div className="px-1 pb-0.5">
-          {sorted.map((id, index) => {
-            const session = sessions.get(id)
-            if (!session) return null
-            return (
-              <SessionCard
-                key={id}
-                session={session}
-                isActive={id === activeSessionId}
-                draggable
-                isDragging={draggedIndex === index}
-                dropPosition={dropTargetIndex === index ? dropPosition : null}
-                onDragStart={(e) => {
-                  setDraggedIndex(index)
-                  e.dataTransfer.effectAllowed = 'move'
-                  e.dataTransfer.setData('text/plain', id)
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault()
-                  e.dataTransfer.dropEffect = 'move'
-                  const rect = e.currentTarget.getBoundingClientRect()
-                  const midY = rect.top + rect.height / 2
-                  setDropTargetIndex(index)
-                  setDropPosition(e.clientY < midY ? 'above' : 'below')
-                }}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  if (draggedIndex == null || dropTargetIndex == null) return
-                  let toIdx = dropPosition === 'below' ? dropTargetIndex + 1 : dropTargetIndex
-                  if (draggedIndex < toIdx) toIdx -= 1
-                  reorderSessions(draggedIndex, toIdx, project.path)
-                  setDraggedIndex(null)
-                  setDropTargetIndex(null)
-                  setDropPosition(null)
-                }}
-                onDragEnd={() => {
-                  setDraggedIndex(null)
-                  setDropTargetIndex(null)
-                  setDropPosition(null)
-                }}
-              />
-            )
-          })}
-          {sorted.length === 0 && (
-            <div className="px-2 py-1.5">
-              <button
-                onClick={() => createSessionInProject(project.path)}
-                className="text-zinc-700 hover:text-zinc-400 text-[11px] transition-colors"
+              <svg
+                width="8" height="8" viewBox="0 0 16 16" fill="currentColor"
+                className={`transition-transform duration-150 ${workspacesCollapsed ? '' : 'rotate-90'}`}
               >
-                + New agent
-              </button>
+                <path d="M6.3 3.3a1 1 0 0 1 1.4 0l4 4a1 1 0 0 1 0 1.4l-4 4a1 1 0 0 1-1.4-1.4L9.58 8 6.3 4.7a1 1 0 0 1 0-1.4z"/>
+              </svg>
+              Workspaces
+            </button>
+            {!workspacesCollapsed && (
+              <div className="pl-1">
+                {projectWorkspaces.map((ws) => (
+                  <WorkspaceItem key={ws.id} workspace={ws} />
+                ))}
+                <button
+                  onClick={() => onNewWorkspace(project.id)}
+                  className="flex items-center gap-1.5 mx-1 px-2 py-1 text-[var(--t-text-faint)] hover:text-[var(--t-text-muted)] hover:bg-[var(--t-bg-hover)] text-[10px] transition-all active:scale-[0.97]"
+                >
+                  <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                  </svg>
+                  New worktree
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Agents section */}
+        <div>
+          {hasWorktrees && (
+            <button
+              onClick={() => setAgentsCollapsed(!agentsCollapsed)}
+              className="flex items-center gap-1 px-1 py-0.5 text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors w-full text-left"
+            >
+              <svg
+                width="8" height="8" viewBox="0 0 16 16" fill="currentColor"
+                className={`transition-transform duration-150 ${agentsCollapsed ? '' : 'rotate-90'}`}
+              >
+                <path d="M6.3 3.3a1 1 0 0 1 1.4 0l4 4a1 1 0 0 1 0 1.4l-4 4a1 1 0 0 1-1.4-1.4L9.58 8 6.3 4.7a1 1 0 0 1 0-1.4z"/>
+              </svg>
+              Agents
+            </button>
+          )}
+          {!agentsCollapsed && (
+            <div>
+              {projectSessions.map((id, index) => {
+                const session = sessions.get(id)
+                if (!session) return null
+                return (
+                  <SessionCard
+                    key={id}
+                    session={session}
+                    isActive={id === activeSessionId}
+                    draggable
+                    isDragging={draggedIndex === index}
+                    dropPosition={dropTargetIndex === index ? dropPosition : null}
+                    onDragStart={(e) => {
+                      setDraggedIndex(index)
+                      e.dataTransfer.effectAllowed = 'move'
+                      e.dataTransfer.setData('text/plain', id)
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      e.dataTransfer.dropEffect = 'move'
+                      const rect = e.currentTarget.getBoundingClientRect()
+                      const midY = rect.top + rect.height / 2
+                      setDropTargetIndex(index)
+                      setDropPosition(e.clientY < midY ? 'above' : 'below')
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      if (draggedIndex == null || dropTargetIndex == null) return
+                      let toIdx = dropPosition === 'below' ? dropTargetIndex + 1 : dropTargetIndex
+                      if (draggedIndex < toIdx) toIdx -= 1
+                      reorderSessions(draggedIndex, toIdx, project.path)
+                      setDraggedIndex(null)
+                      setDropTargetIndex(null)
+                      setDropPosition(null)
+                    }}
+                    onDragEnd={() => {
+                      setDraggedIndex(null)
+                      setDropTargetIndex(null)
+                      setDropPosition(null)
+                    }}
+                  />
+                )
+              })}
+              {projectSessions.length === 0 && (
+                <div className="px-1 py-1">
+                  <button
+                    onClick={() => {
+                      const mainWs = useWorkspaceStore.getState().ensureMainWorkspace(project.id)
+                      onSpawnAgent(mainWs.id)
+                    }}
+                    className="flex items-center gap-1.5 px-2 py-1 text-[var(--t-text-faint)] hover:text-[var(--t-text-muted)] hover:bg-[var(--t-bg-hover)] text-[11px] transition-all active:scale-[0.97]"
+                  >
+                    <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                    </svg>
+                    New agent
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
+      </div>
 
       {/* Separator */}
       <div className="mx-2 border-b border-[var(--t-border)]" />
