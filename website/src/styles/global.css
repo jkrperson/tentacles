@@ -378,6 +378,28 @@ section {
   padding: 40px 0 0;
 }
 
+.features-header {
+  text-align: center;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 80px 24px 0;
+}
+
+.features-heading {
+  font-size: 3rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff;
+  margin: 0;
+}
+
+.features-subtitle {
+  font-size: 1.125rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 8px 0 0;
+  font-style: italic;
+}
+
 .feature-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
