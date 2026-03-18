@@ -866,6 +866,65 @@ section {
   }
 }
 
+/* ---- Logo Wall ---- */
+
+.logo-wall {
+  text-align: center;
+  padding: 64px 0;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.logo-wall-heading {
+  font-family: var(--font-heading);
+  font-size: clamp(1.2rem, 2.5vw, 1.5rem);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+  color: var(--color-text);
+  margin-bottom: 40px;
+}
+
+.logo-wall-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 36px 52px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.logo-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  opacity: 0.6;
+  cursor: default;
+  user-select: none;
+  transition: opacity 0.3s;
+}
+
+.logo-item:hover {
+  opacity: 0.75;
+}
+
+.logo-item svg {
+  height: 40px;
+  width: auto;
+}
+
+@media (max-width: 768px) {
+  .logo-wall-grid {
+    gap: 28px 36px;
+  }
+
+  .logo-item svg {
+    height: 30px;
+  }
+}
+
 /* ---- Tally Popup Override ---- */
 
 .tally-popup .tally-overlay {
