@@ -52,10 +52,31 @@ export class GitManager {
     const worktreeDir = path.join(os.homedir(), '.tentacles', 'worktrees', project, slug || `agent-${Date.now()}`)
     await mkdir(path.dirname(worktreeDir), { recursive: true })
 
-    await execFileAsync('git', ['worktree', 'add', worktreeDir, '-b', branch], {
-      cwd: repoPath,
-      timeout: 10000,
-    })
+    // Check if the branch already exists (e.g. from a previously removed worktree)
+    let branchExists = false
+    try {
+      await execFileAsync('git', ['rev-parse', '--verify', `refs/heads/${branch}`], {
+        cwd: repoPath,
+        timeout: 3000,
+      })
+      branchExists = true
+    } catch {
+      // branch doesn't exist
+    }
+
+    if (branchExists) {
+      // Reuse existing branch
+      await execFileAsync('git', ['worktree', 'add', worktreeDir, branch], {
+        cwd: repoPath,
+        timeout: 10000,
+      })
+    } else {
+      // Create new branch
+      await execFileAsync('git', ['worktree', 'add', worktreeDir, '-b', branch], {
+        cwd: repoPath,
+        timeout: 10000,
+      })
+    }
 
     return { worktreePath: worktreeDir, branch }
   }
