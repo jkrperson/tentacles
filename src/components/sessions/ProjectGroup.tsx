@@ -80,19 +80,19 @@ export function ProjectGroup({ project }: ProjectGroupProps) {
         <div className="flex items-center gap-0.5 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={() => createSessionInProject(project.path)}
-            className="text-zinc-600 hover:text-zinc-300 p-0.5 hover:bg-[var(--t-border)] transition-colors"
+            className="text-zinc-500 hover:text-zinc-200 p-1 rounded hover:bg-[var(--t-bg-hover)] transition-colors"
             title="Add agent"
           >
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
               <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
             </svg>
           </button>
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="text-zinc-600 hover:text-zinc-300 p-0.5 hover:bg-[var(--t-border)] transition-colors"
+            className="text-zinc-500 hover:text-zinc-200 p-1 rounded hover:bg-[var(--t-bg-hover)] transition-colors"
           >
             <svg
-              width="12" height="12" viewBox="0 0 16 16" fill="currentColor"
+              width="14" height="14" viewBox="0 0 16 16" fill="currentColor"
               className={`transition-transform duration-150 ${collapsed ? '' : 'rotate-90'}`}
             >
               <path d="M6.3 3.3a1 1 0 0 1 1.4 0l4 4a1 1 0 0 1 0 1.4l-4 4a1 1 0 0 1-1.4-1.4L9.58 8 6.3 4.7a1 1 0 0 1 0-1.4z"/>
