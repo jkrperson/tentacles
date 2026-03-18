@@ -1,12 +1,7 @@
-import type { AppSettings, AgentType } from '../../../types'
+import type { AppSettings } from '../../../types'
 import { trpc } from '../../../trpc'
 import { useCallback } from 'react'
-
-const AGENT_OPTIONS: { id: AgentType; label: string }[] = [
-  { id: 'claude', label: 'Claude Code' },
-  { id: 'codex', label: 'Codex CLI' },
-  { id: 'opencode', label: 'opencode' },
-]
+import { AgentIcon } from '../../icons/AgentIcons'
 
 interface GeneralSectionProps {
   draft: AppSettings
@@ -14,6 +9,8 @@ interface GeneralSectionProps {
 }
 
 export function GeneralSection({ draft, onUpdate }: GeneralSectionProps) {
+  const enabledAgents = draft.agents.filter((a) => a.enabled)
+
   const handleBrowse = useCallback(async () => {
     const dir = await trpc.dialog.selectDirectory.query()
     if (dir) onUpdate((d) => ({ ...d, defaultProjectPath: dir }))
@@ -24,19 +21,20 @@ export function GeneralSection({ draft, onUpdate }: GeneralSectionProps) {
       <div>
         <label className="block text-[13px] text-zinc-300 mb-2">Default Agent</label>
         <div className="grid grid-cols-3 gap-1.5">
-          {AGENT_OPTIONS.map((agent) => {
+          {enabledAgents.map((agent) => {
             const selected = draft.defaultAgent === agent.id
             return (
               <button
                 key={agent.id}
                 onClick={() => onUpdate((d) => ({ ...d, defaultAgent: agent.id }))}
-                className={`px-2.5 py-1.5 rounded-md text-[12px] border transition-colors ${
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] border transition-colors ${
                   selected
                     ? 'border-violet-500 bg-violet-500/10 text-zinc-200'
                     : 'border-[var(--t-border-input)] text-zinc-400 hover:border-[var(--t-border-input-hover)] hover:text-zinc-300'
                 }`}
               >
-                {agent.label}
+                <AgentIcon icon={agent.icon} size={14} />
+                {agent.name}
               </button>
             )
           })}

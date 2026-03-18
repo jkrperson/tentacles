@@ -1,5 +1,18 @@
 export type SessionStatus = 'running' | 'needs_input' | 'completed' | 'idle' | 'errored'
-export type AgentType = 'claude' | 'codex' | 'opencode'
+export type AgentType = string
+
+export type AgentIconKey = 'claude' | 'codex' | 'gemini' | 'cursor' | 'generic'
+
+export interface AgentConfig {
+  id: string
+  name: string
+  command: string
+  icon: AgentIconKey
+  enabled: boolean
+  pinned: boolean
+  /** Runtime-only — true if the command binary was found on PATH */
+  installed?: boolean
+}
 
 export type WorkspaceType = 'main' | 'worktree'
 export type WorkspaceStatus = 'active' | 'merged' | 'stale'
@@ -156,9 +169,13 @@ export interface AppSettings {
   maxSessions: number
   defaultProjectPath: string
   defaultAgent: AgentType
-  claudeCliPath: string
-  codexCliPath: string
-  opencodeCliPath: string
+  agents: AgentConfig[]
+  /** @deprecated Use agents[] — kept for migration */
+  claudeCliPath?: string
+  /** @deprecated Use agents[] — kept for migration */
+  codexCliPath?: string
+  /** @deprecated Use agents[] — kept for migration */
+  opencodeCliPath?: string
   desktopNotifications: boolean
   soundEnabled: boolean
   notificationSounds: NotificationSoundConfig

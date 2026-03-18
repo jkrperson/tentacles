@@ -11,9 +11,11 @@ import { NotificationsSection } from './sections/NotificationsSection'
 import { LspSection } from './sections/LspSection'
 import { UpdatesSection } from './sections/UpdatesSection'
 import { AdvancedSection } from './sections/AdvancedSection'
+import { AgentsSection } from './sections/AgentsSection'
 
 export type SettingsSection =
   | 'general'
+  | 'agents'
   | 'appearance'
   | 'terminal'
   | 'notifications'
@@ -25,6 +27,7 @@ export type SettingsSection =
 
 const SECTION_TITLES: Record<SettingsSection, string> = {
   general: 'General',
+  agents: 'Agents',
   appearance: 'Appearance',
   terminal: 'Terminal',
   notifications: 'Notifications',
@@ -81,6 +84,8 @@ export function SettingsPage() {
     switch (activeSection) {
       case 'general':
         return <GeneralSection draft={draft} onUpdate={handleUpdate} />
+      case 'agents':
+        return <AgentsSection draft={draft} onUpdate={handleUpdate} />
       case 'appearance':
         return <AppearanceSection draft={draft} onUpdate={handleUpdate} />
       case 'terminal':

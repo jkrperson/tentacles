@@ -26,7 +26,18 @@ export function createAgentSpawner(deps: SpawnerDeps) {
   async function spawn(name: string, cwd: string, agentType: AgentType): Promise<{ id: string; pid: number; hookId: string }> {
     const settings = loadSettings()
     const adapter = getAdapter(agentType)
-    const rawCommand = ((settings[adapter.settingsKey] as string) || adapter.defaultBinary).trim()
+
+    // Resolve command: check agents[] config first, then legacy settingsKey, then defaultBinary
+    const agents = (settings.agents ?? []) as Array<{ id: string; command: string }>
+    const agentConfig = agents.find((a) => a.id === agentType)
+    let rawCommand: string
+    if (agentConfig?.command) {
+      rawCommand = agentConfig.command.trim()
+    } else if (adapter.settingsKey) {
+      rawCommand = ((settings[adapter.settingsKey] as string) || adapter.defaultBinary).trim()
+    } else {
+      rawCommand = adapter.defaultBinary.trim()
+    }
     const commandParts = rawCommand.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? [rawCommand]
     const binaryPath = commandParts[0]
     const userArgs = commandParts.slice(1).map(a => a.replace(/^["']|["']$/g, ''))

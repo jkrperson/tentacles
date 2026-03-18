@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { app, dialog, shell, BrowserWindow } from 'electron'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import { execFile } from 'node:child_process'
 import { t } from '../trpc'
 
 const SOUND_EXTENSIONS = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac']
@@ -240,6 +241,20 @@ export function createAppRouter(deps: AppDeps) {
           fs.mkdirSync(deps.soundsDir, { recursive: true })
         }
         shell.openPath(deps.soundsDir)
+      }),
+
+    checkAgentInstalled: t.procedure
+      .input(z.object({ command: z.string() }))
+      .query(({ input }) => {
+        // Extract the binary name (first token) from the full command string
+        const binary = input.command.trim().split(/\s+/)[0]
+        if (!binary) return false
+        const whichCmd = process.platform === 'win32' ? 'where' : 'which'
+        return new Promise<boolean>((resolve) => {
+          execFile(whichCmd, [binary], (err) => {
+            resolve(!err)
+          })
+        })
       }),
   })
 }

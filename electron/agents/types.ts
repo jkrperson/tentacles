@@ -1,4 +1,4 @@
-export type AgentType = 'claude' | 'codex' | 'opencode'
+export type AgentType = string
 
 export interface SpawnConfig {
   command: string
@@ -22,7 +22,7 @@ export interface AgentAdapter {
   id: AgentType
   name: string
   defaultBinary: string
-  settingsKey: string
+  settingsKey?: string
 
   buildSpawnConfig(opts: {
     binaryPath: string
