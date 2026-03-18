@@ -1,6 +1,22 @@
 export type SessionStatus = 'running' | 'needs_input' | 'completed' | 'idle' | 'errored'
 export type AgentType = 'claude' | 'codex' | 'opencode'
 
+export type WorkspaceType = 'main' | 'worktree'
+export type WorkspaceStatus = 'active' | 'merged' | 'stale'
+
+export interface Workspace {
+  id: string
+  projectId: string        // === Project.id (repo path)
+  type: WorkspaceType
+  branch: string
+  worktreePath: string | null   // null for type === 'main'
+  linkedPR?: string
+  linkedIssue?: string
+  status: WorkspaceStatus
+  createdAt: number
+  name: string             // display name: "main", "add-auth", etc.
+}
+
 export interface Session {
   id: string
   name: string
@@ -9,20 +25,26 @@ export interface Session {
   createdAt: number
   hasUnread: boolean
   agentType: AgentType
+  workspaceId: string
   statusDetail?: string
   pid?: number
   exitCode?: number | null
-  isWorktree?: boolean
-  worktreePath?: string
-  worktreeBranch?: string
-  originalRepo?: string
   hookId?: string
+  /** @deprecated Use workspaceId — kept for migration */
+  isWorktree?: boolean
+  /** @deprecated Use workspaceId — kept for migration */
+  worktreePath?: string
+  /** @deprecated Use workspaceId — kept for migration */
+  worktreeBranch?: string
+  /** @deprecated Use workspaceId — kept for migration */
+  originalRepo?: string
 }
 
 export interface SessionsFile {
   sessions: Session[]
   activeSessionId: string | null
   tabOrder?: string[]
+  workspaces?: Workspace[]
 }
 
 export interface WorktreeInfo {
@@ -109,6 +131,7 @@ export interface ShellTerminal {
   cwd: string
   status: TerminalStatus
   createdAt: number
+  workspaceId: string
   pid?: number
   exitCode?: number | null
 }

@@ -2,8 +2,9 @@ import { create } from 'zustand'
 import { trpc } from '../trpc'
 import { useSettingsStore } from './settingsStore'
 import { useProjectStore } from './projectStore'
+import { useWorkspaceStore, sessionBelongsToProject } from './workspaceStore'
 import { getErrorMessage } from '../utils/errors'
-import type { Session, SessionStatus, SessionsFile, AgentType } from '../types'
+import type { Session, SessionStatus, SessionsFile, AgentType, Workspace } from '../types'
 
 // Debounce helper
 let persistTimer: ReturnType<typeof setTimeout> | null = null
@@ -20,11 +21,12 @@ function reorderWithinProject(
   projectPath: string,
   sessions: Map<string, Session>,
 ): string[] {
+  const workspaces = useWorkspaceStore.getState().workspaces
   // Extract indices of IDs belonging to this project
   const projectIndices: number[] = []
   for (let i = 0; i < order.length; i++) {
     const s = sessions.get(order[i])
-    if (s && (s.cwd === projectPath || s.originalRepo === projectPath)) {
+    if (s && sessionBelongsToProject(s.workspaceId, projectPath, workspaces)) {
       projectIndices.push(i)
     }
   }
@@ -64,17 +66,19 @@ interface SessionState {
   loadSessions: () => Promise<void>
   persistSessions: () => void
 
-  // Session creation actions (moved from App.tsx)
+  // Session creation actions
   createSession: (agentType?: AgentType) => Promise<void>
   createSessionInProject: (projectPath: string, agentType?: AgentType) => Promise<void>
-  createSessionInWorktree: (projectPath: string, name?: string, agentType?: AgentType) => Promise<void>
+  createSessionInWorkspace: (workspaceId: string, name?: string, agentType?: AgentType) => Promise<void>
 }
 
 function serializeState(state: SessionState): SessionsFile {
+  const workspaceStore = useWorkspaceStore.getState()
   return {
     sessions: state.sessionOrder.map((id) => state.sessions.get(id)!).filter(Boolean),
     activeSessionId: state.activeSessionId,
     tabOrder: state.tabOrder,
+    workspaces: workspaceStore.workspaceOrder.map((id) => workspaceStore.workspaces.get(id)!).filter(Boolean),
   }
 }
 
@@ -179,8 +183,6 @@ export const useSessionStore = create<SessionState>((set, get) => {
         if (!session) return state
         const updates: Partial<Session> = {}
         if (session.hasUnread) updates.hasUnread = false
-        // Only transition completed→idle when the process is still alive (no exit code)
-        // Never touch needs_input or running — those are live statuses
         if (session.status === 'completed' && session.exitCode == null) {
           updates.status = 'idle'
         }
@@ -205,6 +207,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
       const { sessionOrder } = get()
       const settings = useSettingsStore.getState().settings
       const { activeProjectId, addProject } = useProjectStore.getState()
+      const { ensureMainWorkspace } = useWorkspaceStore.getState()
 
       if (sessionOrder.length >= settings.maxSessions) return
 
@@ -216,6 +219,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
         cwd = dir
       }
 
+      const workspace = ensureMainWorkspace(cwd)
       const resolvedAgent = agentType ?? settings.defaultAgent
       const name = `Agent ${sessionOrder.length + 1}`
       try {
@@ -223,6 +227,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
         get().addSession({
           id, name, cwd, status: 'running', createdAt: Date.now(),
           hasUnread: false, agentType: resolvedAgent, pid, hookId,
+          workspaceId: workspace.id,
         })
         addProject(cwd)
       } catch (err: unknown) {
@@ -234,9 +239,11 @@ export const useSessionStore = create<SessionState>((set, get) => {
       const { sessionOrder } = get()
       const settings = useSettingsStore.getState().settings
       const { setActiveProject } = useProjectStore.getState()
+      const { ensureMainWorkspace } = useWorkspaceStore.getState()
 
       if (sessionOrder.length >= settings.maxSessions) return
 
+      const workspace = ensureMainWorkspace(projectPath)
       const resolvedAgent = agentType ?? settings.defaultAgent
       const name = `Agent ${sessionOrder.length + 1}`
       try {
@@ -244,6 +251,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
         get().addSession({
           id, name, cwd: projectPath, status: 'running', createdAt: Date.now(),
           hasUnread: false, agentType: resolvedAgent, pid, hookId,
+          workspaceId: workspace.id,
         })
         setActiveProject(projectPath)
       } catch (err: unknown) {
@@ -251,41 +259,104 @@ export const useSessionStore = create<SessionState>((set, get) => {
       }
     },
 
-    createSessionInWorktree: async (projectPath: string, worktreeName?: string, agentType?: AgentType) => {
+    createSessionInWorkspace: async (workspaceId: string, name?: string, agentType?: AgentType) => {
       const { sessionOrder } = get()
       const settings = useSettingsStore.getState().settings
       const { setActiveProject } = useProjectStore.getState()
+      const wsStore = useWorkspaceStore.getState()
 
       if (sessionOrder.length >= settings.maxSessions) return
 
+      const workspace = wsStore.workspaces.get(workspaceId)
+      if (!workspace) return
+
+      const cwd = workspace.worktreePath ?? workspace.projectId
       const resolvedAgent = agentType ?? settings.defaultAgent
+      const sessionName = name || `Agent ${sessionOrder.length + 1}`
       try {
-        const { worktreePath, branch } = await trpc.git.worktree.create.mutate({ repoPath: projectPath, name: worktreeName })
-        const name = worktreeName || `Agent ${sessionOrder.length + 1}`
-        const { id, pid, hookId } = await trpc.session.create.mutate({ name, cwd: worktreePath, agentType: resolvedAgent })
+        const { id, pid, hookId } = await trpc.session.create.mutate({ name: sessionName, cwd, agentType: resolvedAgent })
         get().addSession({
-          id, name, cwd: worktreePath, status: 'running', createdAt: Date.now(),
+          id, name: sessionName, cwd, status: 'running', createdAt: Date.now(),
           hasUnread: false, agentType: resolvedAgent, pid, hookId,
-          isWorktree: true, worktreePath, worktreeBranch: branch, originalRepo: projectPath,
+          workspaceId,
         })
-        setActiveProject(projectPath)
+        setActiveProject(workspace.projectId)
       } catch (err: unknown) {
-        console.error('Failed to create worktree', getErrorMessage(err))
+        console.error('Failed to spawn agent', getErrorMessage(err))
       }
     },
 
     loadSessions: async () => {
       try {
         const data = await trpc.app.loadSessions.query() as SessionsFile
+        const wsStore = useWorkspaceStore.getState()
+
+        // Phase 3: Migration — hydrate workspaces
+        if (data.workspaces && data.workspaces.length > 0) {
+          // Already migrated — load workspaces directly
+          wsStore.loadWorkspaces(data.workspaces)
+        } else {
+          // Pre-migration: synthesize workspaces from session data
+          const migratedWorkspaces = new Map<string, Workspace>()
+          const migratedOrder: string[] = []
+
+          for (const s of data.sessions) {
+            if (s.isWorktree && s.worktreePath && s.originalRepo) {
+              const wsId = `worktree:${s.worktreePath}`
+              if (!migratedWorkspaces.has(wsId)) {
+                migratedWorkspaces.set(wsId, {
+                  id: wsId,
+                  projectId: s.originalRepo,
+                  type: 'worktree',
+                  branch: s.worktreeBranch || '',
+                  worktreePath: s.worktreePath,
+                  status: 'active',
+                  createdAt: s.createdAt,
+                  name: s.worktreeBranch || 'worktree',
+                })
+                migratedOrder.push(wsId)
+              }
+              const mutableSession = s as Session
+              mutableSession.workspaceId = wsId
+            } else {
+              const projectId = s.cwd
+              const mainId = `main:${projectId}`
+              if (!migratedWorkspaces.has(mainId)) {
+                migratedWorkspaces.set(mainId, {
+                  id: mainId,
+                  projectId,
+                  type: 'main',
+                  branch: '',
+                  worktreePath: null,
+                  status: 'active',
+                  createdAt: s.createdAt,
+                  name: 'main',
+                })
+                migratedOrder.push(mainId)
+              }
+              const mutableSession2 = s as Session
+              mutableSession2.workspaceId = mainId
+            }
+            // Strip deprecated fields
+            delete (s as Session).isWorktree
+            delete (s as Session).worktreePath
+            delete (s as Session).worktreeBranch
+            delete (s as Session).originalRepo
+          }
+          wsStore.setWorkspaces(migratedWorkspaces, migratedOrder)
+        }
 
         const sessions = new Map<string, Session>()
         const sessionOrder: string[] = []
         const savedTabOrder = data.tabOrder ?? []
-        // Track which old IDs mapped to which new IDs (reattach may change IDs)
         const idMap = new Map<string, string>()
 
         for (const rawSession of data.sessions) {
-          const s = { ...rawSession, agentType: rawSession.agentType ?? 'claude' as const }
+          const s = {
+            ...rawSession,
+            agentType: rawSession.agentType ?? 'claude' as const,
+            workspaceId: rawSession.workspaceId || `main:${rawSession.cwd}`,
+          }
 
           try {
             const result = await trpc.session.reattach.mutate({
@@ -311,8 +382,6 @@ export const useSessionStore = create<SessionState>((set, get) => {
               continue
             }
           } catch { /* reattach failed — daemon session not found */ }
-
-          // Session couldn't be reattached — discard it
         }
 
         // Restore tabOrder, remapping old IDs and filtering out discarded sessions
@@ -320,7 +389,6 @@ export const useSessionStore = create<SessionState>((set, get) => {
         const tabOrder = savedTabOrder
           .map((oldId) => idMap.get(oldId) ?? oldId)
           .filter((id) => restoredIds.has(id))
-        // Append any restored sessions missing from saved tabOrder
         for (const id of sessionOrder) {
           if (!tabOrder.includes(id)) tabOrder.push(id)
         }
@@ -331,6 +399,11 @@ export const useSessionStore = create<SessionState>((set, get) => {
           tabOrder,
           activeSessionId: sessionOrder[0] ?? null,
         })
+
+        // Persist immediately if we migrated (to save workspace data)
+        if (!data.workspaces || data.workspaces.length === 0) {
+          persist()
+        }
       } catch {
         // No saved sessions — nothing to load
       }

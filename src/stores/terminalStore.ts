@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { trpc } from '../trpc'
 import { useProjectStore } from './projectStore'
+import { useWorkspaceStore } from './workspaceStore'
 import { getErrorMessage } from '../utils/errors'
 import type { ShellTerminal } from '../types'
 
@@ -16,7 +17,7 @@ interface TerminalState {
   updateTerminalStatus: (id: string, exitCode: number) => void
   renameTerminal: (id: string, name: string) => void
   setBottomPanelExpanded: (expanded: boolean) => void
-  createTerminal: () => Promise<void>
+  createTerminal: (workspaceId?: string) => Promise<void>
 }
 
 export const useTerminalStore = create<TerminalState>((set, get) => ({
@@ -70,14 +71,29 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
 
   setBottomPanelExpanded: (expanded) => set({ bottomPanelExpanded: expanded }),
 
-  createTerminal: async () => {
+  createTerminal: async (workspaceId?: string) => {
     const { activeProjectId, addProject } = useProjectStore.getState()
-    let cwd = activeProjectId
+    const wsStore = useWorkspaceStore.getState()
+
+    let resolvedWsId = workspaceId
+    let cwd: string | null = null
+
+    if (resolvedWsId) {
+      cwd = wsStore.getWorkspaceCwd(resolvedWsId)
+    }
+
     if (!cwd) {
-      const dir = await trpc.dialog.selectDirectory.query()
-      if (!dir) return
-      addProject(dir)
-      cwd = dir
+      // Fall back to active project's main workspace
+      let projectId = activeProjectId
+      if (!projectId) {
+        const dir = await trpc.dialog.selectDirectory.query()
+        if (!dir) return
+        addProject(dir)
+        projectId = dir
+      }
+      const mainWs = wsStore.ensureMainWorkspace(projectId)
+      resolvedWsId = mainWs.id
+      cwd = projectId
     }
 
     set({ bottomPanelExpanded: true })
@@ -88,6 +104,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       const { id, pid } = await trpc.terminal.create.mutate({ name, cwd })
       get().addTerminal({
         id, name, cwd, status: 'running', createdAt: Date.now(), pid,
+        workspaceId: resolvedWsId!,
       })
     } catch (err: unknown) {
       console.error('Failed to spawn terminal', getErrorMessage(err))

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { trpc } from '../trpc'
 import type { Project, ProjectFileTreeState, FileNode, GitFileStatus, GitStatusDetailResult, DiffViewState } from '../types'
 import { useSettingsStore } from './settingsStore'
+import { useWorkspaceStore } from './workspaceStore'
 
 interface ProjectState {
   projects: Map<string, Project>
@@ -89,6 +90,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       activeProjectId: path,
       fileTreeCache,
     })
+    // Auto-create main workspace for new projects
+    useWorkspaceStore.getState().ensureMainWorkspace(path)
     get().persistProjects()
   },
 
