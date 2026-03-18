@@ -170,6 +170,11 @@ export function AgentSidebar() {
               key={path}
               project={project}
               onSpawnAgent={handleSpawnAgent}
+              onOpenSpawnDialog={(projectId) => {
+                setSpawnProjectId(projectId)
+                setSpawnPreselectedWsId(undefined)
+                setSpawnDialogOpen(true)
+              }}
               onNewWorkspace={handleNewWorkspace}
             />
           )
