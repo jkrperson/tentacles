@@ -50,6 +50,11 @@ export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron')
 export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
 
+// Use separate userData directory in dev to avoid clashing with the production app
+if (VITE_DEV_SERVER_URL) {
+  app.setPath('userData', path.join(app.getPath('appData'), 'tentacles-dev'))
+}
+
 const settingsPath = path.join(app.getPath('userData'), 'settings.json')
 const sessionsPath = path.join(app.getPath('userData'), 'sessions.json')
 const themesDir = path.join(app.getPath('userData'), 'themes')

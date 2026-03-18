@@ -6,7 +6,8 @@ import { homedir } from 'node:os'
 
 const __launcherDir = path.dirname(fileURLToPath(import.meta.url))
 
-const DAEMON_DIR = path.join(homedir(), '.tentacles', 'daemon')
+const isDev = !!process.env['VITE_DEV_SERVER_URL']
+const DAEMON_DIR = path.join(homedir(), '.tentacles', isDev ? 'daemon-dev' : 'daemon')
 const PID_FILE = path.join(DAEMON_DIR, 'daemon.pid')
 
 export function getSocketPath(): string {
