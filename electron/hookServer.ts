@@ -87,8 +87,13 @@ function createApp(): ReturnType<typeof express> {
 function tryListen(expressApp: ReturnType<typeof express>, targetPort: number): Promise<number> {
   return new Promise((resolve, reject) => {
     const s = expressApp.listen(targetPort, '127.0.0.1', () => {
+      const addr = s.address()
+      if (!addr || typeof addr === 'string') {
+        s.close()
+        reject(new Error('Failed to get server address'))
+        return
+      }
       server = s
-      const addr = s.address() as { port: number }
       port = addr.port
       resolve(port)
     })

@@ -31,7 +31,12 @@ export function startRendererServer(root: string): Promise<string> {
     })
 
     server.listen(0, 'localhost', () => {
-      const addr = server.address() as { port: number }
+      const addr = server.address()
+      if (!addr || typeof addr === 'string') {
+        server.close()
+        reject(new Error('Failed to get server address'))
+        return
+      }
       resolve(`http://localhost:${addr.port}`)
     })
     server.on('error', reject)
