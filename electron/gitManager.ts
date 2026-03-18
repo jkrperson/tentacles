@@ -1,6 +1,8 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import * as path from 'node:path'
+import * as os from 'node:os'
+import { mkdir } from 'node:fs/promises'
 
 const execFileAsync = promisify(execFile)
 
@@ -46,7 +48,9 @@ export class GitManager {
       ? name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
       : ''
     const branch = slug ? `agent/${slug}` : `agent-${Date.now()}`
-    const worktreeDir = path.join(repoPath, '.worktrees', slug || `agent-${Date.now()}`)
+    const project = path.basename(repoPath)
+    const worktreeDir = path.join(os.homedir(), '.tentacles', 'worktrees', project, slug || `agent-${Date.now()}`)
+    await mkdir(path.dirname(worktreeDir), { recursive: true })
 
     await execFileAsync('git', ['worktree', 'add', worktreeDir, '-b', branch], {
       cwd: repoPath,
