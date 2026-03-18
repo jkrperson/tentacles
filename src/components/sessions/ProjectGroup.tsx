@@ -9,10 +9,11 @@ import type { Project } from '../../types'
 interface ProjectGroupProps {
   project: Project
   onSpawnAgent: (workspaceId: string) => void
+  onOpenSpawnDialog: (projectId: string) => void
   onNewWorkspace: (projectId: string) => void
 }
 
-export function ProjectGroup({ project, onSpawnAgent, onNewWorkspace }: ProjectGroupProps) {
+export function ProjectGroup({ project, onSpawnAgent, onOpenSpawnDialog, onNewWorkspace }: ProjectGroupProps) {
   const sessions = useSessionStore((s) => s.sessions)
   const sessionOrder = useSessionStore((s) => s.sessionOrder)
   const activeSessionId = useSessionStore((s) => s.activeSessionId)
@@ -72,10 +73,7 @@ export function ProjectGroup({ project, onSpawnAgent, onNewWorkspace }: ProjectG
           </button>
           {/* Quick add agent (main workspace) */}
           <button
-            onClick={() => {
-              const mainWs = projectWorkspaces.find((ws) => ws.type === 'main')
-              if (mainWs) onSpawnAgent(mainWs.id)
-            }}
+            onClick={() => onOpenSpawnDialog(project.id)}
             className="text-[var(--t-text-faint)] hover:text-[var(--t-text-secondary)] hover:bg-[var(--t-bg-hover)] p-1 transition-all active:scale-[0.9]"
             title="Add agent"
           >
