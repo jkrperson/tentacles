@@ -142,7 +142,7 @@ export const codexAdapter: AgentAdapter = {
     configGuard.acquireSession()
 
     // Set notify to our shared script
-    writeNotifyValue(JSON.stringify(notifyScriptPath))
+    writeNotifyValue(`[${JSON.stringify(notifyScriptPath)}]`)
 
     return {
       extraArgs: [],
