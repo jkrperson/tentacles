@@ -42,11 +42,18 @@ export function ProjectGroup({ project, onSpawnAgent, onOpenSpawnDialog, onNewWo
   }, [sessionOrder, sessions, project.path, workspaces])
 
   return (
-    <div className="mb-0.5 mt-1">
+    <div
+      className="mb-0.5 mt-1 cursor-pointer"
+      onClick={() => {
+        setActiveProject(project.path)
+        if (projectSessions[0]) setActiveSession(projectSessions[0])
+      }}
+    >
       {/* Project header */}
       <div className="flex items-center gap-1.5 px-2 py-1.5">
         <button
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation()
             setProjectCollapsed(!projectCollapsed)
             setActiveProject(project.path)
             if (projectSessions[0]) setActiveSession(projectSessions[0])
@@ -65,7 +72,7 @@ export function ProjectGroup({ project, onSpawnAgent, onOpenSpawnDialog, onNewWo
         {projectSessions.length > 0 && (
           <span className="text-[10px] text-zinc-600 flex-shrink-0">({projectSessions.length})</span>
         )}
-        <div className="flex items-center gap-1 ml-auto">
+        <div className="flex items-center gap-1 ml-auto" onClick={(e) => e.stopPropagation()}>
           {/* New workspace button */}
           <button
             onClick={() => onNewWorkspace(project.id)}
@@ -90,7 +97,7 @@ export function ProjectGroup({ project, onSpawnAgent, onOpenSpawnDialog, onNewWo
       </div>
 
       {!projectCollapsed && (
-        <div className="px-1 pb-0.5">
+        <div className="px-1 pb-0.5" onClick={(e) => e.stopPropagation()}>
           {/* Workspaces section — always visible */}
           <div className="mb-1">
             <button
