@@ -3,13 +3,8 @@ import { useSessionStore } from '../../stores/sessionStore'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { getErrorMessage } from '../../utils/errors'
+import { AgentIcon } from '../icons/AgentIcons'
 import type { AgentType, Workspace } from '../../types'
-
-const AGENT_OPTIONS: { id: AgentType; label: string; shortKey: string }[] = [
-  { id: 'claude', label: 'Claude Code', shortKey: 'C' },
-  { id: 'codex', label: 'Codex CLI', shortKey: 'X' },
-  { id: 'opencode', label: 'opencode', shortKey: 'O' },
-]
 
 interface AgentSpawnDialogProps {
   projectId: string
@@ -20,6 +15,8 @@ interface AgentSpawnDialogProps {
 
 export function AgentSpawnDialog({ projectId, isOpen, onClose, preselectedWorkspaceId }: AgentSpawnDialogProps) {
   const defaultAgent = useSettingsStore((s) => s.settings.defaultAgent)
+  const agents = useSettingsStore((s) => s.settings.agents)
+  const enabledAgents = agents.filter((a) => a.enabled)
   const createSessionInWorkspace = useSessionStore((s) => s.createSessionInWorkspace)
   const createWorktreeWorkspace = useWorkspaceStore((s) => s.createWorktreeWorkspace)
   const getProjectWorkspaces = useWorkspaceStore((s) => s.getProjectWorkspaces)
@@ -33,6 +30,9 @@ export function AgentSpawnDialog({ projectId, isOpen, onClose, preselectedWorksp
   const [newWorktree, setNewWorktree] = useState(false)
   const [worktreeName, setWorktreeName] = useState('')
   const [creating, setCreating] = useState(false)
+
+  const sanitizeBranch = (value: string) =>
+    value.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/-{2,}/g, '-').replace(/^-+/, '')
   const dialogRef = useRef<HTMLDivElement>(null)
   const nameInputRef = useRef<HTMLInputElement>(null)
 
@@ -108,19 +108,19 @@ export function AgentSpawnDialog({ projectId, isOpen, onClose, preselectedWorksp
           {/* Agent type */}
           <div>
             <label className="text-[10px] text-zinc-500 mb-1 block">Agent type</label>
-            <div className="flex gap-1.5">
-              {AGENT_OPTIONS.map((opt) => (
+            <div className="flex gap-1.5 flex-wrap">
+              {enabledAgents.map((agent) => (
                 <button
-                  key={opt.id}
-                  onClick={() => setAgentType(opt.id)}
-                  className={`flex-1 px-2 py-1.5 text-[11px] rounded border transition-colors ${
-                    agentType === opt.id
+                  key={agent.id}
+                  onClick={() => setAgentType(agent.id)}
+                  className={`flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1.5 text-[11px] rounded border transition-colors ${
+                    agentType === agent.id
                       ? 'border-violet-500/50 bg-violet-500/10 text-zinc-200'
                       : 'border-[var(--t-border)] text-zinc-500 hover:text-zinc-300 hover:border-zinc-600'
                   }`}
                 >
-                  <span className="font-bold text-[9px] mr-1">{opt.shortKey}</span>
-                  {opt.label}
+                  <AgentIcon icon={agent.icon} size={12} />
+                  <span className="truncate">{agent.name}</span>
                 </button>
               ))}
             </div>
@@ -171,7 +171,7 @@ export function AgentSpawnDialog({ projectId, isOpen, onClose, preselectedWorksp
               <input
                 type="text"
                 value={worktreeName}
-                onChange={(e) => setWorktreeName(e.target.value)}
+                onChange={(e) => setWorktreeName(sanitizeBranch(e.target.value))}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleCreate() }}
                 placeholder="Branch name, e.g. add-auth"
                 autoFocus
