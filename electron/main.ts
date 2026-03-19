@@ -18,6 +18,7 @@ import { startRendererServer } from './rendererServer'
 import { HookManager } from './hookManager'
 import { createAgentSpawner } from './agentSpawner'
 import { wireEvents } from './eventWiring'
+import { AuthManager } from './authManager'
 import { createRouter } from './trpc/router'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -70,6 +71,12 @@ const lspManager = new LspManager()
 const daemonClient = new DaemonClient()
 const hookManager = new HookManager(hooksDir)
 
+// Supabase config — safe to embed (anon key is a public key; RLS protects data)
+const SUPABASE_URL = process.env.SUPABASE_URL ?? 'https://zpzudtqcmxneuoisqhln.supabase.co'
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY ?? 'sb_publishable_i4AnTvh73PiM---gfayXOQ_obe_VkKp'
+const authManager = new AuthManager(SUPABASE_URL, SUPABASE_ANON_KEY, app.getPath('userData'))
+
+
 function loadSettings() {
   try {
     return JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
@@ -109,6 +116,7 @@ const appRouter = createRouter({
   spawnAgent: spawner.spawn,
   reattachAgent: spawner.reattach,
   daemonClient,
+  authManager,
 })
 
 let ipcHandler: ReturnType<typeof createIPCHandler> | null = null
@@ -198,6 +206,7 @@ app.on('will-quit', async () => {
   stopHookServer()
   hookManager.clear()
   daemonClient.disconnect()
+  authManager.cleanup()
   hookManager.cleanupAllHookFiles(daemonHookIds)
 })
 

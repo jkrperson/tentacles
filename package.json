@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
+    "@supabase/supabase-js": "^2.99.2",
     "@trpc/client": "^10",
     "@trpc/server": "^10",
     "@types/express": "^5.0.6",
