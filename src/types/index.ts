@@ -1,3 +1,10 @@
+export interface GitHubUser {
+  id: string          // Supabase user ID
+  login: string       // GitHub username
+  avatarUrl: string   // GitHub avatar
+  name: string | null // GitHub display name
+}
+
 export type SessionStatus = 'running' | 'needs_input' | 'completed' | 'idle' | 'errored'
 export type AgentType = string
 

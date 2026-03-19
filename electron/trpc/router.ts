@@ -8,6 +8,7 @@ import { createDialogRouter } from './routers/dialog'
 import { createLspRouter } from './routers/lsp'
 import { createUpdaterRouter } from './routers/updater'
 import { createAppRouter } from './routers/app'
+import { createAuthRouter } from './routers/auth'
 import type { PtyManager } from '../ptyManager'
 import type { FileWatcher } from '../fileWatcher'
 import type { GitManager } from '../gitManager'
@@ -16,6 +17,7 @@ import type { DaemonClient } from '../daemon/client'
 import type { AgentType } from '../agents/types'
 import type { SessionStatus } from '../../src/types'
 import type { autoUpdater as AutoUpdaterType } from 'electron-updater'
+import type { AuthManager } from '../authManager'
 
 export interface RouterDeps {
   ptyManager: PtyManager
@@ -31,6 +33,7 @@ export interface RouterDeps {
   spawnAgent: (name: string, cwd: string, agentType: AgentType, resumeId?: string) => Promise<{ id: string; pid: number; hookId: string }>
   reattachAgent: (sessionId: string, hookId: string, name: string, cwd: string, agentType?: AgentType) => Promise<{ id: string; scrollbackAvailable: boolean; initialStatus?: SessionStatus; initialStatusDetail?: string | null; recoveredClaudeSessionId?: string } | null>
   daemonClient: DaemonClient
+  authManager: AuthManager
 }
 
 export function createRouter(deps: RouterDeps) {
@@ -58,6 +61,9 @@ export function createRouter(deps: RouterDeps) {
     }),
     updater: createUpdaterRouter({
       getAutoUpdater: deps.getAutoUpdater,
+    }),
+    auth: createAuthRouter({
+      authManager: deps.authManager,
     }),
     app: createAppRouter({
       settingsPath: deps.settingsPath,

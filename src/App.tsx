@@ -2,6 +2,9 @@ import { useEffect } from 'react'
 import { Layout } from './components/Layout'
 import { ConfirmModal } from './components/common/ConfirmModal'
 import { SettingsPage } from './components/settings/SettingsPage'
+import { LoginScreen } from './components/auth/LoginScreen'
+import { UserAvatar } from './components/auth/UserAvatar'
+import { useAuthStore } from './stores/authStore'
 import { useSessionStore } from './stores/sessionStore'
 import { useSettingsStore } from './stores/settingsStore'
 import { useProjectStore } from './stores/projectStore'
@@ -19,6 +22,17 @@ function App() {
   const isSettingsOpen = useSettingsStore((s) => s.isSettingsOpen)
   const loadProjects = useProjectStore((s) => s.loadProjects)
   const loadSavedSessions = useSessionStore((s) => s.loadSessions)
+
+  const user = useAuthStore((s) => s.user)
+  const authInitialized = useAuthStore((s) => s.initialized)
+  const checkAuth = useAuthStore((s) => s.checkAuth)
+  const subscribeToAuthChanges = useAuthStore((s) => s.subscribeToAuthChanges)
+
+  // Check auth on mount and subscribe to changes
+  useEffect(() => {
+    checkAuth()
+    return subscribeToAuthChanges()
+  }, [checkAuth, subscribeToAuthChanges])
 
   useEffect(() => {
     loadSettings()
@@ -50,6 +64,8 @@ function App() {
   return (
     <div className="h-full flex flex-col bg-[var(--t-bg-base)]">
       <ConfirmModal />
+      {/* Login modal overlay */}
+      {authInitialized && !user && <LoginScreen />}
       {/* macOS traffic light area */}
       <div
         className="h-10 flex-shrink-0 flex items-center border-b border-[var(--t-border)]"
@@ -62,6 +78,10 @@ function App() {
         >
           Tentacles
         </span>
+        <div className="flex-1" />
+        <div className="pr-3">
+          <UserAvatar />
+        </div>
       </div>
       <div className="flex-1 min-h-0 relative">
         <div className="absolute inset-0" style={{ display: isSettingsOpen ? 'none' : undefined }}>
