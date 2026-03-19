@@ -2,7 +2,7 @@
   "name": "tentacles",
   "version": "0.0.1",
   "description": "An IDE for orchestrating multiple Claude Code agents across your projects",
-  "license": "Apache-2.0",
+  "license": "Elastic-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/jkrperson/tentacles.git"
