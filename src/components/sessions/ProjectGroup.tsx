@@ -10,11 +10,11 @@ import type { Project } from '../../types'
 interface ProjectGroupProps {
   project: Project
   onSpawnAgent: (workspaceId: string, name?: string) => void
-  onOpenSpawnDialog: (projectId: string) => void
+  onOpenSpawnDialog?: (projectId: string) => void
   onNewWorkspace: (projectId: string) => void
 }
 
-export function ProjectGroup({ project, onSpawnAgent, onOpenSpawnDialog, onNewWorkspace }: ProjectGroupProps) {
+export function ProjectGroup({ project, onSpawnAgent, onNewWorkspace }: ProjectGroupProps) {
   const sessions = useSessionStore((s) => s.sessions)
   const sessionOrder = useSessionStore((s) => s.sessionOrder)
   const activeSessionId = useSessionStore((s) => s.activeSessionId)
