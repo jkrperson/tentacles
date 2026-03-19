@@ -69,7 +69,10 @@ export function SettingsPage() {
     toggleSettings()
   }, [hasChanges, draft, saveSettings, toggleSettings])
 
+  const isSettingsOpen = useSettingsStore((s) => s.isSettingsOpen)
+
   useEffect(() => {
+    if (!isSettingsOpen) return
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
@@ -78,7 +81,7 @@ export function SettingsPage() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [handleBack])
+  }, [isSettingsOpen, handleBack])
 
   const renderSection = () => {
     switch (activeSection) {

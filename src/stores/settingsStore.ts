@@ -23,6 +23,7 @@ const defaultSettings: AppSettings = {
   enabledLspLanguages: [],
   scrollSpeed: 3,
   enableMediaPanel: false,
+  customKeybindings: {},
 }
 
 interface SettingsState {

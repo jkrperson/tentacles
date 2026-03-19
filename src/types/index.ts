@@ -194,6 +194,7 @@ export interface AppSettings {
   enabledLspLanguages: string[]
   scrollSpeed: number
   enableMediaPanel: boolean
+  customKeybindings: Record<string, string>
 }
 
 export interface LspServerStatus {

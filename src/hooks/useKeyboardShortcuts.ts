@@ -5,26 +5,42 @@ import { useProjectStore } from '../stores/projectStore'
 import { useTerminalStore } from '../stores/terminalStore'
 import { useWorkspaceStore, sessionBelongsToProject } from '../stores/workspaceStore'
 import { useConfirmStore } from '../stores/confirmStore'
+import { useUIStore } from '../stores/uiStore'
+import { resolveKeys, parseKeys, matchesEvent } from '../shortcuts'
 import { trpc } from '../trpc'
 
-export function useKeyboardShortcuts() {
-  const toggleSettings = useSettingsStore((s) => s.toggleSettings)
+/** Test whether the event matches a shortcut action id, reading custom keybindings from settings. */
+function matches(actionId: string, e: KeyboardEvent, custom: Record<string, string>): boolean {
+  const keys = resolveKeys(actionId, custom)
+  if (!keys) return false
+  // Special case: "meta+1-9" is handled separately
+  if (keys.includes('1-9')) return false
+  const parsed = parseKeys(keys)
+  return matchesEvent(parsed, e)
+}
 
+export function useKeyboardShortcuts() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const meta = e.metaKey || e.ctrlKey
+      const custom = useSettingsStore.getState().settings.customKeybindings ?? {}
+      const m = (id: string) => matches(id, e, custom)
 
-      if (meta && e.key === 't') {
+      // Session create
+      if (m('session.create')) {
         e.preventDefault()
         useSessionStore.getState().createSession()
+        return
       }
 
-      if (meta && e.key === '`') {
+      // Terminal create
+      if (m('terminal.create')) {
         e.preventDefault()
         useTerminalStore.getState().createTerminal()
+        return
       }
 
-      if (meta && e.key === 'w') {
+      // Close active session
+      if (m('session.close')) {
         e.preventDefault()
         const { activeSessionId: aid, sessions: sess, removeSession: rm } = useSessionStore.getState()
         if (aid) {
@@ -32,7 +48,6 @@ export function useKeyboardShortcuts() {
           const isAlive = session?.status === 'running' || session?.status === 'idle' || session?.status === 'needs_input'
           const doClose = () => {
             if (isAlive) trpc.session.kill.mutate({ id: aid })
-            // Workspace lifecycle is independent — don't remove worktree on session close
             rm(aid)
           }
           if (isAlive) {
@@ -46,39 +61,70 @@ export function useKeyboardShortcuts() {
             doClose()
           }
         }
+        return
       }
 
-      if (meta && e.key === ',') {
+      // Settings
+      if (m('app.settings')) {
         e.preventDefault()
-        toggleSettings()
+        useSettingsStore.getState().toggleSettings()
+        return
       }
 
-      // Cmd+1-9: cycle through sessions within the active project
-      if (meta && !e.shiftKey && e.key >= '1' && e.key <= '9') {
+      // Show shortcut overlay
+      if (m('app.shortcuts')) {
         e.preventDefault()
-        const { sessionOrder: order, sessions: sess, setActiveSession: setAs } = useSessionStore.getState()
-        const apId = useProjectStore.getState().activeProjectId
-        const workspaces = useWorkspaceStore.getState().workspaces
-        const projectSessions = apId
-          ? order.filter((id) => {
-              const s = sess.get(id)
-              return s && sessionBelongsToProject(s.workspaceId, apId, workspaces)
-            })
-          : order
-        const index = parseInt(e.key) - 1
-        if (index < projectSessions.length) {
-          setAs(projectSessions[index])
+        useUIStore.getState().toggleShortcutOverlay()
+        return
+      }
+
+      // Cmd+1-9: switch to session N within active project
+      {
+        const keys1to9 = resolveKeys('session.switch1-9', custom)
+        if (keys1to9.includes('1-9')) {
+          const prefix = keys1to9.replace('1-9', '')
+          // Parse modifier requirements from prefix (e.g. "meta+" → meta only)
+          const wantMeta = prefix.includes('meta')
+          const wantShift = prefix.includes('shift')
+          const wantAlt = prefix.includes('alt')
+          const wantCtrl = prefix.includes('ctrl')
+          const isMac = navigator.platform.includes('Mac')
+          const metaPressed = isMac ? e.metaKey : e.ctrlKey
+          if (
+            metaPressed === wantMeta &&
+            e.shiftKey === wantShift &&
+            e.altKey === wantAlt &&
+            (isMac ? e.ctrlKey === wantCtrl : true) &&
+            e.key >= '1' && e.key <= '9'
+          ) {
+            e.preventDefault()
+            const { sessionOrder: order, sessions: sess, setActiveSession: setAs } = useSessionStore.getState()
+            const apId = useProjectStore.getState().activeProjectId
+            const workspaces = useWorkspaceStore.getState().workspaces
+            const projectSessions = apId
+              ? order.filter((id) => {
+                  const s = sess.get(id)
+                  return s && sessionBelongsToProject(s.workspaceId, apId, workspaces)
+                })
+              : order
+            const index = parseInt(e.key) - 1
+            if (index < projectSessions.length) {
+              setAs(projectSessions[index])
+            }
+            return
+          }
         }
       }
 
-      // Cmd+Shift+[ / ] — switch between projects
-      if (meta && e.shiftKey && (e.key === '[' || e.key === ']')) {
+      // Next / previous project
+      if (m('project.next') || m('project.prev')) {
         e.preventDefault()
         const { projectOrder: pOrder, activeProjectId: apId, setActiveProject: setAp } = useProjectStore.getState()
         if (pOrder.length < 2) return
         const currentIdx = apId ? pOrder.indexOf(apId) : -1
+        const forward = m('project.next')
         let nextIdx: number
-        if (e.key === ']') {
+        if (forward) {
           nextIdx = currentIdx < pOrder.length - 1 ? currentIdx + 1 : 0
         } else {
           nextIdx = currentIdx > 0 ? currentIdx - 1 : pOrder.length - 1
@@ -92,10 +138,140 @@ export function useKeyboardShortcuts() {
           return s && sessionBelongsToProject(s.workspaceId, nextProject, workspaces)
         })
         if (firstSession) setAs(firstSession)
+        return
+      }
+
+      // Spawn agent dialog
+      if (m('session.spawnDialog')) {
+        e.preventDefault()
+        const apId = useProjectStore.getState().activeProjectId
+        if (apId) useUIStore.getState().openSpawnDialog(apId)
+        return
+      }
+
+      // Rename active session
+      if (m('session.rename')) {
+        e.preventDefault()
+        const aid = useSessionStore.getState().activeSessionId
+        if (aid) useUIStore.getState().setRenamingSessionId(aid)
+        return
+      }
+
+      // Next / previous session
+      if (m('session.next') || m('session.prev')) {
+        e.preventDefault()
+        const { sessionOrder: order, sessions: sess, activeSessionId: aid, setActiveSession: setAs } = useSessionStore.getState()
+        const apId = useProjectStore.getState().activeProjectId
+        const workspaces = useWorkspaceStore.getState().workspaces
+        const projectSessions = apId
+          ? order.filter((id) => {
+              const s = sess.get(id)
+              return s && sessionBelongsToProject(s.workspaceId, apId, workspaces)
+            })
+          : order
+        if (projectSessions.length < 2) return
+        const currentIdx = aid ? projectSessions.indexOf(aid) : -1
+        const forward = m('session.next')
+        let nextIdx: number
+        if (forward) {
+          nextIdx = currentIdx < projectSessions.length - 1 ? currentIdx + 1 : 0
+        } else {
+          nextIdx = currentIdx > 0 ? currentIdx - 1 : projectSessions.length - 1
+        }
+        setAs(projectSessions[nextIdx])
+        return
+      }
+
+      // Add project
+      if (m('project.add')) {
+        e.preventDefault()
+        const addProject = useProjectStore.getState().addProject
+        trpc.dialog.selectDirectory.query().then((dir) => {
+          if (dir) addProject(dir)
+        })
+        return
+      }
+
+      // Remove current project
+      if (m('project.remove')) {
+        e.preventDefault()
+        const { activeProjectId: apId, removeProject, projects } = useProjectStore.getState()
+        if (apId) {
+          const project = projects.get(apId)
+          useConfirmStore.getState().show({
+            title: `Remove ${project?.name ?? 'project'}?`,
+            message: 'This will remove the project from the sidebar. No files will be deleted.',
+            confirmLabel: 'Remove',
+            onConfirm: () => removeProject(apId),
+          })
+        }
+        return
+      }
+
+      // New worktree workspace
+      if (m('project.newWorktree')) {
+        e.preventDefault()
+        const apId = useProjectStore.getState().activeProjectId
+        if (apId) useUIStore.getState().openWorktreeDialog(apId)
+        return
+      }
+
+      // Toggle terminal panel
+      if (m('terminal.toggle')) {
+        e.preventDefault()
+        const { bottomPanelExpanded, setBottomPanelExpanded } = useTerminalStore.getState()
+        setBottomPanelExpanded(!bottomPanelExpanded)
+        return
+      }
+
+      // Next / previous terminal
+      if (m('terminal.next') || m('terminal.prev')) {
+        e.preventDefault()
+        const { terminalOrder, activeTerminalId, setActiveTerminal, bottomPanelExpanded, setBottomPanelExpanded } = useTerminalStore.getState()
+        if (terminalOrder.length < 2) return
+        const currentIdx = activeTerminalId ? terminalOrder.indexOf(activeTerminalId) : -1
+        const forward = m('terminal.next')
+        let nextIdx: number
+        if (forward) {
+          nextIdx = currentIdx < terminalOrder.length - 1 ? currentIdx + 1 : 0
+        } else {
+          nextIdx = currentIdx > 0 ? currentIdx - 1 : terminalOrder.length - 1
+        }
+        setActiveTerminal(terminalOrder[nextIdx])
+        if (!bottomPanelExpanded) setBottomPanelExpanded(true)
+        return
+      }
+
+      // Close active terminal
+      if (m('terminal.close')) {
+        e.preventDefault()
+        const { activeTerminalId, terminals, removeTerminal } = useTerminalStore.getState()
+        if (activeTerminalId) {
+          const terminal = terminals.get(activeTerminalId)
+          if (terminal?.status === 'running') {
+            trpc.terminal.kill.mutate({ id: activeTerminalId })
+          }
+          removeTerminal(activeTerminalId)
+        }
+        return
+      }
+
+      // Focus terminal panel
+      if (m('terminal.focus')) {
+        e.preventDefault()
+        const { bottomPanelExpanded, setBottomPanelExpanded, activeTerminalId } = useTerminalStore.getState()
+        if (!bottomPanelExpanded) setBottomPanelExpanded(true)
+        if (activeTerminalId) {
+          requestAnimationFrame(() => {
+            const termEl = document.querySelector(`[data-terminal-id="${activeTerminalId}"] .xterm-helper-textarea`) as HTMLElement
+            termEl?.focus()
+          })
+        }
+        return
       }
     }
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [toggleSettings])
+  }, [])
 }

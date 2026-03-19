@@ -18,6 +18,7 @@ export const ShellTerminalPanel = memo(function ShellTerminalPanel({ terminalId,
     <div
       className="absolute inset-0"
       style={{ display: isActive ? 'block' : 'none' }}
+      data-terminal-id={terminalId}
     >
       <div ref={containerRef} className="absolute inset-0" />
     </div>

@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Layout } from './components/Layout'
 import { ConfirmModal } from './components/common/ConfirmModal'
+import { ShortcutOverlay } from './components/ShortcutOverlay'
 import { SettingsPage } from './components/settings/SettingsPage'
 import { LoginScreen } from './components/auth/LoginScreen'
 import { UserAvatar } from './components/auth/UserAvatar'
@@ -64,6 +65,7 @@ function App() {
   return (
     <div className="h-full flex flex-col bg-[var(--t-bg-base)]">
       <ConfirmModal />
+      <ShortcutOverlay />
       {/* Login modal overlay */}
       {authInitialized && !user && <LoginScreen />}
       {/* macOS traffic light area */}

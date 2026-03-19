@@ -8,6 +8,7 @@ import { trpc } from '../trpc'
 import { useSettingsStore } from '../stores/settingsStore'
 import { getTerminalTheme } from '../themes'
 import { useResolvedTheme, useCustomThemes } from './useResolvedTheme'
+import { isAppShortcut } from '../shortcuts'
 
 export interface BaseTerminalConfig {
   id: string
@@ -65,15 +66,25 @@ export function useBaseTerminal({ id, isActive, write, resize, getScrollback, fo
       write(id, data)
     })
 
-    // Map Shift+Enter to send the same escape sequence as Option+Enter
-    // so Claude Code interprets it as a newline
+    // Let app-level shortcuts pass through xterm instead of being consumed.
+    // Also map Shift+Enter → Option+Enter so Claude Code interprets it as a newline.
     terminal.attachCustomKeyEventHandler((e) => {
+      // Shift+Enter → newline for Claude Code
       if (e.shiftKey && e.key === 'Enter') {
         if (e.type === 'keydown') {
           write(id, '\x1b\r')
         }
         return false
       }
+
+      // If the key combo matches a registered app shortcut, don't let xterm eat it
+      if (e.type === 'keydown') {
+        const custom = useSettingsStore.getState().settings.customKeybindings ?? {}
+        if (isAppShortcut(e, custom)) {
+          return false
+        }
+      }
+
       return true
     })
 
