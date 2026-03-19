@@ -86,6 +86,12 @@ export function createGitRouter(deps: GitDeps) {
         return deps.gitManager.showFile(input.repoPath, input.ref, input.filePath)
       }),
 
+    diffStats: t.procedure
+      .input(z.object({ dirPath: z.string() }))
+      .query(({ input }) => {
+        return deps.gitManager.diffStats(input.dirPath)
+      }),
+
     worktree: t.router({
       create: t.procedure
         .input(z.object({ repoPath: z.string(), name: z.string().optional() }))

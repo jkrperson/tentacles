@@ -289,6 +289,62 @@ export class GitManager {
     return stdout
   }
 
+  async diffStats(dirPath: string): Promise<{ insertions: number; deletions: number }> {
+    let insertions = 0
+    let deletions = 0
+
+    // Uncommitted changes (staged + unstaged)
+    try {
+      const { stdout } = await execFileAsync('git', ['diff', '--shortstat', 'HEAD'], {
+        cwd: dirPath,
+        timeout: 5000,
+      })
+      const insMatch = stdout.match(/(\d+) insertion/)
+      const delMatch = stdout.match(/(\d+) deletion/)
+      if (insMatch) insertions += parseInt(insMatch[1], 10)
+      if (delMatch) deletions += parseInt(delMatch[1], 10)
+    } catch {
+      // No HEAD yet (empty repo) or other error — try without HEAD
+      try {
+        const { stdout } = await execFileAsync('git', ['diff', '--shortstat'], {
+          cwd: dirPath,
+          timeout: 5000,
+        })
+        const insMatch = stdout.match(/(\d+) insertion/)
+        const delMatch = stdout.match(/(\d+) deletion/)
+        if (insMatch) insertions += parseInt(insMatch[1], 10)
+        if (delMatch) deletions += parseInt(delMatch[1], 10)
+      } catch {
+        // ignore
+      }
+    }
+
+    // Include untracked files by counting their lines
+    try {
+      const { stdout } = await execFileAsync('git', ['ls-files', '--others', '--exclude-standard'], {
+        cwd: dirPath,
+        timeout: 5000,
+      })
+      const untrackedFiles = stdout.split('\n').filter(Boolean)
+      for (const file of untrackedFiles) {
+        try {
+          const { stdout: wc } = await execFileAsync('wc', ['-l', file], {
+            cwd: dirPath,
+            timeout: 2000,
+          })
+          const count = parseInt(wc.trim(), 10)
+          if (!isNaN(count)) insertions += count
+        } catch {
+          // binary or missing file
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    return { insertions, deletions }
+  }
+
   async listWorktrees(repoPath: string): Promise<WorktreeInfo[]> {
     const { stdout } = await execFileAsync('git', ['worktree', 'list', '--porcelain'], {
       cwd: repoPath,

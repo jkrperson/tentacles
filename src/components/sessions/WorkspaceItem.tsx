@@ -1,8 +1,9 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useTerminalStore } from '../../stores/terminalStore'
 import { useConfirmStore } from '../../stores/confirmStore'
+import { trpc } from '../../trpc'
 import { getErrorMessage } from '../../utils/errors'
 import type { Workspace } from '../../types'
 
@@ -38,6 +39,21 @@ export function WorkspaceItem({ workspace }: WorkspaceItemProps) {
 
   const canDelete = workspace.type === 'worktree' && !hasAliveSessions && !hasRunningTerminals
   const isMain = workspace.type === 'main'
+
+  // Fetch git diff stats
+  const [diffStats, setDiffStats] = useState<{ insertions: number; deletions: number } | null>(null)
+  const dirPath = workspace.worktreePath ?? workspace.projectId
+  const intervalRef = useRef<ReturnType<typeof setInterval>>()
+
+  const fetchDiffStats = useCallback(() => {
+    trpc.git.diffStats.query({ dirPath }).then(setDiffStats).catch(() => {})
+  }, [dirPath])
+
+  useEffect(() => {
+    fetchDiffStats()
+    intervalRef.current = setInterval(fetchDiffStats, 10000)
+    return () => clearInterval(intervalRef.current)
+  }, [fetchDiffStats])
 
   const handleDelete = () => {
     if (hasAliveSessions || hasRunningTerminals) {
@@ -78,6 +94,18 @@ export function WorkspaceItem({ workspace }: WorkspaceItemProps) {
       <span className="text-[11px] text-zinc-400 truncate flex-1">
         {isMain ? 'main' : workspace.name}
       </span>
+
+      {/* Git diff stats */}
+      {diffStats && (diffStats.insertions > 0 || diffStats.deletions > 0) && (
+        <span className="text-[9px] flex-shrink-0 flex items-center gap-1 font-mono">
+          {diffStats.insertions > 0 && (
+            <span className="text-green-500">+{diffStats.insertions}</span>
+          )}
+          {diffStats.deletions > 0 && (
+            <span className="text-red-500">-{diffStats.deletions}</span>
+          )}
+        </span>
+      )}
 
       {/* Agent count */}
       {agentCount > 0 && (
