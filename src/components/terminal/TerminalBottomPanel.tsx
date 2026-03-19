@@ -161,7 +161,7 @@ export function TerminalBottomPanel({ onNewTerminal, expanded, onToggleExpanded 
             if (!terminal) return null
             const isActive = id === activeTerminalId
             const ws = workspaces.get(terminal.workspaceId)
-            const wsLabel = ws && ws.type !== 'main' ? ws.name : null
+            const wsLabel = ws ? ws.name : null
             return (
               <button
                 key={id}

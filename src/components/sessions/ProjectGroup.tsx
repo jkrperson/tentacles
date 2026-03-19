@@ -1,14 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import { SessionCard } from './SessionCard'
 import { WorkspaceItem } from './WorkspaceItem'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useWorkspaceStore, sessionBelongsToProject } from '../../stores/workspaceStore'
 import { useProjectStore } from '../../stores/projectStore'
+import { useConfirmStore } from '../../stores/confirmStore'
 import type { Project } from '../../types'
 
 interface ProjectGroupProps {
   project: Project
-  onSpawnAgent: (workspaceId: string) => void
+  onSpawnAgent: (workspaceId: string, name?: string) => void
   onOpenSpawnDialog: (projectId: string) => void
   onNewWorkspace: (projectId: string) => void
 }
@@ -23,12 +24,18 @@ export function ProjectGroup({ project, onSpawnAgent, onOpenSpawnDialog, onNewWo
   const workspaces = useWorkspaceStore((s) => s.workspaces)
   const getProjectWorkspaces = useWorkspaceStore((s) => s.getProjectWorkspaces)
 
+  const removeProject = useProjectStore((s) => s.removeProject)
+  const showConfirm = useConfirmStore((s) => s.show)
+
   const [projectCollapsed, setProjectCollapsed] = useState(false)
   const [workspacesCollapsed, setWorkspacesCollapsed] = useState(false)
   const [agentsCollapsed, setAgentsCollapsed] = useState(false)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null)
   const [dropPosition, setDropPosition] = useState<'above' | 'below' | null>(null)
+  const [showNameInput, setShowNameInput] = useState(false)
+  const [newAgentName, setNewAgentName] = useState('')
+  const nameInputRef = useRef<HTMLInputElement>(null)
 
   const projectWorkspaces = useMemo(() => {
     return getProjectWorkspaces(project.id)
@@ -40,6 +47,33 @@ export function ProjectGroup({ project, onSpawnAgent, onOpenSpawnDialog, onNewWo
       return s && sessionBelongsToProject(s.workspaceId, project.path, workspaces)
     })
   }, [sessionOrder, sessions, project.path, workspaces])
+
+  const handleStartSpawn = useCallback(() => {
+    setShowNameInput(true)
+    setNewAgentName('')
+    setTimeout(() => nameInputRef.current?.focus(), 0)
+  }, [])
+
+  const handleConfirmSpawn = useCallback(() => {
+    const mainWs = projectWorkspaces.find((ws) => ws.type === 'main')
+    if (mainWs) onSpawnAgent(mainWs.id, newAgentName.trim() || undefined)
+    setShowNameInput(false)
+    setNewAgentName('')
+  }, [projectWorkspaces, onSpawnAgent, newAgentName])
+
+  const handleCancelSpawn = useCallback(() => {
+    setShowNameInput(false)
+    setNewAgentName('')
+  }, [])
+
+  useEffect(() => {
+    if (!showNameInput) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleCancelSpawn()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [showNameInput, handleCancelSpawn])
 
   return (
     <div
@@ -85,12 +119,29 @@ export function ProjectGroup({ project, onSpawnAgent, onOpenSpawnDialog, onNewWo
           </button>
           {/* Quick add agent (main workspace) */}
           <button
-            onClick={() => onOpenSpawnDialog(project.id)}
+            onClick={handleStartSpawn}
             className="text-[var(--t-text-faint)] hover:text-[var(--t-text-secondary)] hover:bg-[var(--t-bg-hover)] p-1 transition-all active:scale-[0.9]"
             title="Add agent"
           >
             <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
               <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+            </svg>
+          </button>
+          {/* Remove project */}
+          <button
+            onClick={() => {
+              showConfirm({
+                title: `Remove ${project.name}?`,
+                message: 'This will remove the project from the sidebar. No files will be deleted.',
+                confirmLabel: 'Remove',
+                onConfirm: () => removeProject(project.path),
+              })
+            }}
+            className="text-[var(--t-text-faint)] hover:text-red-400 hover:bg-[var(--t-bg-hover)] p-1 transition-all active:scale-[0.9]"
+            title="Remove project"
+          >
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
             </svg>
           </button>
         </div>
@@ -145,67 +196,82 @@ export function ProjectGroup({ project, onSpawnAgent, onOpenSpawnDialog, onNewWo
               Agents
             </button>
             {!agentsCollapsed && (
-            <div>
-              {projectSessions.map((id, index) => {
-                const session = sessions.get(id)
-                if (!session) return null
-                return (
-                  <SessionCard
-                    key={id}
-                    session={session}
-                    isActive={id === activeSessionId}
-                    draggable
-                    isDragging={draggedIndex === index}
-                    dropPosition={dropTargetIndex === index ? dropPosition : null}
-                    onDragStart={(e) => {
-                      setDraggedIndex(index)
-                      e.dataTransfer.effectAllowed = 'move'
-                      e.dataTransfer.setData('text/plain', id)
-                    }}
-                    onDragOver={(e) => {
-                      e.preventDefault()
-                      e.dataTransfer.dropEffect = 'move'
-                      const rect = e.currentTarget.getBoundingClientRect()
-                      const midY = rect.top + rect.height / 2
-                      setDropTargetIndex(index)
-                      setDropPosition(e.clientY < midY ? 'above' : 'below')
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault()
-                      if (draggedIndex == null || dropTargetIndex == null) return
-                      let toIdx = dropPosition === 'below' ? dropTargetIndex + 1 : dropTargetIndex
-                      if (draggedIndex < toIdx) toIdx -= 1
-                      reorderSessions(draggedIndex, toIdx, project.path)
-                      setDraggedIndex(null)
-                      setDropTargetIndex(null)
-                      setDropPosition(null)
-                    }}
-                    onDragEnd={() => {
-                      setDraggedIndex(null)
-                      setDropTargetIndex(null)
-                      setDropPosition(null)
-                    }}
-                  />
-                )
-              })}
-              {projectSessions.length === 0 && (
-                <div className="px-1 py-1">
-                  <button
-                    onClick={() => {
-                      const mainWs = useWorkspaceStore.getState().ensureMainWorkspace(project.id)
-                      onSpawnAgent(mainWs.id)
-                    }}
-                    className="flex items-center gap-1.5 px-2 py-1 text-[var(--t-text-faint)] hover:text-[var(--t-text-muted)] hover:bg-[var(--t-bg-hover)] text-[11px] transition-all active:scale-[0.97]"
-                  >
-                    <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
-                      <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
-                    </svg>
-                    New agent
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+              <div>
+                {projectSessions.map((id, index) => {
+                  const session = sessions.get(id)
+                  if (!session) return null
+                  return (
+                    <SessionCard
+                      key={id}
+                      session={session}
+                      isActive={id === activeSessionId}
+                      draggable
+                      isDragging={draggedIndex === index}
+                      dropPosition={dropTargetIndex === index ? dropPosition : null}
+                      onDragStart={(e) => {
+                        setDraggedIndex(index)
+                        e.dataTransfer.effectAllowed = 'move'
+                        e.dataTransfer.setData('text/plain', id)
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault()
+                        e.dataTransfer.dropEffect = 'move'
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        const midY = rect.top + rect.height / 2
+                        setDropTargetIndex(index)
+                        setDropPosition(e.clientY < midY ? 'above' : 'below')
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        if (draggedIndex == null || dropTargetIndex == null) return
+                        let toIdx = dropPosition === 'below' ? dropTargetIndex + 1 : dropTargetIndex
+                        if (draggedIndex < toIdx) toIdx -= 1
+                        reorderSessions(draggedIndex, toIdx, project.path)
+                        setDraggedIndex(null)
+                        setDropTargetIndex(null)
+                        setDropPosition(null)
+                      }}
+                      onDragEnd={() => {
+                        setDraggedIndex(null)
+                        setDropTargetIndex(null)
+                        setDropPosition(null)
+                      }}
+                    />
+                  )
+                })}
+                {/* Inline name input for new agent */}
+                {showNameInput && (
+                  <div className="px-2 py-1">
+                    <input
+                      ref={nameInputRef}
+                      type="text"
+                      value={newAgentName}
+                      onChange={(e) => setNewAgentName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleConfirmSpawn()
+                        if (e.key === 'Escape') handleCancelSpawn()
+                      }}
+                      onBlur={() => setTimeout(handleCancelSpawn, 150)}
+                      placeholder="Name (enter to spawn)"
+                      className="w-full px-2 py-1 text-[11px] bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded text-[var(--t-text-primary)] placeholder-[var(--t-text-faint)] outline-none focus:border-violet-500/50"
+                    />
+                  </div>
+                )}
+                {projectSessions.length === 0 && !showNameInput && (
+                  <div className="px-1 py-1">
+                    <button
+                      onClick={handleStartSpawn}
+                      className="flex items-center gap-1.5 px-2 py-1 text-[var(--t-text-faint)] hover:text-[var(--t-text-muted)] hover:bg-[var(--t-bg-hover)] text-[11px] transition-all active:scale-[0.97]"
+                    >
+                      <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                      </svg>
+                      New agent
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

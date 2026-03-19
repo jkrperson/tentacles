@@ -1,8 +1,9 @@
-import { memo } from 'react'
+import { memo, useState, useRef, useEffect } from 'react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useConfirmStore } from '../../stores/confirmStore'
+import { useUIStore } from '../../stores/uiStore'
 import { trpc } from '../../trpc'
 import type { Session } from '../../types'
 
@@ -75,10 +76,33 @@ export const SessionCard = memo(function SessionCard({
 }: SessionCardProps) {
   const setActive = useSessionStore((s) => s.setActiveSession)
   const removeSession = useSessionStore((s) => s.removeSession)
+  const renameSession = useSessionStore((s) => s.renameSession)
   const setActiveProject = useProjectStore((s) => s.setActiveProject)
   const workspaces = useWorkspaceStore((s) => s.workspaces)
   const showConfirm = useConfirmStore((s) => s.show)
+  const renamingSessionId = useUIStore((s) => s.renamingSessionId)
+  const setRenamingSessionId = useUIStore((s) => s.setRenamingSessionId)
   const config = STATUS_CONFIG[session.status] ?? STATUS_CONFIG.completed
+
+  const isRenaming = renamingSessionId === session.id
+  const [renameValue, setRenameValue] = useState(session.name)
+  const renameInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (isRenaming) {
+      setRenameValue(session.name)
+      // Focus after render
+      requestAnimationFrame(() => renameInputRef.current?.select())
+    }
+  }, [isRenaming, session.name])
+
+  const commitRename = () => {
+    const trimmed = renameValue.trim()
+    if (trimmed && trimmed !== session.name) {
+      renameSession(session.id, trimmed)
+    }
+    setRenamingSessionId(null)
+  }
 
   // Derive project from workspace
   const workspace = workspaces.get(session.workspaceId)
@@ -115,16 +139,38 @@ export const SessionCard = memo(function SessionCard({
       <div className="flex-1 min-w-0">
         {/* Name + unread */}
         <div className="flex items-center gap-1.5">
-          <span className={`text-[11px] font-semibold truncate ${isActive ? 'text-zinc-100' : 'text-zinc-300'}`}>
-            {session.name}
-          </span>
+          {isRenaming ? (
+            <input
+              ref={renameInputRef}
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitRename()
+                if (e.key === 'Escape') setRenamingSessionId(null)
+                e.stopPropagation()
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="text-[11px] font-semibold text-zinc-100 bg-[var(--t-bg-base)] border border-[var(--t-border)] rounded px-1 py-0 w-full outline-none focus:border-violet-500"
+            />
+          ) : (
+            <span
+              className={`text-[11px] font-semibold truncate ${isActive ? 'text-zinc-100' : 'text-zinc-300'}`}
+              onDoubleClick={(e) => {
+                e.stopPropagation()
+                setRenamingSessionId(session.id)
+              }}
+            >
+              {session.name}
+            </span>
+          )}
           {session.hasUnread && !isActive && (
             <span className="w-1.5 h-1.5 rounded-full bg-violet-400 flex-shrink-0" />
           )}
         </div>
         {/* Subtitle: workspace name · status */}
         <div className="text-[10px] truncate text-zinc-500">
-          {workspace && workspace.type !== 'main' ? `${workspace.name}  ·  ` : ''}{config.label}
+          {workspace ? `${workspace.name}  ·  ` : ''}{config.label}
         </div>
       </div>
 
