@@ -4,6 +4,7 @@ import { useSessionStore } from '../../stores/sessionStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
+import { useUIStore } from '../../stores/uiStore'
 import { trpc } from '../../trpc'
 import { ProjectGroup } from './ProjectGroup'
 import { AgentSpawnDialog } from './AgentSpawnDialog'
@@ -22,11 +23,15 @@ export function AgentSidebar() {
   const addProject = useProjectStore((s) => s.addProject)
   const ensureMainWorkspace = useWorkspaceStore((s) => s.ensureMainWorkspace)
 
-  const [spawnDialogOpen, setSpawnDialogOpen] = useState(false)
-  const [spawnProjectId, setSpawnProjectId] = useState<string>('')
-  const [spawnPreselectedWsId, setSpawnPreselectedWsId] = useState<string | undefined>()
-  const [worktreeDialogOpen, setWorktreeDialogOpen] = useState(false)
-  const [worktreeProjectId, setWorktreeProjectId] = useState<string>('')
+  const spawnDialogOpen = useUIStore((s) => s.spawnDialogOpen)
+  const spawnProjectId = useUIStore((s) => s.spawnProjectId)
+  const spawnPreselectedWsId = useUIStore((s) => s.spawnPreselectedWsId)
+  const openSpawnDialog = useUIStore((s) => s.openSpawnDialog)
+  const closeSpawnDialog = useUIStore((s) => s.closeSpawnDialog)
+  const worktreeDialogOpen = useUIStore((s) => s.worktreeDialogOpen)
+  const worktreeProjectId = useUIStore((s) => s.worktreeProjectId)
+  const openWorktreeDialog = useUIStore((s) => s.openWorktreeDialog)
+  const closeWorktreeDialog = useUIStore((s) => s.closeWorktreeDialog)
   const [moreOpen, setMoreOpen] = useState(false)
   const moreBtnRef = useRef<HTMLButtonElement>(null)
   const moreDropdownRef = useRef<HTMLDivElement>(null)
@@ -67,14 +72,13 @@ export function AgentSidebar() {
     setMoreOpen(false)
   }, [activeProjectId, ensureMainWorkspace, createSessionInWorkspace, addProject])
 
-  const handleSpawnAgent = useCallback((workspaceId: string) => {
-    createSessionInWorkspace(workspaceId)
+  const handleSpawnAgent = useCallback((workspaceId: string, name?: string) => {
+    createSessionInWorkspace(workspaceId, name)
   }, [createSessionInWorkspace])
 
   const handleNewWorkspace = useCallback((projectId: string) => {
-    setWorktreeProjectId(projectId)
-    setWorktreeDialogOpen(true)
-  }, [])
+    openWorktreeDialog(projectId)
+  }, [openWorktreeDialog])
 
   return (
     <div className="flex flex-col h-full bg-[var(--t-bg-surface)]">
@@ -126,9 +130,7 @@ export function AgentSidebar() {
                     <button
                       onClick={() => {
                         setMoreOpen(false)
-                        setSpawnProjectId(activeProjectId)
-                        setSpawnPreselectedWsId(undefined)
-                        setSpawnDialogOpen(true)
+                        openSpawnDialog(activeProjectId)
                       }}
                       className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-[var(--t-text-muted)] hover:text-[var(--t-text-secondary)] hover:bg-[var(--t-bg-hover)] transition-colors"
                     >
@@ -209,7 +211,7 @@ export function AgentSidebar() {
         <AgentSpawnDialog
           projectId={spawnProjectId}
           isOpen={spawnDialogOpen}
-          onClose={() => setSpawnDialogOpen(false)}
+          onClose={closeSpawnDialog}
           preselectedWorkspaceId={spawnPreselectedWsId}
         />
       )}
@@ -219,7 +221,7 @@ export function AgentSidebar() {
         <WorktreeCreateDialog
           projectId={worktreeProjectId}
           isOpen={worktreeDialogOpen}
-          onClose={() => setWorktreeDialogOpen(false)}
+          onClose={closeWorktreeDialog}
         />
       )}
     </div>

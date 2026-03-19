@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useCallback } from 'react'
 import { FileTree } from './sidebar/FileTree'
 import { GitPanel } from './sidebar/GitPanel'
 import { MediaPanel } from './sidebar/MediaPanel'
@@ -9,6 +9,7 @@ import { AgentSidebar } from './sessions/AgentSidebar'
 import { useProjectStore } from '../stores/projectStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useTerminalStore } from '../stores/terminalStore'
+import { useUIStore } from '../stores/uiStore'
 import { useDrag } from '../hooks/useDrag'
 
 export function Layout() {
@@ -31,8 +32,10 @@ export function Layout() {
 
   const bottomExpanded = useTerminalStore((s) => s.bottomPanelExpanded)
   const setBottomExpanded = useTerminalStore((s) => s.setBottomPanelExpanded)
-  const [rightVisible, setRightVisible] = useState(true)
-  const [rightTab, setRightTab] = useState<'explorer' | 'git'>('explorer')
+  const rightVisible = useUIStore((s) => s.rightSidebarVisible)
+  const setRightVisible = useUIStore((s) => s.setRightSidebarVisible)
+  const rightTab = useUIStore((s) => s.rightSidebarTab)
+  const setRightTab = useUIStore((s) => s.setRightSidebarTab)
 
   const handleNewTerminal = useCallback(() => {
     useTerminalStore.getState().createTerminal()
