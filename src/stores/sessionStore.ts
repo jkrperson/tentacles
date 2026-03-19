@@ -4,6 +4,7 @@ import { useSettingsStore } from './settingsStore'
 import { useProjectStore } from './projectStore'
 import { useWorkspaceStore, sessionBelongsToProject } from './workspaceStore'
 import { getErrorMessage } from '../utils/errors'
+import { generateRandomName } from '../utils/randomName'
 import type { Session, SessionStatus, SessionsFile, AgentType, Workspace } from '../types'
 
 // Debounce helper
@@ -221,7 +222,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
 
       const workspace = ensureMainWorkspace(cwd)
       const resolvedAgent = agentType ?? settings.defaultAgent
-      const name = `Agent ${sessionOrder.length + 1}`
+      const name = generateRandomName()
       try {
         const { id, pid, hookId } = await trpc.session.create.mutate({ name, cwd, agentType: resolvedAgent })
         get().addSession({
@@ -245,7 +246,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
 
       const workspace = ensureMainWorkspace(projectPath)
       const resolvedAgent = agentType ?? settings.defaultAgent
-      const name = `Agent ${sessionOrder.length + 1}`
+      const name = generateRandomName()
       try {
         const { id, pid, hookId } = await trpc.session.create.mutate({ name, cwd: projectPath, agentType: resolvedAgent })
         get().addSession({
@@ -272,7 +273,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
 
       const cwd = workspace.worktreePath ?? workspace.projectId
       const resolvedAgent = agentType ?? settings.defaultAgent
-      const sessionName = name || `Agent ${sessionOrder.length + 1}`
+      const sessionName = name || generateRandomName()
       try {
         const { id, pid, hookId } = await trpc.session.create.mutate({ name: sessionName, cwd, agentType: resolvedAgent })
         get().addSession({
