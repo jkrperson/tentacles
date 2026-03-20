@@ -82,6 +82,7 @@ export const SessionCard = memo(function SessionCard({
   const showConfirm = useConfirmStore((s) => s.show)
   const renamingSessionId = useUIStore((s) => s.renamingSessionId)
   const setRenamingSessionId = useUIStore((s) => s.setRenamingSessionId)
+  const openTerminalView = useUIStore((s) => s.openTerminalView)
   const config = STATUS_CONFIG[session.status] ?? STATUS_CONFIG.completed
 
   const isRenaming = renamingSessionId === session.id
@@ -113,6 +114,7 @@ export const SessionCard = memo(function SessionCard({
       onClick={() => {
         setActive(session.id)
         setActiveProject(projectId)
+        openTerminalView()
       }}
       draggable={draggable}
       onDragStart={onDragStart}

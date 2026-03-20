@@ -6,6 +6,7 @@ import { TerminalView } from './terminal/TerminalView'
 import { TerminalBottomPanel } from './terminal/TerminalBottomPanel'
 import { EditorPanel } from './editor/EditorPanel'
 import { AgentSidebar } from './sessions/AgentSidebar'
+import { WorkspacePage } from './workspace/WorkspacePage'
 import { useProjectStore } from '../stores/projectStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useTerminalStore } from '../stores/terminalStore'
@@ -36,6 +37,8 @@ export function Layout() {
   const setRightVisible = useUIStore((s) => s.setRightSidebarVisible)
   const rightTab = useUIStore((s) => s.rightSidebarTab)
   const setRightTab = useUIStore((s) => s.setRightSidebarTab)
+  const centerView = useUIStore((s) => s.centerView)
+  const activeWorkspaceId = useUIStore((s) => s.activeWorkspaceId)
 
   const handleNewTerminal = useCallback(() => {
     useTerminalStore.getState().createTerminal()
@@ -54,48 +57,54 @@ export function Layout() {
         <div className="absolute inset-y-0 left-0 w-px bg-[var(--t-border)] group-hover:bg-violet-500/50 transition-colors" />
       </div>
 
-      {/* Center column: agents on top, shell terminals on bottom */}
+      {/* Center column: workspace page OR agents + shell terminals */}
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        {/* Top: Agent terminal + Editor */}
-        <div className="flex-1 min-h-0 flex overflow-hidden">
-          <div className="flex-1 min-w-0 overflow-hidden">
-            <TerminalView />
-          </div>
-
-          {/* Editor Panel */}
-          {hasOpenFiles && (
-            <>
-              <div className="group relative w-1 flex-shrink-0 cursor-col-resize"
-                onMouseDown={editorDrag.onMouseDown}>
-                <div className="absolute inset-y-0 -left-2 -right-2" />
-                <div className="absolute inset-y-0 left-0 w-px bg-[var(--t-border)] group-hover:bg-violet-500/50 transition-colors" />
+        {centerView === 'workspace' && activeWorkspaceId ? (
+          <WorkspacePage workspaceId={activeWorkspaceId} />
+        ) : (
+          <>
+            {/* Top: Agent terminal + Editor */}
+            <div className="flex-1 min-h-0 flex overflow-hidden">
+              <div className="flex-1 min-w-0 overflow-hidden">
+                <TerminalView />
               </div>
 
-              <div className="flex-shrink-0 overflow-hidden" style={{ width: editorDrag.value }}>
-                <EditorPanel />
-              </div>
-            </>
-          )}
-        </div>
+              {/* Editor Panel */}
+              {hasOpenFiles && (
+                <>
+                  <div className="group relative w-1 flex-shrink-0 cursor-col-resize"
+                    onMouseDown={editorDrag.onMouseDown}>
+                    <div className="absolute inset-y-0 -left-2 -right-2" />
+                    <div className="absolute inset-y-0 left-0 w-px bg-[var(--t-border)] group-hover:bg-violet-500/50 transition-colors" />
+                  </div>
 
-        {/* Bottom: Shell terminal panel — always present */}
-        {bottomExpanded && (
-          <div
-            className="group relative h-1 flex-shrink-0 cursor-row-resize"
-            onMouseDown={bottomDrag.onMouseDown}
-          >
-            <div className="absolute inset-x-0 -top-2 -bottom-2" />
-            <div className="absolute inset-x-0 top-0 h-px bg-[var(--t-border)] group-hover:bg-violet-500/50 transition-colors" />
-          </div>
+                  <div className="flex-shrink-0 overflow-hidden" style={{ width: editorDrag.value }}>
+                    <EditorPanel />
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Bottom: Shell terminal panel — always present */}
+            {bottomExpanded && (
+              <div
+                className="group relative h-1 flex-shrink-0 cursor-row-resize"
+                onMouseDown={bottomDrag.onMouseDown}
+              >
+                <div className="absolute inset-x-0 -top-2 -bottom-2" />
+                <div className="absolute inset-x-0 top-0 h-px bg-[var(--t-border)] group-hover:bg-violet-500/50 transition-colors" />
+              </div>
+            )}
+
+            <div className="flex-shrink-0 overflow-hidden" style={{ height: bottomExpanded ? bottomDrag.value : undefined }}>
+              <TerminalBottomPanel
+                onNewTerminal={handleNewTerminal}
+                expanded={bottomExpanded}
+                onToggleExpanded={() => setBottomExpanded(!bottomExpanded)}
+              />
+            </div>
+          </>
         )}
-
-        <div className="flex-shrink-0 overflow-hidden" style={{ height: bottomExpanded ? bottomDrag.value : undefined }}>
-          <TerminalBottomPanel
-            onNewTerminal={handleNewTerminal}
-            expanded={bottomExpanded}
-            onToggleExpanded={() => setBottomExpanded(!bottomExpanded)}
-          />
-        </div>
       </div>
 
       {rightVisible && (

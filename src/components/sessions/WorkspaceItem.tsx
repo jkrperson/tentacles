@@ -3,6 +3,7 @@ import { useSessionStore } from '../../stores/sessionStore'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useTerminalStore } from '../../stores/terminalStore'
 import { useConfirmStore } from '../../stores/confirmStore'
+import { useUIStore } from '../../stores/uiStore'
 import { trpc } from '../../trpc'
 import { getErrorMessage } from '../../utils/errors'
 import type { Workspace } from '../../types'
@@ -18,6 +19,9 @@ export function WorkspaceItem({ workspace }: WorkspaceItemProps) {
   const terminalOrder = useTerminalStore((s) => s.terminalOrder)
   const deleteWorktreeWorkspace = useWorkspaceStore((s) => s.deleteWorktreeWorkspace)
   const showConfirm = useConfirmStore((s) => s.show)
+  const openWorkspacePage = useUIStore((s) => s.openWorkspacePage)
+  const activeWorkspaceId = useUIStore((s) => s.activeWorkspaceId)
+  const centerView = useUIStore((s) => s.centerView)
 
   const agentCount = useMemo(() => {
     return sessionOrder.filter((id) => sessions.get(id)?.workspaceId === workspace.id).length
@@ -77,8 +81,15 @@ export function WorkspaceItem({ workspace }: WorkspaceItemProps) {
     })
   }
 
+  const isActive = centerView === 'workspace' && activeWorkspaceId === workspace.id
+
   return (
-    <div className="group flex items-center gap-1.5 px-2 py-1 rounded hover:bg-[var(--t-bg-active)] transition-colors">
+    <div
+      onClick={() => openWorkspacePage(workspace.id)}
+      className={`group flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer transition-colors ${
+        isActive ? 'bg-[var(--t-bg-hover)]' : 'hover:bg-[var(--t-bg-active)]'
+      }`}
+    >
       {/* Branch icon */}
       {isMain ? (
         <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" className="text-zinc-600 flex-shrink-0">

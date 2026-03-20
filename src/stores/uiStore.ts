@@ -1,6 +1,14 @@
 import { create } from 'zustand'
 
+export type CenterView = 'terminal' | 'workspace'
+
 interface UIState {
+  // Center view
+  centerView: CenterView
+  activeWorkspaceId: string | null
+  openWorkspacePage: (workspaceId: string) => void
+  openTerminalView: () => void
+
   // Agent spawn dialog
   spawnDialogOpen: boolean
   spawnProjectId: string
@@ -32,6 +40,14 @@ interface UIState {
 }
 
 export const useUIStore = create<UIState>((set) => ({
+  // Center view
+  centerView: 'terminal',
+  activeWorkspaceId: null,
+  openWorkspacePage: (workspaceId) =>
+    set({ centerView: 'workspace', activeWorkspaceId: workspaceId }),
+  openTerminalView: () =>
+    set({ centerView: 'terminal' }),
+
   // Agent spawn dialog
   spawnDialogOpen: false,
   spawnProjectId: '',
