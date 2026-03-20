@@ -41,8 +41,8 @@ Tentacles lets you run as many Claude Code agents as you want from a single wind
 
 | Chip | Download |
 |:-----|:---------|
-| Apple Silicon (M1/M2/M3/M4) | [Tentacles-Mac-arm64.dmg](https://github.com/jkrperson/tentacles/releases/latest/download/Tentacles-Mac-0.0.2-arm64.dmg) |
-| Intel | [Tentacles-Mac-x64.dmg](https://github.com/jkrperson/tentacles/releases/latest/download/Tentacles-Mac-0.0.2-x64.dmg) |
+| Apple Silicon (M1/M2/M3/M4) | [Tentacles-Mac-arm64.dmg](https://github.com/jkrperson/tentacles/releases/latest/download/Tentacles-Mac-arm64.dmg) |
+| Intel | [Tentacles-Mac-x64.dmg](https://github.com/jkrperson/tentacles/releases/latest/download/Tentacles-Mac-x64.dmg) |
 
 Tentacles is not yet code-signed. macOS will block it on first launch. Fix it by running:
 
@@ -54,11 +54,11 @@ Or right-click the app → "Open" → click "Open" in the dialog.
 
 ### Windows
 
-[Tentacles-Windows-Setup.exe](https://github.com/jkrperson/tentacles/releases/latest/download/Tentacles-Windows-0.0.2-Setup.exe)
+[Tentacles-Windows-Setup.exe](https://github.com/jkrperson/tentacles/releases/latest/download/Tentacles-Windows-Setup.exe)
 
 ### Linux
 
-[Tentacles-Linux.AppImage](https://github.com/jkrperson/tentacles/releases/latest/download/Tentacles-Linux-0.0.2.AppImage)
+[Tentacles-Linux.AppImage](https://github.com/jkrperson/tentacles/releases/latest/download/Tentacles-Linux.AppImage)
 
 ---
 
