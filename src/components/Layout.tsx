@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, lazy, Suspense } from 'react'
 import { FileTree } from './sidebar/FileTree'
 import { GitPanel } from './sidebar/GitPanel'
 import { MediaPanel } from './sidebar/MediaPanel'
@@ -13,6 +13,10 @@ import { useTerminalStore } from '../stores/terminalStore'
 import { useUIStore } from '../stores/uiStore'
 import { useDrag } from '../hooks/useDrag'
 import { useFileWatcher } from '../hooks/useFileWatcher'
+
+const ProjectSettingsPage = lazy(() =>
+  import('./projectSettings/ProjectSettingsPage').then((m) => ({ default: m.ProjectSettingsPage }))
+)
 
 export function Layout() {
   useFileWatcher()
@@ -41,6 +45,7 @@ export function Layout() {
   const setRightTab = useUIStore((s) => s.setRightSidebarTab)
   const centerView = useUIStore((s) => s.centerView)
   const activeWorkspaceId = useUIStore((s) => s.activeWorkspaceId)
+  const activeProjectSettingsId = useUIStore((s) => s.activeProjectSettingsId)
 
   const handleNewTerminal = useCallback(() => {
     useTerminalStore.getState().createTerminal()
@@ -61,7 +66,11 @@ export function Layout() {
 
       {/* Center column: workspace page OR agents + shell terminals */}
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        {centerView === 'workspace' && activeWorkspaceId ? (
+        {centerView === 'projectSettings' && activeProjectSettingsId ? (
+          <Suspense fallback={null}>
+            <ProjectSettingsPage projectId={activeProjectSettingsId} />
+          </Suspense>
+        ) : centerView === 'workspace' && activeWorkspaceId ? (
           <WorkspacePage workspaceId={activeWorkspaceId} />
         ) : (
           <>
