@@ -1,8 +1,5 @@
-import { useEffect, useCallback, useRef } from 'react'
 import { useProjectStore } from '../../stores/projectStore'
-import { trpc } from '../../trpc'
 import { FileTreeNode } from './FileTreeNode'
-import type { GitStatusDetailResult } from '../../types'
 
 interface FileTreeProps {
   onToggle: () => void
@@ -11,71 +8,9 @@ interface FileTreeProps {
 export function FileTree({ onToggle }: FileTreeProps) {
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
   const fileTreeCache = useProjectStore((s) => s.fileTreeCache)
-  const setFileTreeNodes = useProjectStore((s) => s.setFileTreeNodes)
-  const setGitStatuses = useProjectStore((s) => s.setGitStatuses)
-  const addFileTreeChangedPath = useProjectStore((s) => s.addFileTreeChangedPath)
-  const removeFileTreeChangedPath = useProjectStore((s) => s.removeFileTreeChangedPath)
 
   const cache = activeProjectId ? fileTreeCache.get(activeProjectId) : null
   const nodes = cache?.nodes ?? []
-
-  const fetchGitStatus = useCallback((projectId: string) => {
-    trpc.git.status.query({ dirPath: projectId }).then((result) => {
-      setGitStatuses(projectId, result as GitStatusDetailResult)
-    }).catch(() => {
-      // Not a git repo or git not available — clear statuses
-      setGitStatuses(projectId, { branch: '', upstream: null, ahead: 0, behind: 0, files: [] })
-    })
-  }, [setGitStatuses])
-
-  // Load file tree + start watching when active project changes.
-  // Watchers stay alive across switches (watch is a no-op for
-  // already-watched dirs) to avoid expensive teardown/setup on every switch.
-  useEffect(() => {
-    if (!activeProjectId) return
-    // If cache has nodes already, use them (instant switch). Otherwise load from disk.
-    const existing = useProjectStore.getState().fileTreeCache.get(activeProjectId)
-    if (!existing || existing.nodes.length === 0) {
-      trpc.file.readDir.query({ dirPath: activeProjectId }).then((rootNodes) => {
-        setFileTreeNodes(activeProjectId, rootNodes)
-      })
-    }
-    trpc.file.watch.mutate({ dirPath: activeProjectId })
-  }, [activeProjectId, setFileTreeNodes])
-
-  // Poll git status for the active project
-  useEffect(() => {
-    if (!activeProjectId) return
-    fetchGitStatus(activeProjectId)
-    const interval = setInterval(() => fetchGitStatus(activeProjectId), 15000)
-    return () => clearInterval(interval)
-  }, [activeProjectId, fetchGitStatus])
-
-  // Listen for file change events, route to correct project via watchRoot
-  const gitRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => {
-    const sub = trpc.file.onChanged.subscribe(undefined, { onData: (event) => {
-      const projectId = event.watchRoot
-      if (!projectId) return
-
-      addFileTreeChangedPath(projectId, event.path)
-      setTimeout(() => removeFileTreeChangedPath(projectId, event.path), 2000)
-
-      if (
-        event.eventType === 'add' || event.eventType === 'unlink' ||
-        event.eventType === 'addDir' || event.eventType === 'unlinkDir'
-      ) {
-        trpc.file.readDir.query({ dirPath: projectId }).then((rootNodes) => {
-          setFileTreeNodes(projectId, rootNodes)
-        })
-      }
-
-      // Debounced git status refresh on file changes
-      if (gitRefreshTimerRef.current) clearTimeout(gitRefreshTimerRef.current)
-      gitRefreshTimerRef.current = setTimeout(() => fetchGitStatus(projectId), 500)
-    } })
-    return () => sub.unsubscribe()
-  }, [addFileTreeChangedPath, removeFileTreeChangedPath, setFileTreeNodes, fetchGitStatus])
 
   const dirName = activeProjectId?.split('/').pop() ?? ''
 
