@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events'
-import type { FileChangeEvent, GitHubUser, UpdaterStatus } from '../../src/types'
+import type { FileChangeEvent, GitHubUser, SetupLogEntry, UpdaterStatus } from '../../src/types'
 
 export interface EventMap {
   'session:data': { id: string; data: string }
@@ -12,6 +12,8 @@ export interface EventMap {
   'file:changed': FileChangeEvent
   'updater:status': UpdaterStatus
   'auth:changed': { user: GitHubUser | null }
+  'setup:output': { workspaceId: string; scriptIndex: number; data: string }
+  'setup:complete': { workspaceId: string; log: SetupLogEntry }
 }
 
 class TypedEventEmitter extends EventEmitter {

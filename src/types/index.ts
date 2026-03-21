@@ -209,3 +209,26 @@ export interface UpdaterStatus {
   message?: string
 }
 
+export interface SetupScript {
+  id: string
+  command: string
+  enabled: boolean
+}
+
+export interface ProjectConfig {
+  projectPath: string
+  setupScripts: SetupScript[]
+}
+
+export interface SetupLogEntry {
+  workspaceId: string
+  projectPath: string
+  startedAt: number
+  completedAt?: number
+  scripts: Array<{
+    command: string
+    exitCode: number | null
+    output: string
+  }>
+}
+
