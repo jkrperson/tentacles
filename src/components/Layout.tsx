@@ -12,8 +12,10 @@ import { useSettingsStore } from '../stores/settingsStore'
 import { useTerminalStore } from '../stores/terminalStore'
 import { useUIStore } from '../stores/uiStore'
 import { useDrag } from '../hooks/useDrag'
+import { useFileWatcher } from '../hooks/useFileWatcher'
 
 export function Layout() {
+  useFileWatcher()
   const enableMediaPanel = useSettingsStore((s) => s.settings.enableMediaPanel)
   const hasOpenFiles = useProjectStore((s) => {
     const apId = s.activeProjectId
