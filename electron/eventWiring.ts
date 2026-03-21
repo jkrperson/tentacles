@@ -32,9 +32,6 @@ export function wireEvents({ ptyManager, fileWatcher, hookManager, loadSettings 
       sessionNames.set(id, cleanName)
     }
 
-    const codepoints = [...title].map((c) => 'U+' + (c.codePointAt(0) ?? 0).toString(16).padStart(4, '0'))
-    console.log(`[title] id=${id.slice(0, 8)} chars=[${codepoints.join(', ')}] raw="${title}"`)
-
     const hookInfo = hookManager.getInfo(id)
     const agentType: AgentType = hookInfo?.agentType ?? 'claude'
     const adapter = getAdapter(agentType)
