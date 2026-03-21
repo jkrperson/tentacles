@@ -39,6 +39,10 @@ interface UIState {
   shortcutOverlayOpen: boolean
   setShortcutOverlayOpen: (open: boolean) => void
   toggleShortcutOverlay: () => void
+
+  // Sidebar view mode (flat vs grouped)
+  sidebarViewMode: 'flat' | 'grouped'
+  toggleSidebarViewMode: () => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -85,4 +89,8 @@ export const useUIStore = create<UIState>((set) => ({
   shortcutOverlayOpen: false,
   setShortcutOverlayOpen: (open) => set({ shortcutOverlayOpen: open }),
   toggleShortcutOverlay: () => set((s) => ({ shortcutOverlayOpen: !s.shortcutOverlayOpen })),
+
+  // Sidebar view mode
+  sidebarViewMode: 'flat',
+  toggleSidebarViewMode: () => set((s) => ({ sidebarViewMode: s.sidebarViewMode === 'flat' ? 'grouped' : 'flat' })),
 }))

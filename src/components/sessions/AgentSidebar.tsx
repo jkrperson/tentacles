@@ -21,6 +21,7 @@ export function AgentSidebar() {
   const projectOrder = useProjectStore((s) => s.projectOrder)
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
   const addProject = useProjectStore((s) => s.addProject)
+  const reorderProjects = useProjectStore((s) => s.reorderProjects)
   const ensureMainWorkspace = useWorkspaceStore((s) => s.ensureMainWorkspace)
 
   const spawnDialogOpen = useUIStore((s) => s.spawnDialogOpen)
@@ -36,6 +37,11 @@ export function AgentSidebar() {
   const moreBtnRef = useRef<HTMLButtonElement>(null)
   const moreDropdownRef = useRef<HTMLDivElement>(null)
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 })
+
+  // Project drag-and-drop state
+  const [draggedProjectIdx, setDraggedProjectIdx] = useState<number | null>(null)
+  const [dropTargetProjectIdx, setDropTargetProjectIdx] = useState<number | null>(null)
+  const [projectDropPos, setProjectDropPos] = useState<'above' | 'below' | null>(null)
 
   const pinnedAgents = agents.filter((a) => a.enabled && a.pinned)
   const unpinnedAgents = agents.filter((a) => a.enabled && !a.pinned)
@@ -164,7 +170,7 @@ export function AgentSidebar() {
 
       {/* Project groups */}
       <div className="flex-1 overflow-y-auto px-1 pb-2">
-        {projectOrder.map((path) => {
+        {projectOrder.map((path, index) => {
           const project = projects.get(path)
           if (!project) return null
           return (
@@ -174,6 +180,38 @@ export function AgentSidebar() {
               onSpawnAgent={handleSpawnAgent}
               onOpenSpawnDialog={(projectId) => openSpawnDialog(projectId)}
               onNewWorkspace={handleNewWorkspace}
+              draggable
+              isDraggingProject={draggedProjectIdx === index}
+              projectDropPosition={dropTargetProjectIdx === index ? projectDropPos : null}
+              onProjectDragStart={(e) => {
+                setDraggedProjectIdx(index)
+                e.dataTransfer.effectAllowed = 'move'
+                e.dataTransfer.setData('application/x-project', path)
+              }}
+              onProjectDragOver={(e) => {
+                if (!e.dataTransfer.types.includes('application/x-project')) return
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'move'
+                const rect = e.currentTarget.getBoundingClientRect()
+                const midY = rect.top + rect.height / 2
+                setDropTargetProjectIdx(index)
+                setProjectDropPos(e.clientY < midY ? 'above' : 'below')
+              }}
+              onProjectDrop={(e) => {
+                e.preventDefault()
+                if (draggedProjectIdx == null || dropTargetProjectIdx == null) return
+                let toIdx = projectDropPos === 'below' ? dropTargetProjectIdx + 1 : dropTargetProjectIdx
+                if (draggedProjectIdx < toIdx) toIdx -= 1
+                reorderProjects(draggedProjectIdx, toIdx)
+                setDraggedProjectIdx(null)
+                setDropTargetProjectIdx(null)
+                setProjectDropPos(null)
+              }}
+              onProjectDragEnd={() => {
+                setDraggedProjectIdx(null)
+                setDropTargetProjectIdx(null)
+                setProjectDropPos(null)
+              }}
             />
           )
         })}

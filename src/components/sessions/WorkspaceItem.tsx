@@ -10,9 +10,16 @@ import type { Workspace } from '../../types'
 
 interface WorkspaceItemProps {
   workspace: Workspace
+  draggable?: boolean
+  isDragging?: boolean
+  dropPosition?: 'above' | 'below' | null
+  onDragStart?: (e: React.DragEvent) => void
+  onDragOver?: (e: React.DragEvent) => void
+  onDragEnd?: (e: React.DragEvent) => void
+  onDrop?: (e: React.DragEvent) => void
 }
 
-export function WorkspaceItem({ workspace }: WorkspaceItemProps) {
+export function WorkspaceItem({ workspace, draggable, isDragging, dropPosition, onDragStart, onDragOver, onDragEnd, onDrop }: WorkspaceItemProps) {
   const sessions = useSessionStore((s) => s.sessions)
   const sessionOrder = useSessionStore((s) => s.sessionOrder)
   const terminals = useTerminalStore((s) => s.terminals)
@@ -86,9 +93,18 @@ export function WorkspaceItem({ workspace }: WorkspaceItemProps) {
   return (
     <div
       onClick={() => openWorkspacePage(workspace.id)}
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragEnd={onDragEnd}
+      onDrop={onDrop}
       className={`group flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer transition-colors ${
         isActive ? 'bg-[var(--t-bg-hover)]' : 'hover:bg-[var(--t-bg-active)]'
-      }`}
+      } ${isDragging ? 'opacity-40' : ''}`}
+      style={dropPosition ? {
+        borderTop: dropPosition === 'above' ? '2px solid rgb(139 92 246)' : undefined,
+        borderBottom: dropPosition === 'below' ? '2px solid rgb(139 92 246)' : undefined,
+      } : undefined}
     >
       {/* Branch icon */}
       {isMain ? (

@@ -15,6 +15,7 @@ import { initDataRouter } from './dataRouter'
 import { useSessionSubscriptions } from './hooks/useSessionSubscriptions'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useSoundPlayer } from './hooks/useSoundPlayer'
+import { useUIStore } from './stores/uiStore'
 
 function App() {
   const loadSettings = useSettingsStore((s) => s.loadSettings)
@@ -23,6 +24,8 @@ function App() {
   const isSettingsOpen = useSettingsStore((s) => s.isSettingsOpen)
   const loadProjects = useProjectStore((s) => s.loadProjects)
   const loadSavedSessions = useSessionStore((s) => s.loadSessions)
+  const viewMode = useUIStore((s) => s.sidebarViewMode)
+  const toggleViewMode = useUIStore((s) => s.toggleSidebarViewMode)
 
   const user = useAuthStore((s) => s.user)
   const authInitialized = useAuthStore((s) => s.initialized)
@@ -80,6 +83,37 @@ function App() {
         >
           Tentacles
         </span>
+        <div
+          className="ml-2 flex items-center bg-zinc-800/50 rounded-md p-0.5 border border-zinc-700/50"
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+        >
+          <button
+            onClick={() => viewMode !== 'flat' && toggleViewMode()}
+            className={`p-1 rounded transition-all ${
+              viewMode === 'flat'
+                ? 'bg-zinc-700 text-zinc-200 shadow-sm'
+                : 'text-zinc-600 hover:text-zinc-400'
+            }`}
+            title="Flat view"
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/>
+            </svg>
+          </button>
+          <button
+            onClick={() => viewMode !== 'grouped' && toggleViewMode()}
+            className={`p-1 rounded transition-all ${
+              viewMode === 'grouped'
+                ? 'bg-zinc-700 text-zinc-200 shadow-sm'
+                : 'text-zinc-600 hover:text-zinc-400'
+            }`}
+            title="Grouped view"
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M2 2a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3A.5.5 0 0 1 2 2zm2 4a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 4 6zm0 4a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 4 10zm-2 4a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3A.5.5 0 0 1 2 14z"/>
+            </svg>
+          </button>
+        </div>
         <div className="flex-1" />
         <div className="pr-3">
           <UserAvatar />

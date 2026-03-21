@@ -10,6 +10,7 @@ interface WorkspaceState {
   ensureMainWorkspace: (projectId: string) => Workspace
   createWorktreeWorkspace: (projectId: string, name?: string) => Promise<Workspace>
   deleteWorktreeWorkspace: (id: string) => Promise<void>
+  reorderWorkspaces: (fromIndex: number, toIndex: number, projectId: string) => void
   getProjectWorkspaces: (projectId: string) => Workspace[]
   getWorkspaceCwd: (id: string) => string | null
   loadWorkspaces: (workspaces: Workspace[]) => void
@@ -102,17 +103,42 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     })
   },
 
+  reorderWorkspaces: (fromIndex, toIndex, projectId) => {
+    const { workspaceOrder, workspaces } = get()
+    // Get project-scoped worktree indices (skip main — it stays first)
+    const worktreeIndices: number[] = []
+    for (let i = 0; i < workspaceOrder.length; i++) {
+      const ws = workspaces.get(workspaceOrder[i])
+      if (ws && ws.projectId === projectId && ws.type !== 'main') {
+        worktreeIndices.push(i)
+      }
+    }
+    if (fromIndex < 0 || fromIndex >= worktreeIndices.length || toIndex < 0 || toIndex >= worktreeIndices.length) return
+    if (fromIndex === toIndex) return
+
+    const worktreeIds = worktreeIndices.map((i) => workspaceOrder[i])
+    const [moved] = worktreeIds.splice(fromIndex, 1)
+    worktreeIds.splice(toIndex, 0, moved)
+
+    const next = [...workspaceOrder]
+    for (let i = 0; i < worktreeIndices.length; i++) {
+      next[worktreeIndices[i]] = worktreeIds[i]
+    }
+    set({ workspaceOrder: next })
+  },
+
   getProjectWorkspaces: (projectId: string) => {
     const { workspaces, workspaceOrder } = get()
-    return workspaceOrder
-      .map((id) => workspaces.get(id))
-      .filter((ws): ws is Workspace => ws != null && ws.projectId === projectId)
-      .sort((a, b) => {
-        // main first, then by creation time
-        if (a.type === 'main' && b.type !== 'main') return -1
-        if (a.type !== 'main' && b.type === 'main') return 1
-        return a.createdAt - b.createdAt
-      })
+    // Main always first, worktrees in workspaceOrder sequence
+    const main: Workspace[] = []
+    const worktrees: Workspace[] = []
+    for (const id of workspaceOrder) {
+      const ws = workspaces.get(id)
+      if (!ws || ws.projectId !== projectId) continue
+      if (ws.type === 'main') main.push(ws)
+      else worktrees.push(ws)
+    }
+    return [...main, ...worktrees]
   },
 
   getWorkspaceCwd: (id: string) => {

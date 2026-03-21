@@ -12,6 +12,7 @@ interface ProjectState {
 
   addProject: (path: string) => void
   removeProject: (path: string) => void
+  reorderProjects: (fromIndex: number, toIndex: number) => void
   setActiveProject: (path: string | null) => void
   loadProjects: () => void
   persistProjects: () => void
@@ -108,6 +109,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         : state.activeProjectId
     set({ projects, projectOrder, activeProjectId, fileTreeCache })
     trpc.file.unwatchDir.mutate({ dirPath: path }).catch(() => {})
+    get().persistProjects()
+  },
+
+  reorderProjects: (fromIndex, toIndex) => {
+    const { projectOrder } = get()
+    if (fromIndex < 0 || fromIndex >= projectOrder.length || toIndex < 0 || toIndex >= projectOrder.length) return
+    if (fromIndex === toIndex) return
+    const next = [...projectOrder]
+    const [moved] = next.splice(fromIndex, 1)
+    next.splice(toIndex, 0, moved)
+    set({ projectOrder: next })
     get().persistProjects()
   },
 

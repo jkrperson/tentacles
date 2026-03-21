@@ -13,9 +13,21 @@ interface ProjectGroupProps {
   onSpawnAgent: (workspaceId: string, name?: string) => void
   onOpenSpawnDialog?: (projectId: string) => void
   onNewWorkspace: (projectId: string) => void
+  // Project-level drag-and-drop
+  draggable?: boolean
+  isDraggingProject?: boolean
+  projectDropPosition?: 'above' | 'below' | null
+  onProjectDragStart?: (e: React.DragEvent) => void
+  onProjectDragOver?: (e: React.DragEvent) => void
+  onProjectDragEnd?: (e: React.DragEvent) => void
+  onProjectDrop?: (e: React.DragEvent) => void
 }
 
-export function ProjectGroup({ project, onSpawnAgent, onNewWorkspace }: ProjectGroupProps) {
+export function ProjectGroup({
+  project, onSpawnAgent, onNewWorkspace,
+  draggable: projectDraggable, isDraggingProject, projectDropPosition,
+  onProjectDragStart, onProjectDragOver, onProjectDragEnd, onProjectDrop,
+}: ProjectGroupProps) {
   const sessions = useSessionStore((s) => s.sessions)
   const sessionOrder = useSessionStore((s) => s.sessionOrder)
   const activeSessionId = useSessionStore((s) => s.activeSessionId)
@@ -24,17 +36,30 @@ export function ProjectGroup({ project, onSpawnAgent, onNewWorkspace }: ProjectG
   const setActiveProject = useProjectStore((s) => s.setActiveProject)
   const workspaces = useWorkspaceStore((s) => s.workspaces)
   const getProjectWorkspaces = useWorkspaceStore((s) => s.getProjectWorkspaces)
+  const reorderWorkspaces = useWorkspaceStore((s) => s.reorderWorkspaces)
 
+  const activeProjectId = useProjectStore((s) => s.activeProjectId)
   const removeProject = useProjectStore((s) => s.removeProject)
   const showConfirm = useConfirmStore((s) => s.show)
   const openProjectSettingsPage = useUIStore((s) => s.openProjectSettingsPage)
+  const viewMode = useUIStore((s) => s.sidebarViewMode)
+
+  const isActive = activeProjectId === project.path
 
   const [projectCollapsed, setProjectCollapsed] = useState(false)
   const [workspacesCollapsed, setWorkspacesCollapsed] = useState(false)
   const [agentsCollapsed, setAgentsCollapsed] = useState(false)
+  // Agent drag-and-drop
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null)
   const [dropPosition, setDropPosition] = useState<'above' | 'below' | null>(null)
+  // Workspace drag-and-drop
+  const [draggedWsIndex, setDraggedWsIndex] = useState<number | null>(null)
+  const [dropTargetWsIndex, setDropTargetWsIndex] = useState<number | null>(null)
+  const [wsDropPosition, setWsDropPosition] = useState<'above' | 'below' | null>(null)
+  // Grouped mode: collapsed workspaces
+  const [collapsedWorkspaces, setCollapsedWorkspaces] = useState<Set<string>>(new Set())
+
   const [showNameInput, setShowNameInput] = useState(false)
   const [newAgentName, setNewAgentName] = useState('')
   const nameInputRef = useRef<HTMLInputElement>(null)
@@ -49,6 +74,11 @@ export function ProjectGroup({ project, onSpawnAgent, onNewWorkspace }: ProjectG
       return s && sessionBelongsToProject(s.workspaceId, project.path, workspaces)
     })
   }, [sessionOrder, sessions, project.path, workspaces])
+
+  // Worktrees only (for drag-and-drop — main is not draggable)
+  const worktrees = useMemo(() => {
+    return projectWorkspaces.filter((ws) => ws.type !== 'main')
+  }, [projectWorkspaces])
 
   const handleStartSpawn = useCallback(() => {
     setShowNameInput(true)
@@ -68,6 +98,15 @@ export function ProjectGroup({ project, onSpawnAgent, onNewWorkspace }: ProjectG
     setNewAgentName('')
   }, [])
 
+  const toggleWsCollapsed = useCallback((wsId: string) => {
+    setCollapsedWorkspaces((prev) => {
+      const next = new Set(prev)
+      if (next.has(wsId)) next.delete(wsId)
+      else next.add(wsId)
+      return next
+    })
+  }, [])
+
   useEffect(() => {
     if (!showNameInput) return
     const handler = (e: KeyboardEvent) => {
@@ -77,16 +116,310 @@ export function ProjectGroup({ project, onSpawnAgent, onNewWorkspace }: ProjectG
     return () => window.removeEventListener('keydown', handler)
   }, [showNameInput, handleCancelSpawn])
 
+  // Render a session card with agent drag-and-drop wired up
+  const renderSessionCard = (id: string, index: number) => {
+    const session = sessions.get(id)
+    if (!session) return null
+    return (
+      <SessionCard
+        key={id}
+        session={session}
+        isActive={id === activeSessionId}
+        draggable
+        isDragging={draggedIndex === index}
+        dropPosition={dropTargetIndex === index ? dropPosition : null}
+        onDragStart={(e) => {
+          setDraggedIndex(index)
+          e.dataTransfer.effectAllowed = 'move'
+          e.dataTransfer.setData('application/x-agent', id)
+        }}
+        onDragOver={(e) => {
+          if (!e.dataTransfer.types.includes('application/x-agent')) return
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'move'
+          const rect = e.currentTarget.getBoundingClientRect()
+          const midY = rect.top + rect.height / 2
+          setDropTargetIndex(index)
+          setDropPosition(e.clientY < midY ? 'above' : 'below')
+        }}
+        onDrop={(e) => {
+          e.preventDefault()
+          if (draggedIndex == null || dropTargetIndex == null) return
+          let toIdx = dropPosition === 'below' ? dropTargetIndex + 1 : dropTargetIndex
+          if (draggedIndex < toIdx) toIdx -= 1
+          reorderSessions(draggedIndex, toIdx, project.path)
+          setDraggedIndex(null)
+          setDropTargetIndex(null)
+          setDropPosition(null)
+        }}
+        onDragEnd={() => {
+          setDraggedIndex(null)
+          setDropTargetIndex(null)
+          setDropPosition(null)
+        }}
+      />
+    )
+  }
+
+  // Inline name input for new agent
+  const renderNameInput = () => {
+    if (!showNameInput) return null
+    return (
+      <div className="px-2 py-1">
+        <input
+          ref={nameInputRef}
+          type="text"
+          value={newAgentName}
+          onChange={(e) => setNewAgentName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleConfirmSpawn()
+            if (e.key === 'Escape') handleCancelSpawn()
+          }}
+          onBlur={() => setTimeout(handleCancelSpawn, 150)}
+          placeholder="Name (enter to spawn)"
+          className="w-full px-2 py-1 text-[11px] bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded text-[var(--t-text-primary)] placeholder-[var(--t-text-faint)] outline-none focus:border-violet-500/50"
+        />
+      </div>
+    )
+  }
+
+  // "New agent" button shown when no sessions exist
+  const renderNewAgentButton = () => {
+    if (projectSessions.length > 0 || showNameInput) return null
+    return (
+      <div className="px-1 py-1">
+        <button
+          onClick={handleStartSpawn}
+          className="flex items-center gap-1.5 px-2 py-1 text-[var(--t-text-faint)] hover:text-[var(--t-text-muted)] hover:bg-[var(--t-bg-hover)] text-[11px] transition-all active:scale-[0.97]"
+        >
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+          </svg>
+          New agent
+        </button>
+      </div>
+    )
+  }
+
+  // --- Flat mode: separate Workspaces + Agents sections ---
+  const renderFlatMode = () => (
+    <>
+      {/* Workspaces section */}
+      <div className="mb-1">
+        <button
+          onClick={() => setWorkspacesCollapsed(!workspacesCollapsed)}
+          className="flex items-center gap-1 px-1 py-0.5 text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors w-full text-left"
+        >
+          <svg
+            width="8" height="8" viewBox="0 0 16 16" fill="currentColor"
+            className={`transition-transform duration-150 ${workspacesCollapsed ? '' : 'rotate-90'}`}
+          >
+            <path d="M6.3 3.3a1 1 0 0 1 1.4 0l4 4a1 1 0 0 1 0 1.4l-4 4a1 1 0 0 1-1.4-1.4L9.58 8 6.3 4.7a1 1 0 0 1 0-1.4z"/>
+          </svg>
+          Workspaces
+        </button>
+        {!workspacesCollapsed && (
+          <div className="pl-1">
+            {projectWorkspaces.map((ws) => {
+              if (ws.type === 'main') {
+                return <WorkspaceItem key={ws.id} workspace={ws} />
+              }
+              const wtIdx = worktrees.indexOf(ws)
+              return (
+                <WorkspaceItem
+                  key={ws.id}
+                  workspace={ws}
+                  draggable
+                  isDragging={draggedWsIndex === wtIdx}
+                  dropPosition={dropTargetWsIndex === wtIdx ? wsDropPosition : null}
+                  onDragStart={(e) => {
+                    setDraggedWsIndex(wtIdx)
+                    e.dataTransfer.effectAllowed = 'move'
+                    e.dataTransfer.setData('application/x-workspace', ws.id)
+                  }}
+                  onDragOver={(e) => {
+                    if (!e.dataTransfer.types.includes('application/x-workspace')) return
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = 'move'
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const midY = rect.top + rect.height / 2
+                    setDropTargetWsIndex(wtIdx)
+                    setWsDropPosition(e.clientY < midY ? 'above' : 'below')
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    if (draggedWsIndex == null || dropTargetWsIndex == null) return
+                    let toIdx = wsDropPosition === 'below' ? dropTargetWsIndex + 1 : dropTargetWsIndex
+                    if (draggedWsIndex < toIdx) toIdx -= 1
+                    reorderWorkspaces(draggedWsIndex, toIdx, project.id)
+                    setDraggedWsIndex(null)
+                    setDropTargetWsIndex(null)
+                    setWsDropPosition(null)
+                  }}
+                  onDragEnd={() => {
+                    setDraggedWsIndex(null)
+                    setDropTargetWsIndex(null)
+                    setWsDropPosition(null)
+                  }}
+                />
+              )
+            })}
+            <button
+              onClick={() => onNewWorkspace(project.id)}
+              className="flex items-center gap-1.5 mx-1 px-2 py-1 text-[var(--t-text-faint)] hover:text-[var(--t-text-muted)] hover:bg-[var(--t-bg-hover)] text-[10px] transition-all active:scale-[0.97]"
+            >
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+              </svg>
+              New worktree
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Agents section */}
+      <div>
+        <button
+          onClick={() => setAgentsCollapsed(!agentsCollapsed)}
+          className="flex items-center gap-1 px-1 py-0.5 text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors w-full text-left"
+        >
+          <svg
+            width="8" height="8" viewBox="0 0 16 16" fill="currentColor"
+            className={`transition-transform duration-150 ${agentsCollapsed ? '' : 'rotate-90'}`}
+          >
+            <path d="M6.3 3.3a1 1 0 0 1 1.4 0l4 4a1 1 0 0 1 0 1.4l-4 4a1 1 0 0 1-1.4-1.4L9.58 8 6.3 4.7a1 1 0 0 1 0-1.4z"/>
+          </svg>
+          Agents
+        </button>
+        {!agentsCollapsed && (
+          <div>
+            {projectSessions.map((id, index) => renderSessionCard(id, index))}
+            {renderNameInput()}
+            {renderNewAgentButton()}
+          </div>
+        )}
+      </div>
+    </>
+  )
+
+  // --- Grouped mode: agents nested under their workspace ---
+  const renderGroupedMode = () => {
+    // Track a running flat index for agent DnD across workspace groups
+    let flatIndex = 0
+
+    return (
+      <div>
+        {projectWorkspaces.map((ws) => {
+          const wsAgents = projectSessions.filter((id) => sessions.get(id)?.workspaceId === ws.id)
+          const isWsCollapsed = collapsedWorkspaces.has(ws.id)
+          const wtIdx = ws.type !== 'main' ? worktrees.indexOf(ws) : -1
+          const startIndex = flatIndex
+
+          // Advance flat index for all agents in this workspace
+          flatIndex += wsAgents.length
+
+          return (
+            <div key={ws.id} className="mb-0.5">
+              {/* Workspace header with expand/collapse */}
+              <div className="flex items-center gap-0.5">
+                <button
+                  onClick={() => toggleWsCollapsed(ws.id)}
+                  className="p-0.5 text-zinc-600 hover:text-zinc-400 transition-colors"
+                >
+                  <svg
+                    width="8" height="8" viewBox="0 0 16 16" fill="currentColor"
+                    className={`transition-transform duration-150 ${isWsCollapsed ? '' : 'rotate-90'}`}
+                  >
+                    <path d="M6.3 3.3a1 1 0 0 1 1.4 0l4 4a1 1 0 0 1 0 1.4l-4 4a1 1 0 0 1-1.4-1.4L9.58 8 6.3 4.7a1 1 0 0 1 0-1.4z"/>
+                  </svg>
+                </button>
+                <div className="flex-1 min-w-0">
+                  <WorkspaceItem
+                    workspace={ws}
+                    draggable={ws.type !== 'main'}
+                    isDragging={ws.type !== 'main' && draggedWsIndex === wtIdx}
+                    dropPosition={ws.type !== 'main' && dropTargetWsIndex === wtIdx ? wsDropPosition : null}
+                    onDragStart={ws.type !== 'main' ? (e) => {
+                      setDraggedWsIndex(wtIdx)
+                      e.dataTransfer.effectAllowed = 'move'
+                      e.dataTransfer.setData('application/x-workspace', ws.id)
+                    } : undefined}
+                    onDragOver={ws.type !== 'main' ? (e) => {
+                      if (!e.dataTransfer.types.includes('application/x-workspace')) return
+                      e.preventDefault()
+                      e.dataTransfer.dropEffect = 'move'
+                      const rect = e.currentTarget.getBoundingClientRect()
+                      const midY = rect.top + rect.height / 2
+                      setDropTargetWsIndex(wtIdx)
+                      setWsDropPosition(e.clientY < midY ? 'above' : 'below')
+                    } : undefined}
+                    onDrop={ws.type !== 'main' ? (e) => {
+                      e.preventDefault()
+                      if (draggedWsIndex == null || dropTargetWsIndex == null) return
+                      let toIdx = wsDropPosition === 'below' ? dropTargetWsIndex + 1 : dropTargetWsIndex
+                      if (draggedWsIndex < toIdx) toIdx -= 1
+                      reorderWorkspaces(draggedWsIndex, toIdx, project.id)
+                      setDraggedWsIndex(null)
+                      setDropTargetWsIndex(null)
+                      setWsDropPosition(null)
+                    } : undefined}
+                    onDragEnd={ws.type !== 'main' ? () => {
+                      setDraggedWsIndex(null)
+                      setDropTargetWsIndex(null)
+                      setWsDropPosition(null)
+                    } : undefined}
+                  />
+                </div>
+              </div>
+
+              {/* Nested agents */}
+              {!isWsCollapsed && (
+                <div className="pl-4">
+                  {wsAgents.map((id, i) => renderSessionCard(id, startIndex + i))}
+                  {wsAgents.length === 0 && (
+                    <div className="text-[10px] text-zinc-700 px-2 py-0.5">No agents</div>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+        <button
+          onClick={() => onNewWorkspace(project.id)}
+          className="flex items-center gap-1.5 mx-1 px-2 py-1 text-[var(--t-text-faint)] hover:text-[var(--t-text-muted)] hover:bg-[var(--t-bg-hover)] text-[10px] transition-all active:scale-[0.97]"
+        >
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+          </svg>
+          New worktree
+        </button>
+        {renderNameInput()}
+        {renderNewAgentButton()}
+      </div>
+    )
+  }
+
   return (
     <div
-      className="mb-0.5 mt-1 cursor-pointer"
+      className={`mb-0.5 mt-1 cursor-pointer ${isDraggingProject ? 'opacity-40' : ''}`}
+      style={projectDropPosition ? {
+        borderTop: projectDropPosition === 'above' ? '2px solid rgb(139 92 246)' : undefined,
+        borderBottom: projectDropPosition === 'below' ? '2px solid rgb(139 92 246)' : undefined,
+      } : undefined}
       onClick={() => {
         setActiveProject(project.path)
         if (projectSessions[0]) setActiveSession(projectSessions[0])
       }}
     >
       {/* Project header */}
-      <div className="flex items-center gap-1.5 px-2 py-1.5">
+      <div
+        draggable={projectDraggable}
+        onDragStart={onProjectDragStart}
+        onDragOver={onProjectDragOver}
+        onDragEnd={onProjectDragEnd}
+        onDrop={onProjectDrop}
+        className="flex items-center gap-1.5 px-2 py-1.5"
+      >
         <button
           onClick={(e) => {
             e.stopPropagation()
@@ -94,7 +427,7 @@ export function ProjectGroup({ project, onSpawnAgent, onNewWorkspace }: ProjectG
             setActiveProject(project.path)
             if (projectSessions[0]) setActiveSession(projectSessions[0])
           }}
-          className="flex items-center gap-1 text-[11px] font-bold text-zinc-300 hover:text-zinc-100 truncate text-left transition-colors"
+          className={`flex items-center gap-1 text-[11px] font-bold truncate text-left transition-colors ${isActive ? 'text-[var(--t-accent)]' : 'text-zinc-300 hover:text-zinc-100'}`}
           title={project.path}
         >
           <svg
@@ -161,130 +494,7 @@ export function ProjectGroup({ project, onSpawnAgent, onNewWorkspace }: ProjectG
 
       {!projectCollapsed && (
         <div className="px-1 pb-0.5" onClick={(e) => e.stopPropagation()}>
-          {/* Workspaces section — always visible */}
-          <div className="mb-1">
-            <button
-              onClick={() => setWorkspacesCollapsed(!workspacesCollapsed)}
-              className="flex items-center gap-1 px-1 py-0.5 text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors w-full text-left"
-            >
-              <svg
-                width="8" height="8" viewBox="0 0 16 16" fill="currentColor"
-                className={`transition-transform duration-150 ${workspacesCollapsed ? '' : 'rotate-90'}`}
-              >
-                <path d="M6.3 3.3a1 1 0 0 1 1.4 0l4 4a1 1 0 0 1 0 1.4l-4 4a1 1 0 0 1-1.4-1.4L9.58 8 6.3 4.7a1 1 0 0 1 0-1.4z"/>
-              </svg>
-              Workspaces
-            </button>
-            {!workspacesCollapsed && (
-              <div className="pl-1">
-                {projectWorkspaces.map((ws) => (
-                  <WorkspaceItem key={ws.id} workspace={ws} />
-                ))}
-                <button
-                  onClick={() => onNewWorkspace(project.id)}
-                  className="flex items-center gap-1.5 mx-1 px-2 py-1 text-[var(--t-text-faint)] hover:text-[var(--t-text-muted)] hover:bg-[var(--t-bg-hover)] text-[10px] transition-all active:scale-[0.97]"
-                >
-                  <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
-                  </svg>
-                  New worktree
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Agents section */}
-          <div>
-            <button
-              onClick={() => setAgentsCollapsed(!agentsCollapsed)}
-              className="flex items-center gap-1 px-1 py-0.5 text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors w-full text-left"
-            >
-              <svg
-                width="8" height="8" viewBox="0 0 16 16" fill="currentColor"
-                className={`transition-transform duration-150 ${agentsCollapsed ? '' : 'rotate-90'}`}
-              >
-                <path d="M6.3 3.3a1 1 0 0 1 1.4 0l4 4a1 1 0 0 1 0 1.4l-4 4a1 1 0 0 1-1.4-1.4L9.58 8 6.3 4.7a1 1 0 0 1 0-1.4z"/>
-              </svg>
-              Agents
-            </button>
-            {!agentsCollapsed && (
-              <div>
-                {projectSessions.map((id, index) => {
-                  const session = sessions.get(id)
-                  if (!session) return null
-                  return (
-                    <SessionCard
-                      key={id}
-                      session={session}
-                      isActive={id === activeSessionId}
-                      draggable
-                      isDragging={draggedIndex === index}
-                      dropPosition={dropTargetIndex === index ? dropPosition : null}
-                      onDragStart={(e) => {
-                        setDraggedIndex(index)
-                        e.dataTransfer.effectAllowed = 'move'
-                        e.dataTransfer.setData('text/plain', id)
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault()
-                        e.dataTransfer.dropEffect = 'move'
-                        const rect = e.currentTarget.getBoundingClientRect()
-                        const midY = rect.top + rect.height / 2
-                        setDropTargetIndex(index)
-                        setDropPosition(e.clientY < midY ? 'above' : 'below')
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault()
-                        if (draggedIndex == null || dropTargetIndex == null) return
-                        let toIdx = dropPosition === 'below' ? dropTargetIndex + 1 : dropTargetIndex
-                        if (draggedIndex < toIdx) toIdx -= 1
-                        reorderSessions(draggedIndex, toIdx, project.path)
-                        setDraggedIndex(null)
-                        setDropTargetIndex(null)
-                        setDropPosition(null)
-                      }}
-                      onDragEnd={() => {
-                        setDraggedIndex(null)
-                        setDropTargetIndex(null)
-                        setDropPosition(null)
-                      }}
-                    />
-                  )
-                })}
-                {/* Inline name input for new agent */}
-                {showNameInput && (
-                  <div className="px-2 py-1">
-                    <input
-                      ref={nameInputRef}
-                      type="text"
-                      value={newAgentName}
-                      onChange={(e) => setNewAgentName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleConfirmSpawn()
-                        if (e.key === 'Escape') handleCancelSpawn()
-                      }}
-                      onBlur={() => setTimeout(handleCancelSpawn, 150)}
-                      placeholder="Name (enter to spawn)"
-                      className="w-full px-2 py-1 text-[11px] bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded text-[var(--t-text-primary)] placeholder-[var(--t-text-faint)] outline-none focus:border-violet-500/50"
-                    />
-                  </div>
-                )}
-                {projectSessions.length === 0 && !showNameInput && (
-                  <div className="px-1 py-1">
-                    <button
-                      onClick={handleStartSpawn}
-                      className="flex items-center gap-1.5 px-2 py-1 text-[var(--t-text-faint)] hover:text-[var(--t-text-muted)] hover:bg-[var(--t-bg-hover)] text-[11px] transition-all active:scale-[0.97]"
-                    >
-                      <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
-                      </svg>
-                      New agent
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          {viewMode === 'flat' ? renderFlatMode() : renderGroupedMode()}
         </div>
       )}
 
