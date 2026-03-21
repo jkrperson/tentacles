@@ -28,7 +28,7 @@ export function wireEvents({ ptyManager, fileWatcher, hookManager, loadSettings 
 
     // Track session name from title (strip spinner/status prefixes)
     const cleanName = title.replace(/^[\u2800-\u28FF\u2733]\s*/, '')
-    if (cleanName && cleanName !== 'Claude Code' && cleanName !== 'Codex CLI' && cleanName !== 'opencode') {
+    if (cleanName && cleanName !== 'Claude Code' && cleanName !== 'Codex CLI' && cleanName !== 'Gemini CLI' && cleanName !== 'Cursor Agent' && cleanName !== 'opencode') {
       sessionNames.set(id, cleanName)
     }
 

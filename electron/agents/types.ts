@@ -14,6 +14,8 @@ export interface HookSetup {
   outputPath?: string
   env?: Record<string, string>
   cleanup: () => void
+  /** Called after the agent process is spawned (e.g. to start file watchers). */
+  postSpawn?: () => void
 }
 
 import type { SessionStatus } from '../../src/types'

@@ -1,12 +1,16 @@
 import type { AgentAdapter, AgentType } from './types'
 import { claudeAdapter } from './claude'
 import { codexAdapter, cleanupCodexConfig } from './codex'
+import { geminiAdapter, cleanupGeminiConfig } from './gemini'
+import { cursorAdapter, cleanupCursorConfig } from './cursor'
 import { opencodeAdapter, cleanupOpencodeConfig } from './opencode'
 import { createGenericAdapter } from './generic'
 
 const builtinAdapters: Record<string, AgentAdapter> = {
   claude: claudeAdapter,
   codex: codexAdapter,
+  gemini: geminiAdapter,
+  cursor: cursorAdapter,
   opencode: opencodeAdapter,
 }
 
@@ -23,5 +27,7 @@ export function getAllAdapters(): AgentAdapter[] {
 /** Restore all agent config files on app quit. */
 export function cleanupAllAdapters() {
   cleanupCodexConfig()
+  cleanupGeminiConfig()
+  cleanupCursorConfig()
   cleanupOpencodeConfig()
 }

@@ -61,6 +61,7 @@ export function createAgentSpawner(deps: SpawnerDeps) {
     if (hookSetup) {
       registerHookSession(hookId, result.id, agentType)
       hookManager.register(result.id, { hookId, agentType, hookCleanup: hookSetup.cleanup })
+      hookSetup.postSpawn?.()
     }
 
     return { id: result.id, pid: result.pid, hookId }
