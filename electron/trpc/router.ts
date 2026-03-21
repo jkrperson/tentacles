@@ -9,6 +9,7 @@ import { createLspRouter } from './routers/lsp'
 import { createUpdaterRouter } from './routers/updater'
 import { createAppRouter } from './routers/app'
 import { createAuthRouter } from './routers/auth'
+import { createProjectConfigRouter } from './routers/projectConfig'
 import type { PtyManager } from '../ptyManager'
 import type { FileWatcher } from '../fileWatcher'
 import type { GitManager } from '../gitManager'
@@ -28,6 +29,7 @@ export interface RouterDeps {
   sessionsPath: string
   themesDir: string
   soundsDir: string
+  projectsConfigDir: string
   getWindow: () => BrowserWindow | null
   getAutoUpdater: () => typeof AutoUpdaterType | null
   spawnAgent: (name: string, cwd: string, agentType: AgentType, resumeId?: string) => Promise<{ id: string; pid: number; hookId: string }>
@@ -71,6 +73,9 @@ export function createRouter(deps: RouterDeps) {
       themesDir: deps.themesDir,
       soundsDir: deps.soundsDir,
       getWindow: deps.getWindow,
+    }),
+    projectConfig: createProjectConfigRouter({
+      projectsConfigDir: deps.projectsConfigDir,
     }),
   })
 }
