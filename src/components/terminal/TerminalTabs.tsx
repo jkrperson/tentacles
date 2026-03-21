@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useSessionStore } from '../../stores/sessionStore'
+import { useSettingsStore } from '../../stores/settingsStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { useWorkspaceStore, sessionBelongsToProject } from '../../stores/workspaceStore'
+import { AgentIcon } from '../icons/AgentIcons'
+import type { AgentIconKey } from '../../types'
 
-const STATUS_DOTS: Record<string, { cssVar: string; pulse?: boolean }> = {
+const STATUS_COLORS: Record<string, { cssVar: string; pulse?: boolean }> = {
   running:     { cssVar: 'var(--t-status-running)',     pulse: true },
   needs_input: { cssVar: 'var(--t-status-needs-input)', pulse: true },
   completed:   { cssVar: 'var(--t-status-completed)' },
@@ -19,6 +22,7 @@ export function TerminalTabs() {
   const setActive = useSessionStore((s) => s.setActiveSession)
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
   const workspaces = useWorkspaceStore((s) => s.workspaces)
+  const agents = useSettingsStore((s) => s.settings.agents)
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null)
@@ -44,6 +48,9 @@ export function TerminalTabs() {
         const isActive = id === activeSessionId
         const isDragging = draggedIndex === index
         const isDropTarget = dropTargetIndex === index
+        const statusConfig = STATUS_COLORS[session.status]
+        const agentConfig = agents.find((a) => a.id === session.agentType)
+        const agentIcon: AgentIconKey = agentConfig?.icon ?? 'generic'
         return (
           <button
             key={id}
@@ -88,9 +95,11 @@ export function TerminalTabs() {
             } : undefined}
           >
             <span
-              className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${STATUS_DOTS[session.status]?.pulse ? 'animate-pulse' : ''}`}
-              style={{ backgroundColor: STATUS_DOTS[session.status]?.cssVar ?? 'var(--t-status-idle)' }}
-            />
+              className={`flex-shrink-0 ${statusConfig?.pulse ? 'animate-pulse' : ''}`}
+              style={{ color: statusConfig?.cssVar ?? 'var(--t-status-idle)' }}
+            >
+              <AgentIcon icon={agentIcon} size={12} />
+            </span>
             <span className="truncate max-w-36">{session.name}</span>
             {session.hasUnread && !isActive && (
               <span className="w-1.5 h-1.5 rounded-full bg-violet-400 flex-shrink-0" />

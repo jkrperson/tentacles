@@ -2,10 +2,12 @@ import { memo, useState, useRef, useEffect } from 'react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
+import { useSettingsStore } from '../../stores/settingsStore'
 import { useConfirmStore } from '../../stores/confirmStore'
 import { useUIStore } from '../../stores/uiStore'
 import { trpc } from '../../trpc'
-import type { Session } from '../../types'
+import { AgentIcon } from '../icons/AgentIcons'
+import type { Session, AgentIconKey } from '../../types'
 
 const STATUS_CONFIG: Record<string, { label: string; cssVar: string; pulse?: boolean }> = {
   running:     { label: 'Working...',  cssVar: 'var(--t-status-running)',     pulse: true },
@@ -15,47 +17,16 @@ const STATUS_CONFIG: Record<string, { label: string; cssVar: string; pulse?: boo
   errored:     { label: 'Errored',     cssVar: 'var(--t-status-errored)' },
 }
 
-function StatusIcon({ status, cssVar }: { status: string; cssVar: string }) {
-  const size = 14
-  if (status === 'needs_input') {
-    return (
-      <svg width={size} height={size} viewBox="0 0 16 16" className="flex-shrink-0" style={{ color: cssVar }}>
-        <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.5" />
-        <line x1="8" y1="4" x2="8" y2="9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        <circle cx="8" cy="11.5" r="0.75" fill="currentColor" />
-      </svg>
-    )
-  }
-  if (status === 'running') {
-    return (
-      <svg width={size} height={size} viewBox="0 0 16 16" className="flex-shrink-0 animate-spin" style={{ color: cssVar }}>
-        <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.25" />
-        <path d="M8 2a6 6 0 0 1 6 6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    )
-  }
-  if (status === 'errored') {
-    return (
-      <svg width={size} height={size} viewBox="0 0 16 16" className="flex-shrink-0" style={{ color: cssVar }}>
-        <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.5" />
-        <line x1="5.5" y1="5.5" x2="10.5" y2="10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        <line x1="10.5" y1="5.5" x2="5.5" y2="10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    )
-  }
-  if (status === 'completed') {
-    return (
-      <svg width={size} height={size} viewBox="0 0 16 16" className="flex-shrink-0" style={{ color: cssVar }}>
-        <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.5" />
-        <path d="M5 8l2 2 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    )
-  }
+function AgentStatusIcon({ status, icon, cssVar }: { status: string; icon: AgentIconKey; cssVar: string }) {
+  const animClass =
+    status === 'running' ? 'animate-pulse' :
+    status === 'needs_input' ? 'animate-pulse' :
+    ''
+
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" className="flex-shrink-0" style={{ color: cssVar }}>
-      <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.5" />
-      <circle cx="8" cy="8" r="2" fill="currentColor" />
-    </svg>
+    <span className={`flex-shrink-0 ${animClass}`} style={{ color: cssVar }}>
+      <AgentIcon icon={icon} size={14} />
+    </span>
   )
 }
 
@@ -79,11 +50,15 @@ export const SessionCard = memo(function SessionCard({
   const renameSession = useSessionStore((s) => s.renameSession)
   const setActiveProject = useProjectStore((s) => s.setActiveProject)
   const workspaces = useWorkspaceStore((s) => s.workspaces)
+  const agents = useSettingsStore((s) => s.settings.agents)
   const showConfirm = useConfirmStore((s) => s.show)
   const renamingSessionId = useUIStore((s) => s.renamingSessionId)
   const setRenamingSessionId = useUIStore((s) => s.setRenamingSessionId)
   const openTerminalView = useUIStore((s) => s.openTerminalView)
   const config = STATUS_CONFIG[session.status] ?? STATUS_CONFIG.completed
+
+  const agentConfig = agents.find((a) => a.id === session.agentType)
+  const agentIcon: AgentIconKey = agentConfig?.icon ?? 'generic'
 
   const isRenaming = renamingSessionId === session.id
   const [renameValue, setRenameValue] = useState(session.name)
@@ -133,9 +108,9 @@ export const SessionCard = memo(function SessionCard({
         borderBottom: dropPosition === 'below' ? '2px solid rgb(139 92 246)' : undefined,
       } : undefined}
     >
-      {/* Status icon */}
+      {/* Agent logo as status icon */}
       <div className="mt-0.5 flex-shrink-0">
-        <StatusIcon status={session.status} cssVar={config.cssVar} />
+        <AgentStatusIcon status={session.status} icon={agentIcon} cssVar={config.cssVar} />
       </div>
 
       <div className="flex-1 min-w-0">
