@@ -7,6 +7,13 @@ import { getErrorMessage } from '../utils/errors'
 import { generateRandomName } from '../utils/randomName'
 import type { Session, SessionStatus, SessionsFile, AgentType, Workspace } from '../types'
 
+/** Agents that start in a REPL/interactive mode (waiting for user input, not immediately working). */
+const IDLE_ON_START_AGENTS = new Set(['codex', 'gemini', 'cursor', 'opencode'])
+
+function initialStatusForAgent(agentType: string): SessionStatus {
+  return IDLE_ON_START_AGENTS.has(agentType) ? 'idle' : 'running'
+}
+
 // Debounce helper
 let persistTimer: ReturnType<typeof setTimeout> | null = null
 function debouncedPersist(fn: () => void, ms = 500) {
@@ -226,7 +233,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
       try {
         const { id, pid, hookId } = await trpc.session.create.mutate({ name, cwd, agentType: resolvedAgent })
         get().addSession({
-          id, name, cwd, status: 'running', createdAt: Date.now(),
+          id, name, cwd, status: initialStatusForAgent(resolvedAgent), createdAt: Date.now(),
           hasUnread: false, agentType: resolvedAgent, pid, hookId,
           workspaceId: workspace.id,
         })
@@ -250,7 +257,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
       try {
         const { id, pid, hookId } = await trpc.session.create.mutate({ name, cwd: projectPath, agentType: resolvedAgent })
         get().addSession({
-          id, name, cwd: projectPath, status: 'running', createdAt: Date.now(),
+          id, name, cwd: projectPath, status: initialStatusForAgent(resolvedAgent), createdAt: Date.now(),
           hasUnread: false, agentType: resolvedAgent, pid, hookId,
           workspaceId: workspace.id,
         })
@@ -277,7 +284,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
       try {
         const { id, pid, hookId } = await trpc.session.create.mutate({ name: sessionName, cwd, agentType: resolvedAgent })
         get().addSession({
-          id, name: sessionName, cwd, status: 'running', createdAt: Date.now(),
+          id, name: sessionName, cwd, status: initialStatusForAgent(resolvedAgent), createdAt: Date.now(),
           hasUnread: false, agentType: resolvedAgent, pid, hookId,
           workspaceId,
         })
