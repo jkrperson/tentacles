@@ -4,6 +4,7 @@ import { useSessionStore } from '../../stores/sessionStore'
 import { useTerminalStore } from '../../stores/terminalStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useSettingsStore } from '../../stores/settingsStore'
+import { useProjectConfigStore } from '../../stores/projectConfigStore'
 import { trpc } from '../../trpc'
 import type { Session, ShellTerminal } from '../../types'
 
@@ -91,6 +92,9 @@ export function WorkspacePage({ workspaceId }: WorkspacePageProps) {
   const terminalOrder = useTerminalStore((s) => s.terminalOrder)
   const openTerminalView = useUIStore((s) => s.openTerminalView)
   const openSpawnDialog = useUIStore((s) => s.openSpawnDialog)
+  const setupLog = useProjectConfigStore((s) => s.setupLogs.get(workspaceId))
+  const isSetupRunning = useProjectConfigStore((s) => s.runningSetups.has(workspaceId))
+  const loadSetupLog = useProjectConfigStore((s) => s.loadSetupLog)
 
   // Workspace sessions and terminals
   const workspaceSessions = useMemo(() => {
@@ -120,6 +124,11 @@ export function WorkspacePage({ workspaceId }: WorkspacePageProps) {
     intervalRef.current = setInterval(fetchDiffStats, 10000)
     return () => clearInterval(intervalRef.current)
   }, [fetchDiffStats])
+
+  // Load setup log on mount
+  useEffect(() => {
+    loadSetupLog(workspaceId)
+  }, [workspaceId, loadSetupLog])
 
   const handleOpenSession = (sessionId: string) => {
     setActiveSession(sessionId)
@@ -260,6 +269,50 @@ export function WorkspacePage({ workspaceId }: WorkspacePageProps) {
             </div>
           )}
         </section>
+
+        {/* Setup Log section — only for worktree workspaces with a log */}
+        {!isMain && (setupLog || isSetupRunning) && (
+          <section className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-[12px] font-semibold text-zinc-400 uppercase tracking-wider">
+                Setup
+                {isSetupRunning && (
+                  <span className="ml-2 inline-flex items-center gap-1 text-[10px] font-normal text-yellow-400 normal-case tracking-normal">
+                    <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
+                    Running
+                  </span>
+                )}
+                {!isSetupRunning && setupLog?.completedAt && (
+                  <span className={`ml-2 text-[10px] font-normal normal-case tracking-normal ${
+                    setupLog.scripts.every((s) => s.exitCode === 0) ? 'text-green-400' : 'text-red-400'
+                  }`}>
+                    {setupLog.scripts.every((s) => s.exitCode === 0) ? 'Completed' : 'Failed'}
+                  </span>
+                )}
+              </h2>
+            </div>
+
+            <div className="rounded-lg bg-zinc-950 border border-[var(--t-border)] max-h-60 overflow-y-auto p-3 font-mono text-[11px]">
+              {setupLog?.scripts.map((script, i) => (
+                <div key={i} className="mb-2 last:mb-0">
+                  <div className="text-zinc-400">
+                    <span className="text-zinc-500">$ </span>
+                    {script.command}
+                  </div>
+                  {script.output && (
+                    <pre className="text-zinc-500 whitespace-pre-wrap break-all mt-0.5">{script.output}</pre>
+                  )}
+                  {script.exitCode !== null && script.exitCode !== 0 && (
+                    <div className="text-red-400 mt-0.5">exit code {script.exitCode}</div>
+                  )}
+                </div>
+              ))}
+              {isSetupRunning && (!setupLog || setupLog.scripts.length === 0) && (
+                <div className="text-zinc-600">Starting setup scripts...</div>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* Integrations section — placeholder for future GitHub/Linear features */}
         <section className="mb-6">

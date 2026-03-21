@@ -61,6 +61,7 @@ const sessionsPath = path.join(app.getPath('userData'), 'sessions.json')
 const themesDir = path.join(app.getPath('userData'), 'themes')
 const soundsDir = path.join(app.getPath('userData'), 'sounds')
 const hooksDir = path.join(app.getPath('userData'), 'hooks')
+const projectsConfigDir = path.join(app.getPath('userData'), 'projects')
 
 let win: BrowserWindow | null = null
 let rendererURL: string | undefined
@@ -117,6 +118,7 @@ const appRouter = createRouter({
   reattachAgent: spawner.reattach,
   daemonClient,
   authManager,
+  projectsConfigDir,
 })
 
 let ipcHandler: ReturnType<typeof createIPCHandler> | null = null
@@ -211,6 +213,9 @@ app.on('will-quit', async () => {
 })
 
 app.whenReady().then(async () => {
+  // Ensure project config directories exist
+  fs.mkdirSync(path.join(projectsConfigDir, 'setup-logs'), { recursive: true })
+
   await startHookServer()
 
   if (!VITE_DEV_SERVER_URL) {

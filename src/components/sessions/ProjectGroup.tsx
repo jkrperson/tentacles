@@ -5,6 +5,7 @@ import { useSessionStore } from '../../stores/sessionStore'
 import { useWorkspaceStore, sessionBelongsToProject } from '../../stores/workspaceStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { useConfirmStore } from '../../stores/confirmStore'
+import { useUIStore } from '../../stores/uiStore'
 import type { Project } from '../../types'
 
 interface ProjectGroupProps {
@@ -26,6 +27,7 @@ export function ProjectGroup({ project, onSpawnAgent, onNewWorkspace }: ProjectG
 
   const removeProject = useProjectStore((s) => s.removeProject)
   const showConfirm = useConfirmStore((s) => s.show)
+  const openProjectSettingsPage = useUIStore((s) => s.openProjectSettingsPage)
 
   const [projectCollapsed, setProjectCollapsed] = useState(false)
   const [workspacesCollapsed, setWorkspacesCollapsed] = useState(false)
@@ -125,6 +127,16 @@ export function ProjectGroup({ project, onSpawnAgent, onNewWorkspace }: ProjectG
           >
             <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
               <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+            </svg>
+          </button>
+          {/* Project settings */}
+          <button
+            onClick={() => openProjectSettingsPage(project.id)}
+            className="text-[var(--t-text-faint)] hover:text-[var(--t-text-secondary)] hover:bg-[var(--t-bg-hover)] p-1 transition-all active:scale-[0.9]"
+            title="Project settings"
+          >
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M7.068.727c.243-.97 1.62-.97 1.864 0l.071.286a.96.96 0 001.622.434l.205-.211c.695-.719 1.888-.03 1.613.929l-.084.293a.96.96 0 001.187 1.187l.293-.084c.96-.275 1.648.918.929 1.613l-.211.205a.96.96 0 00.434 1.622l.286.071c.97.243.97 1.62 0 1.864l-.286.071a.96.96 0 00-.434 1.622l.211.205c.719.695.03 1.888-.929 1.613l-.293-.084a.96.96 0 00-1.187 1.187l.084.293c.275.96-.918 1.648-1.613.929l-.205-.211a.96.96 0 00-1.622.434l-.071.286c-.243.97-1.62.97-1.864 0l-.071-.286a.96.96 0 00-1.622-.434l-.205.211c-.695.719-1.888.03-1.613-.929l.084-.293a.96.96 0 00-1.187-1.187l-.293.084c-.96.275-1.648-.918-.929-1.613l.211-.205a.96.96 0 00-.434-1.622l-.286-.071c-.97-.243-.97-1.62 0-1.864l.286-.071a.96.96 0 00.434-1.622l-.211-.205c-.719-.695-.03-1.888.929-1.613l.293.084A.96.96 0 005.17 2.03l-.084-.293c-.275-.96.918-1.648 1.613-.929l.205.211a.96.96 0 001.622-.434l.071-.286zM8 11a3 3 0 100-6 3 3 0 000 6z"/>
             </svg>
           </button>
           {/* Remove project */}

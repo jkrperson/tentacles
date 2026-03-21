@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { trpc } from '../trpc'
+import { useProjectConfigStore } from './projectConfigStore'
 import type { Workspace, WorkspaceType } from '../types'
 
 interface WorkspaceState {
@@ -68,6 +69,22 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       ws.set(id, workspace)
       return { workspaces: ws, workspaceOrder: [...state.workspaceOrder, id] }
     })
+
+    // Fire-and-forget: run setup scripts if configured
+    const configStore = useProjectConfigStore.getState()
+    const config = configStore.configs.get(projectId)
+    if (config && config.setupScripts.some((s) => s.enabled)) {
+      configStore.runSetupScripts(projectId, id, worktreePath).catch(() => {})
+    } else {
+      // Config might not be loaded yet — load and check
+      configStore.loadConfig(projectId).then(() => {
+        const loaded = useProjectConfigStore.getState().configs.get(projectId)
+        if (loaded && loaded.setupScripts.some((s) => s.enabled)) {
+          configStore.runSetupScripts(projectId, id, worktreePath).catch(() => {})
+        }
+      }).catch(() => {})
+    }
+
     return workspace
   },
 
