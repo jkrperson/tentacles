@@ -10,9 +10,10 @@ interface GitFileGroupedProps {
   onClick: (filePath: string, staged: boolean) => void
   onStage: (paths: string[]) => void
   onUnstage: (paths: string[]) => void
+  onDiscard?: (paths: string[], statuses: string[]) => void
 }
 
-export function GitFileGrouped({ files, staged, projectId, diffStats, onClick, onStage, onUnstage }: GitFileGroupedProps) {
+export function GitFileGrouped({ files, staged, projectId, diffStats, onClick, onStage, onUnstage, onDiscard }: GitFileGroupedProps) {
   const groups = useMemo(() => {
     const map = new Map<string, GitFileDetail[]>()
     for (const file of files) {
@@ -46,6 +47,7 @@ export function GitFileGrouped({ files, staged, projectId, diffStats, onClick, o
                 onClick={onClick}
                 onStage={onStage}
                 onUnstage={onUnstage}
+                onDiscard={onDiscard}
               />
             )
           })}

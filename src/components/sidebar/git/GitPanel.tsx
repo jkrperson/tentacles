@@ -100,6 +100,19 @@ export function GitPanel({ onToggle }: GitPanelProps) {
     }
   }, [activeProjectId, refreshStatus])
 
+  const handleDiscard = useCallback(async (paths: string[], statuses: string[]) => {
+    if (!activeProjectId) return
+    setLoading('discard')
+    try {
+      await trpc.git.discardChanges.mutate({ repoPath: activeProjectId, paths, statuses })
+      await refreshStatus()
+    } catch (err) {
+      console.error('Discard failed', err)
+    } finally {
+      setLoading(null)
+    }
+  }, [activeProjectId, refreshStatus])
+
   const handleCommit = useCallback(async () => {
     if (!activeProjectId || !commitMsg.trim() || stagedFiles.length === 0) return
     setLoading('commit')
@@ -367,6 +380,7 @@ export function GitPanel({ onToggle }: GitPanelProps) {
               onClick={handleFileClick}
               onStage={handleStage}
               onUnstage={handleUnstage}
+              onDiscard={handleDiscard}
               actionLabel="Stage all"
               onAction={() => handleStage(unstagedFiles.map((f) => f.absolutePath))}
             />

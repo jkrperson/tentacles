@@ -27,10 +27,11 @@ interface GitFileRowProps {
   onClick: (filePath: string, staged: boolean) => void
   onStage: (paths: string[]) => void
   onUnstage: (paths: string[]) => void
+  onDiscard?: (paths: string[], statuses: string[]) => void
   indent?: number
 }
 
-export function GitFileRow({ file, staged, projectId, diffStat, onClick, onStage, onUnstage, indent = 0 }: GitFileRowProps) {
+export function GitFileRow({ file, staged, projectId, diffStat, onClick, onStage, onUnstage, onDiscard, indent = 0 }: GitFileRowProps) {
   const fileName = file.absolutePath.split('/').pop() ?? file.absolutePath
   const relativePath = file.absolutePath.slice(projectId.length + 1)
   const parentDir = relativePath.slice(0, relativePath.lastIndexOf('/'))
@@ -88,15 +89,28 @@ export function GitFileRow({ file, staged, projectId, diffStat, onClick, onStage
           </svg>
         </button>
       ) : (
-        <button
-          onClick={(e) => { e.stopPropagation(); onStage([file.absolutePath]) }}
-          className="flex-shrink-0 opacity-0 group-hover/row:opacity-100 p-0.5 rounded hover:bg-[var(--t-border)] text-zinc-400 hover:text-zinc-200 transition-all"
-          title="Stage"
-        >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 4v8M4 8h8" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-          </svg>
-        </button>
+        <>
+          {onDiscard && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDiscard([file.absolutePath], [file.status]) }}
+              className="flex-shrink-0 opacity-0 group-hover/row:opacity-100 p-0.5 rounded hover:bg-[var(--t-border)] text-zinc-400 hover:text-zinc-200 transition-all"
+              title="Discard changes"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                <path d="M3 8a5 5 0 0 1 8.5-3.5M13 8a5 5 0 0 1-8.5 3.5M3 4v4h4M13 12V8H9"/>
+              </svg>
+            </button>
+          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); onStage([file.absolutePath]) }}
+            className="flex-shrink-0 opacity-0 group-hover/row:opacity-100 p-0.5 rounded hover:bg-[var(--t-border)] text-zinc-400 hover:text-zinc-200 transition-all"
+            title="Stage"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 4v8M4 8h8" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </>
       )}
     </div>
   )

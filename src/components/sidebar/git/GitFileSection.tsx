@@ -14,12 +14,13 @@ interface GitFileSectionProps {
   onClick: (filePath: string, staged: boolean) => void
   onStage: (paths: string[]) => void
   onUnstage: (paths: string[]) => void
+  onDiscard?: (paths: string[], statuses: string[]) => void
   actionLabel: string
   onAction: () => void
 }
 
 export function GitFileSection({
-  title, files, staged, projectId, diffStats, onClick, onStage, onUnstage, actionLabel, onAction,
+  title, files, staged, projectId, diffStats, onClick, onStage, onUnstage, onDiscard, actionLabel, onAction,
 }: GitFileSectionProps) {
   const [collapsed, setCollapsed] = useState(false)
   const viewMode = useUIStore((s) => s.gitPanelViewMode)
@@ -56,12 +57,12 @@ export function GitFileSection({
         viewMode === 'tree' ? (
           <GitFileTree
             files={files} staged={staged} projectId={projectId} diffStats={diffStats}
-            onClick={onClick} onStage={onStage} onUnstage={onUnstage}
+            onClick={onClick} onStage={onStage} onUnstage={onUnstage} onDiscard={onDiscard}
           />
         ) : viewMode === 'grouped' ? (
           <GitFileGrouped
             files={files} staged={staged} projectId={projectId} diffStats={diffStats}
-            onClick={onClick} onStage={onStage} onUnstage={onUnstage}
+            onClick={onClick} onStage={onStage} onUnstage={onUnstage} onDiscard={onDiscard}
           />
         ) : (
           files.map((file) => {
@@ -71,7 +72,7 @@ export function GitFileSection({
               <GitFileRow
                 key={file.absolutePath}
                 file={file} staged={staged} projectId={projectId} diffStat={stat}
-                onClick={onClick} onStage={onStage} onUnstage={onUnstage}
+                onClick={onClick} onStage={onStage} onUnstage={onUnstage} onDiscard={onDiscard}
               />
             )
           })

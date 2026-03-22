@@ -196,6 +196,26 @@ export class GitManager {
     return { branch, upstream, ahead, behind, files }
   }
 
+  async discardChanges(repoPath: string, paths: string[], statuses: string[]): Promise<void> {
+    const tracked: string[] = []
+    const untracked: string[] = []
+    for (let i = 0; i < paths.length; i++) {
+      if (statuses[i] === 'untracked') {
+        untracked.push(paths[i])
+      } else {
+        tracked.push(paths[i])
+      }
+    }
+    await Promise.all([
+      tracked.length > 0
+        ? execFileAsync('git', ['checkout', '--', ...tracked], { cwd: repoPath, timeout: 5000 })
+        : Promise.resolve(),
+      untracked.length > 0
+        ? execFileAsync('git', ['clean', '-f', '--', ...untracked], { cwd: repoPath, timeout: 5000 })
+        : Promise.resolve(),
+    ])
+  }
+
   async stage(repoPath: string, paths: string[]): Promise<void> {
     await execFileAsync('git', ['add', '--', ...paths], {
       cwd: repoPath,

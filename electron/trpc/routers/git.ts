@@ -20,6 +20,12 @@ export function createGitRouter(deps: GitDeps) {
         return deps.gitManager.status(input.dirPath)
       }),
 
+    discardChanges: t.procedure
+      .input(z.object({ repoPath: z.string(), paths: z.array(z.string()), statuses: z.array(z.string()) }))
+      .mutation(({ input }) => {
+        return deps.gitManager.discardChanges(input.repoPath, input.paths, input.statuses)
+      }),
+
     stage: t.procedure
       .input(z.object({ repoPath: z.string(), paths: z.array(z.string()) }))
       .mutation(({ input }) => {

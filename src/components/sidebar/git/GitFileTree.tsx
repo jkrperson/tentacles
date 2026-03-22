@@ -57,9 +57,10 @@ interface GitFileTreeProps {
   onClick: (filePath: string, staged: boolean) => void
   onStage: (paths: string[]) => void
   onUnstage: (paths: string[]) => void
+  onDiscard?: (paths: string[], statuses: string[]) => void
 }
 
-export function GitFileTree({ files, staged, projectId, diffStats, onClick, onStage, onUnstage }: GitFileTreeProps) {
+export function GitFileTree({ files, staged, projectId, diffStats, onClick, onStage, onUnstage, onDiscard }: GitFileTreeProps) {
   const tree = useMemo(() => buildTree(files, projectId), [files, projectId])
 
   return (
@@ -83,6 +84,7 @@ export function GitFileTree({ files, staged, projectId, diffStats, onClick, onSt
             onClick={onClick}
             onStage={onStage}
             onUnstage={onUnstage}
+            onDiscard={onDiscard}
           />
         ))}
     </div>
@@ -90,7 +92,7 @@ export function GitFileTree({ files, staged, projectId, diffStats, onClick, onSt
 }
 
 function TreeNodeView({
-  node, depth, staged, projectId, diffStats, onClick, onStage, onUnstage,
+  node, depth, staged, projectId, diffStats, onClick, onStage, onUnstage, onDiscard,
 }: {
   node: TreeNode
   depth: number
@@ -100,6 +102,7 @@ function TreeNodeView({
   onClick: (filePath: string, staged: boolean) => void
   onStage: (paths: string[]) => void
   onUnstage: (paths: string[]) => void
+  onDiscard?: (paths: string[], statuses: string[]) => void
 }) {
   const [expanded, setExpanded] = useState(true)
   const isDir = node.children.size > 0 && !node.file
@@ -116,6 +119,7 @@ function TreeNodeView({
         onClick={onClick}
         onStage={onStage}
         onUnstage={onUnstage}
+        onDiscard={onDiscard}
         indent={depth}
       />
     )
@@ -157,6 +161,7 @@ function TreeNodeView({
             onClick={onClick}
             onStage={onStage}
             onUnstage={onUnstage}
+            onDiscard={onDiscard}
           />
         ))}
     </div>
