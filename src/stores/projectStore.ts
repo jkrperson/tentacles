@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 import { trpc } from '../trpc'
-import type { Project, ProjectFileTreeState, FileNode, GitFileStatus, GitStatusDetailResult, DiffViewState } from '../types'
+import type { Project, ProjectFileTreeState, FileNode, GitFileStatus, GitStatusDetailResult, DiffViewState, FileDiffStat } from '../types'
 import { useSettingsStore } from './settingsStore'
+import { useUIStore } from './uiStore'
 import { useWorkspaceStore } from './workspaceStore'
 
 interface ProjectState {
@@ -26,6 +27,7 @@ interface ProjectState {
   updateFileTreeChildren: (projectId: string, parentPath: string, children: FileNode[]) => void
 
   setGitStatuses: (projectId: string, result: GitStatusDetailResult) => void
+  setGitDiffStats: (projectId: string, stats: Map<string, FileDiffStat>) => void
   setActiveDiff: (projectId: string, diff: DiffViewState | null) => void
 
   // Editor tab actions
@@ -56,6 +58,7 @@ function emptyFileTreeState(): ProjectFileTreeState {
     gitAhead: 0,
     gitBehind: 0,
     activeDiff: null,
+    gitDiffStats: new Map(),
   }
 }
 
@@ -263,6 +266,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return { fileTreeCache }
     }),
 
+  setGitDiffStats: (projectId, stats) =>
+    set((state) => {
+      const cache = state.fileTreeCache.get(projectId)
+      if (!cache) return state
+      const fileTreeCache = new Map(state.fileTreeCache)
+      fileTreeCache.set(projectId, { ...cache, gitDiffStats: stats })
+      return { fileTreeCache }
+    }),
+
   setActiveDiff: (projectId, diff) =>
     set((state) => {
       const cache = state.fileTreeCache.get(projectId)
@@ -272,7 +284,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return { fileTreeCache }
     }),
 
-  openFile: (projectId, path) =>
+  openFile: (projectId, path) => {
     set((state) => {
       const cache = state.fileTreeCache.get(projectId)
       if (!cache) return state
@@ -282,7 +294,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const fileTreeCache = new Map(state.fileTreeCache)
       fileTreeCache.set(projectId, { ...cache, openFiles, selectedFilePath: path })
       return { fileTreeCache }
-    }),
+    })
+    useUIStore.getState().setMainPanelMode('editor')
+  },
 
   closeFile: (projectId, path) =>
     set((state) => {

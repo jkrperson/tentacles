@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import Editor, { useMonaco, type OnMount } from '@monaco-editor/react'
 import { useProjectStore } from '../../stores/projectStore'
 import { useSettingsStore } from '../../stores/settingsStore'
@@ -7,7 +7,6 @@ import { useLspClient } from '../../hooks/useLspClient'
 import { trpc } from '../../trpc'
 import { getMonacoThemeData } from '../../themes'
 import { useResolvedTheme, useCustomThemes } from '../../hooks/useResolvedTheme'
-import { EditorTabBar } from './EditorTabBar'
 import { DiffViewer } from './DiffViewer'
 import { getLang } from '../../utils/lang'
 
@@ -403,13 +402,19 @@ export function EditorPanel() {
     return () => window.removeEventListener('keydown', handler)
   }, [handleSave, handleCloseActiveTab])
 
+  // Listen for close-tab events from TerminalTabs
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const path = (e as CustomEvent<{ path: string }>).detail.path
+      requestCloseTab(path)
+    }
+    window.addEventListener('editor:close-tab', handler)
+    return () => window.removeEventListener('editor:close-tab', handler)
+  }, [requestCloseTab])
+
   const handleEditorMount: OnMount = (editor) => {
     editorRef.current = editor
   }
-
-  // Memoize sets for tab bar to avoid unnecessary rerenders
-  const dirtyFilesStable = useMemo(() => dirtyFiles, [dirtyFiles])
-  const conflictedFilesStable = useMemo(() => conflictedFiles, [conflictedFiles])
 
   const handleCloseDiff = useCallback(() => {
     if (activeProjectId) setActiveDiff(activeProjectId, null)
@@ -431,11 +436,6 @@ export function EditorPanel() {
 
   return (
     <div className="flex flex-col h-full bg-[var(--t-bg-base)]">
-      <EditorTabBar
-        dirtyFiles={dirtyFilesStable}
-        conflictedFiles={conflictedFilesStable}
-        onCloseTab={requestCloseTab}
-      />
       {saving && (
         <div className="absolute top-10 right-2 text-[11px] text-zinc-500 z-10">Saving...</div>
       )}
@@ -466,7 +466,7 @@ export function EditorPanel() {
           <span>Unsaved changes in <strong>{pendingClose.split('/').pop()}</strong>.</span>
           <button
             onClick={handleConfirmSaveClose}
-            className="px-2 py-0.5 rounded bg-violet-600 hover:bg-violet-500 text-white transition-colors"
+            className="px-2 py-0.5 rounded bg-[var(--t-accent)] hover:bg-[var(--t-accent-hover)] text-white transition-colors"
           >
             Save &amp; Close
           </button>

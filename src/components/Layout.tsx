@@ -1,13 +1,11 @@
 import { useCallback, lazy, Suspense } from 'react'
 import { FileTree } from './sidebar/FileTree'
-import { GitPanel } from './sidebar/GitPanel'
+import { GitPanel } from './sidebar/git/GitPanel'
 import { MediaPanel } from './sidebar/MediaPanel'
 import { TerminalView } from './terminal/TerminalView'
 import { TerminalBottomPanel } from './terminal/TerminalBottomPanel'
-import { EditorPanel } from './editor/EditorPanel'
 import { AgentSidebar } from './sessions/AgentSidebar'
 import { WorkspacePage } from './workspace/WorkspacePage'
-import { useProjectStore } from '../stores/projectStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useTerminalStore } from '../stores/terminalStore'
 import { useUIStore } from '../stores/uiStore'
@@ -21,21 +19,13 @@ const ProjectSettingsPage = lazy(() =>
 export function Layout() {
   useFileWatcher()
   const enableMediaPanel = useSettingsStore((s) => s.settings.enableMediaPanel)
-  const hasOpenFiles = useProjectStore((s) => {
-    const apId = s.activeProjectId
-    if (!apId) return false
-    const cache = s.fileTreeCache.get(apId)
-    if (!cache) return false
-    return cache.openFiles.length > 0 || cache.activeDiff !== null
-  })
 
   const leftDrag = useDrag({ axis: 'x', initial: 240, min: 180, max: 400 })
   const rightDrag = useDrag({ axis: 'x', initial: 260, min: 180, max: 450, invert: true })
-  const editorDrag = useDrag({ axis: 'x', initial: 480, min: 280, max: 800, invert: true })
   const bottomDrag = useDrag({ axis: 'y', initial: 220, min: 100, max: 600, invert: true })
   const mediaDrag = useDrag({ axis: 'y', initial: 250, min: 100, max: 500, invert: true })
 
-  const isDragging = leftDrag.isDragging || rightDrag.isDragging || editorDrag.isDragging || bottomDrag.isDragging || mediaDrag.isDragging
+  const isDragging = leftDrag.isDragging || rightDrag.isDragging || bottomDrag.isDragging || mediaDrag.isDragging
 
   const bottomExpanded = useTerminalStore((s) => s.bottomPanelExpanded)
   const setBottomExpanded = useTerminalStore((s) => s.setBottomPanelExpanded)
@@ -61,7 +51,7 @@ export function Layout() {
       <div className="group relative w-1 flex-shrink-0 cursor-col-resize"
         onMouseDown={leftDrag.onMouseDown}>
         <div className="absolute inset-y-0 -left-2 -right-2" />
-        <div className="absolute inset-y-0 left-0 w-px bg-[var(--t-border)] group-hover:bg-violet-500/50 transition-colors" />
+        <div className="absolute inset-y-0 left-0 w-px bg-[var(--t-border)] group-hover:bg-[var(--t-accent)]/50 transition-colors" />
       </div>
 
       {/* Center column: workspace page OR agents + shell terminals */}
@@ -74,36 +64,19 @@ export function Layout() {
           <WorkspacePage workspaceId={activeWorkspaceId} />
         ) : (
           <>
-            {/* Top: Agent terminal + Editor */}
-            <div className="flex-1 min-h-0 flex overflow-hidden">
-              <div className="flex-1 min-w-0 overflow-hidden">
-                <TerminalView />
-              </div>
-
-              {/* Editor Panel */}
-              {hasOpenFiles && (
-                <>
-                  <div className="group relative w-1 flex-shrink-0 cursor-col-resize"
-                    onMouseDown={editorDrag.onMouseDown}>
-                    <div className="absolute inset-y-0 -left-2 -right-2" />
-                    <div className="absolute inset-y-0 left-0 w-px bg-[var(--t-border)] group-hover:bg-violet-500/50 transition-colors" />
-                  </div>
-
-                  <div className="flex-shrink-0 overflow-hidden" style={{ width: editorDrag.value }}>
-                    <EditorPanel />
-                  </div>
-                </>
-              )}
+            {/* Terminal view */}
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <TerminalView />
             </div>
 
-            {/* Bottom: Shell terminal panel — always present */}
+            {/* Bottom: Shell terminal panel */}
             {bottomExpanded && (
               <div
                 className="group relative h-1 flex-shrink-0 cursor-row-resize"
                 onMouseDown={bottomDrag.onMouseDown}
               >
                 <div className="absolute inset-x-0 -top-2 -bottom-2" />
-                <div className="absolute inset-x-0 top-0 h-px bg-[var(--t-border)] group-hover:bg-violet-500/50 transition-colors" />
+                <div className="absolute inset-x-0 top-0 h-px bg-[var(--t-border)] group-hover:bg-[var(--t-accent)]/50 transition-colors" />
               </div>
             )}
 
@@ -123,7 +96,7 @@ export function Layout() {
           <div className="group relative w-1 flex-shrink-0 cursor-col-resize"
             onMouseDown={rightDrag.onMouseDown}>
             <div className="absolute inset-y-0 -left-2 -right-2" />
-            <div className="absolute inset-y-0 right-0 w-px bg-[var(--t-border)] group-hover:bg-violet-500/50 transition-colors" />
+            <div className="absolute inset-y-0 right-0 w-px bg-[var(--t-border)] group-hover:bg-[var(--t-accent)]/50 transition-colors" />
           </div>
 
           {/* Right: Tabbed Sidebar */}
@@ -179,7 +152,7 @@ export function Layout() {
                   onMouseDown={mediaDrag.onMouseDown}
                 >
                   <div className="absolute inset-x-0 -top-2 -bottom-2" />
-                  <div className="absolute inset-x-0 top-0 h-px bg-[var(--t-border)] group-hover:bg-violet-500/50 transition-colors" />
+                  <div className="absolute inset-x-0 top-0 h-px bg-[var(--t-border)] group-hover:bg-[var(--t-accent)]/50 transition-colors" />
                 </div>
                 <div className="flex-shrink-0 overflow-hidden relative" style={{ height: mediaDrag.value }}>
                   {isDragging && (

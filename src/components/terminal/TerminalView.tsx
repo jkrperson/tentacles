@@ -1,8 +1,10 @@
 import { useMemo } from 'react'
 import { TerminalTabs } from './TerminalTabs'
 import { TerminalPanel } from './TerminalPanel'
+import { EditorPanel } from '../editor/EditorPanel'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useProjectStore } from '../../stores/projectStore'
+import { useUIStore } from '../../stores/uiStore'
 
 export function TerminalView() {
   const activeSessionId = useSessionStore((s) => s.activeSessionId)
@@ -10,6 +12,7 @@ export function TerminalView() {
   const sessions = useSessionStore((s) => s.sessions)
   const createSession = useSessionStore((s) => s.createSession)
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
+  const mainPanelMode = useUIStore((s) => s.mainPanelMode)
 
   const projectSessions = useMemo(
     () => activeProjectId
@@ -22,7 +25,15 @@ export function TerminalView() {
     <div className="flex flex-col h-full bg-[var(--t-bg-base)]">
       <TerminalTabs />
       <div className="flex-1 min-h-0 relative">
-        {projectSessions.length === 0 && (
+        {/* Editor panel — shown when mainPanelMode is 'editor' */}
+        {mainPanelMode === 'editor' && (
+          <div className="absolute inset-0 z-10">
+            <EditorPanel />
+          </div>
+        )}
+
+        {/* Empty state — only show when in session mode with no sessions */}
+        {mainPanelMode === 'session' && projectSessions.length === 0 && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
               <div className="text-zinc-600 text-[15px] mb-3">
@@ -42,7 +53,7 @@ export function TerminalView() {
         )}
         {/* ALL terminal panels stay mounted across all projects — only visibility changes */}
         {sessionOrder.map((id) => (
-          <TerminalPanel key={id} sessionId={id} isActive={id === activeSessionId} />
+          <TerminalPanel key={id} sessionId={id} isActive={id === activeSessionId && mainPanelMode === 'session'} />
         ))}
       </div>
     </div>
