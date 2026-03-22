@@ -92,6 +92,18 @@ export function createGitRouter(deps: GitDeps) {
         return deps.gitManager.diffStats(input.dirPath)
       }),
 
+    diffNumstat: t.procedure
+      .input(z.object({ repoPath: z.string() }))
+      .query(({ input }) => {
+        return deps.gitManager.diffNumstat(input.repoPath)
+      }),
+
+    amendCommit: t.procedure
+      .input(z.object({ repoPath: z.string(), message: z.string().optional() }))
+      .mutation(({ input }) => {
+        return deps.gitManager.amendCommit(input.repoPath, input.message)
+      }),
+
     worktree: t.router({
       create: t.procedure
         .input(z.object({ repoPath: z.string(), name: z.string().optional() }))

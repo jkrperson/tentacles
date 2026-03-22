@@ -118,6 +118,15 @@ export interface GitStatusDetailResult {
   files: GitFileDetail[]
 }
 
+export interface FileDiffStat {
+  filePath: string
+  insertions: number
+  deletions: number
+  isBinary: boolean
+}
+
+export type GitPanelViewMode = 'flat' | 'tree' | 'grouped'
+
 export interface DiffViewState {
   filePath: string
   staged: boolean
@@ -141,6 +150,7 @@ export interface ProjectFileTreeState {
   gitAhead: number
   gitBehind: number
   activeDiff: DiffViewState | null
+  gitDiffStats: Map<string, FileDiffStat>
 }
 
 export type TerminalStatus = 'running' | 'exited'

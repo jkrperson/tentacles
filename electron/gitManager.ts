@@ -30,6 +30,18 @@ export interface WorktreeInfo {
   commit: string
 }
 
+export interface FileDiffStat {
+  filePath: string
+  insertions: number
+  deletions: number
+  isBinary: boolean
+}
+
+export interface DiffNumstatResult {
+  staged: FileDiffStat[]
+  unstaged: FileDiffStat[]
+}
+
 export class GitManager {
   async isRepo(dirPath: string): Promise<boolean> {
     try {
@@ -343,6 +355,48 @@ export class GitManager {
     }
 
     return { insertions, deletions }
+  }
+
+  async diffNumstat(repoPath: string): Promise<DiffNumstatResult> {
+    const parseLine = (line: string): FileDiffStat | null => {
+      const parts = line.split('\t')
+      if (parts.length < 3) return null
+      const [ins, del, filePath] = parts
+      if (ins === '-' && del === '-') {
+        return { filePath, insertions: 0, deletions: 0, isBinary: true }
+      }
+      return {
+        filePath,
+        insertions: parseInt(ins, 10) || 0,
+        deletions: parseInt(del, 10) || 0,
+        isBinary: false,
+      }
+    }
+
+    const [stagedResult, unstagedResult] = await Promise.all([
+      execFileAsync('git', ['diff', '--numstat', '--cached'], { cwd: repoPath, timeout: 5000 }).catch(() => ({ stdout: '' })),
+      execFileAsync('git', ['diff', '--numstat'], { cwd: repoPath, timeout: 5000 }).catch(() => ({ stdout: '' })),
+    ])
+
+    const staged = stagedResult.stdout.split('\n').filter(Boolean).map(parseLine).filter((s): s is FileDiffStat => s !== null)
+    const unstaged = unstagedResult.stdout.split('\n').filter(Boolean).map(parseLine).filter((s): s is FileDiffStat => s !== null)
+
+    return { staged, unstaged }
+  }
+
+  async amendCommit(repoPath: string, message?: string): Promise<{ hash: string }> {
+    const args = ['commit', '--amend']
+    if (message) {
+      args.push('-m', message)
+    } else {
+      args.push('--no-edit')
+    }
+    const { stdout } = await execFileAsync('git', args, {
+      cwd: repoPath,
+      timeout: 10000,
+    })
+    const match = stdout.match(/\[[\w/.-]+ ([a-f0-9]+)\]/)
+    return { hash: match?.[1] ?? '' }
   }
 
   async listWorktrees(repoPath: string): Promise<WorktreeInfo[]> {
