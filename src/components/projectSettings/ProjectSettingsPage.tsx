@@ -142,7 +142,7 @@ export function ProjectSettingsPage({ projectId }: ProjectSettingsPageProps) {
                   onClick={() => handleToggle(script.id)}
                   className={`flex-shrink-0 w-4 h-4 rounded border transition-colors ${
                     script.enabled
-                      ? 'bg-violet-500 border-violet-500'
+                      ? 'bg-[var(--t-accent)] border-[var(--t-accent)]'
                       : 'border-zinc-600 hover:border-zinc-400'
                   }`}
                   title={script.enabled ? 'Disable' : 'Enable'}

@@ -101,8 +101,8 @@ export const SessionCard = memo(function SessionCard({
           ? 'bg-[var(--t-bg-hover)]'
           : 'hover:bg-[var(--t-bg-active)]'
       } ${isDragging ? 'opacity-40' : ''} ${
-        dropPosition === 'above' ? 'ring-t-2 ring-violet-500' : ''
-      } ${dropPosition === 'below' ? 'ring-b-2 ring-violet-500' : ''}`}
+        dropPosition === 'above' ? 'ring-t-2 ring-[var(--t-accent)]' : ''
+      } ${dropPosition === 'below' ? 'ring-b-2 ring-[var(--t-accent)]' : ''}`}
       style={dropPosition ? {
         borderTop: dropPosition === 'above' ? '2px solid rgb(139 92 246)' : undefined,
         borderBottom: dropPosition === 'below' ? '2px solid rgb(139 92 246)' : undefined,
@@ -128,7 +128,7 @@ export const SessionCard = memo(function SessionCard({
                 e.stopPropagation()
               }}
               onClick={(e) => e.stopPropagation()}
-              className="text-[11px] font-semibold text-zinc-100 bg-[var(--t-bg-base)] border border-[var(--t-border)] rounded px-1 py-0 w-full outline-none focus:border-violet-500"
+              className="text-[11px] font-semibold text-zinc-100 bg-[var(--t-bg-base)] border border-[var(--t-border)] rounded px-1 py-0 w-full outline-none focus:border-[var(--t-accent)]"
             />
           ) : (
             <span
@@ -142,7 +142,7 @@ export const SessionCard = memo(function SessionCard({
             </span>
           )}
           {session.hasUnread && !isActive && (
-            <span className="w-1.5 h-1.5 rounded-full bg-violet-400 flex-shrink-0" />
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--t-accent)] flex-shrink-0" />
           )}
         </div>
         {/* Subtitle: workspace name · status */}

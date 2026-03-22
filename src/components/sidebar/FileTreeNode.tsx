@@ -72,7 +72,7 @@ export const FileTreeNode = memo(function FileTreeNode({ node, depth }: { node: 
         onClick={handleClick}
         className={`flex items-center gap-1 py-[3px] pr-2 cursor-pointer text-[12px] transition-colors ${
           isSelected
-            ? 'bg-violet-500/10 text-zinc-200'
+            ? 'bg-[var(--t-accent)]/10 text-zinc-200'
             : isChanged
               ? 'bg-amber-500/5 text-zinc-400'
               : 'text-zinc-400 hover:bg-[var(--t-bg-hover)] hover:text-zinc-300'

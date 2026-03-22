@@ -86,7 +86,7 @@ export function WorktreeCreateDialog({ projectId, isOpen, onClose }: WorktreeCre
             onChange={(e) => setBranchName(sanitize(e.target.value))}
             onKeyDown={(e) => { if (e.key === 'Enter') handleCreate() }}
             placeholder="e.g. add-auth"
-            className="w-full px-2 py-1.5 text-[11px] bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded text-zinc-200 placeholder-zinc-600 outline-none focus:border-violet-500/50"
+            className="w-full px-2 py-1.5 text-[11px] bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded text-zinc-200 placeholder-zinc-600 outline-none focus:border-[var(--t-accent)]/50"
           />
         </div>
 
@@ -101,7 +101,7 @@ export function WorktreeCreateDialog({ projectId, isOpen, onClose }: WorktreeCre
           <button
             onClick={handleCreate}
             disabled={creating}
-            className="px-3 py-1.5 text-[11px] font-medium bg-violet-600 hover:bg-violet-500 disabled:bg-violet-800 disabled:text-zinc-400 text-white rounded transition-colors"
+            className="px-3 py-1.5 text-[11px] font-medium bg-[var(--t-accent)] hover:bg-[var(--t-accent-hover)] disabled:opacity-40 text-white rounded transition-colors"
           >
             {creating ? 'Creating...' : 'Create'}
           </button>

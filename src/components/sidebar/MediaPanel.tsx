@@ -140,7 +140,7 @@ export function MediaPanel() {
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder={service === 'youtube' ? 'YouTube URL, video ID, or playlist' : 'Twitch channel name or URL'}
-            className="w-full bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded px-2 py-1 text-[11px] text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-violet-500/50 transition-colors"
+            className="w-full bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded px-2 py-1 text-[11px] text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-[var(--t-accent)]/50 transition-colors"
           />
         </div>
 

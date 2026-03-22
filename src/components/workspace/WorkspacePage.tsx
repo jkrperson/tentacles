@@ -175,7 +175,7 @@ export function WorkspacePage({ workspaceId }: WorkspacePageProps) {
               workspace.status === 'active'
                 ? 'bg-green-500/10 text-green-400'
                 : workspace.status === 'merged'
-                  ? 'bg-violet-500/10 text-violet-400'
+                  ? 'bg-[var(--t-accent)]/10 text-[var(--t-accent)]'
                   : 'bg-zinc-500/10 text-zinc-500'
             }`}>
               {workspace.status}

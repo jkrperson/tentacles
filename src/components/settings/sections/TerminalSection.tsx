@@ -6,7 +6,7 @@ interface TerminalSectionProps {
 }
 
 export function TerminalSection({ draft, onUpdate }: TerminalSectionProps) {
-  const inputClass = 'w-full bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded-md px-3 py-2 text-[13px] text-zinc-200 focus:outline-none focus:border-violet-500/50 transition-colors'
+  const inputClass = 'w-full bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded-md px-3 py-2 text-[13px] text-zinc-200 focus:outline-none focus:border-[var(--t-accent)]/50 transition-colors'
 
   return (
     <div className="space-y-6">

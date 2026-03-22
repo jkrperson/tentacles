@@ -115,7 +115,7 @@ export function AgentSpawnDialog({ projectId, isOpen, onClose, preselectedWorksp
                   onClick={() => setAgentType(agent.id)}
                   className={`flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1.5 text-[11px] rounded border transition-colors ${
                     agentType === agent.id
-                      ? 'border-violet-500/50 bg-violet-500/10 text-zinc-200'
+                      ? 'border-[var(--t-accent)]/50 bg-[var(--t-accent)]/10 text-zinc-200'
                       : 'border-[var(--t-border)] text-zinc-500 hover:text-zinc-300 hover:border-zinc-600'
                   }`}
                 >
@@ -136,7 +136,7 @@ export function AgentSpawnDialog({ projectId, isOpen, onClose, preselectedWorksp
               onChange={(e) => setAgentName(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleCreate() }}
               placeholder="e.g. fix-auth-bug"
-              className="w-full px-2 py-1.5 text-[11px] bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded text-zinc-200 placeholder-zinc-600 outline-none focus:border-violet-500/50"
+              className="w-full px-2 py-1.5 text-[11px] bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded text-zinc-200 placeholder-zinc-600 outline-none focus:border-[var(--t-accent)]/50"
             />
           </div>
 
@@ -157,7 +157,7 @@ export function AgentSpawnDialog({ projectId, isOpen, onClose, preselectedWorksp
                 onClick={() => setNewWorktree(true)}
                 className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-[11px] transition-colors ${
                   newWorktree
-                    ? 'bg-violet-500/10 border border-violet-500/50 text-zinc-200'
+                    ? 'bg-[var(--t-accent)]/10 border border-[var(--t-accent)]/50 text-zinc-200'
                     : 'border border-[var(--t-border)] text-zinc-500 hover:text-zinc-300 hover:border-zinc-600'
                 }`}
               >
@@ -175,7 +175,7 @@ export function AgentSpawnDialog({ projectId, isOpen, onClose, preselectedWorksp
                 onKeyDown={(e) => { if (e.key === 'Enter') handleCreate() }}
                 placeholder="Branch name, e.g. add-auth"
                 autoFocus
-                className="mt-1.5 w-full px-2 py-1.5 text-[11px] bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded text-zinc-200 placeholder-zinc-600 outline-none focus:border-violet-500/50"
+                className="mt-1.5 w-full px-2 py-1.5 text-[11px] bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded text-zinc-200 placeholder-zinc-600 outline-none focus:border-[var(--t-accent)]/50"
               />
             )}
           </div>
@@ -192,7 +192,7 @@ export function AgentSpawnDialog({ projectId, isOpen, onClose, preselectedWorksp
           <button
             onClick={handleCreate}
             disabled={creating}
-            className="px-3 py-1.5 text-[11px] font-medium bg-violet-600 hover:bg-violet-500 disabled:bg-violet-800 disabled:text-zinc-400 text-white rounded transition-colors"
+            className="px-3 py-1.5 text-[11px] font-medium bg-[var(--t-accent)] hover:bg-[var(--t-accent-hover)] disabled:opacity-40 text-white rounded transition-colors"
           >
             {creating ? 'Creating...' : 'Create'}
           </button>
@@ -208,7 +208,7 @@ function WorkspaceOption({ workspace, selected, onClick }: { workspace: Workspac
       onClick={onClick}
       className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-[11px] transition-colors ${
         selected
-          ? 'bg-violet-500/10 border border-violet-500/50 text-zinc-200'
+          ? 'bg-[var(--t-accent)]/10 border border-[var(--t-accent)]/50 text-zinc-200'
           : 'border border-[var(--t-border)] text-zinc-500 hover:text-zinc-300 hover:border-zinc-600'
       }`}
     >

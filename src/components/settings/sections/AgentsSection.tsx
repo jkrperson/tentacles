@@ -42,7 +42,7 @@ export function AgentsSection({ draft, onUpdate }: AgentsSectionProps) {
     setEditingId(id)
   }
 
-  const inputClass = 'w-full bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded-md px-2.5 py-1.5 text-[12px] text-zinc-200 focus:outline-none focus:border-violet-500/50 transition-colors'
+  const inputClass = 'w-full bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded-md px-2.5 py-1.5 text-[12px] text-zinc-200 focus:outline-none focus:border-[var(--t-accent)]/50 transition-colors'
 
   return (
     <div className="space-y-4">
@@ -136,7 +136,7 @@ export function AgentsSection({ draft, onUpdate }: AgentsSectionProps) {
                         onClick={() => updateAgent(agent.id, { icon: key })}
                         className={`p-2 rounded border transition-colors ${
                           agent.icon === key
-                            ? 'border-violet-500/50 bg-violet-500/10 text-zinc-200'
+                            ? 'border-[var(--t-accent)]/50 bg-[var(--t-accent)]/10 text-zinc-200'
                             : 'border-[var(--t-border)] text-zinc-500 hover:text-zinc-300 hover:border-zinc-600'
                         }`}
                         title={key}

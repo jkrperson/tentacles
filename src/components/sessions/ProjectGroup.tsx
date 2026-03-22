@@ -177,7 +177,7 @@ export function ProjectGroup({
           }}
           onBlur={() => setTimeout(handleCancelSpawn, 150)}
           placeholder="Name (enter to spawn)"
-          className="w-full px-2 py-1 text-[11px] bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded text-[var(--t-text-primary)] placeholder-[var(--t-text-faint)] outline-none focus:border-violet-500/50"
+          className="w-full px-2 py-1 text-[11px] bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded text-[var(--t-text-primary)] placeholder-[var(--t-text-faint)] outline-none focus:border-[var(--t-accent)]/50"
         />
       </div>
     )

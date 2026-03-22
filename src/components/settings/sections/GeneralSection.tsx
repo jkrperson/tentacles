@@ -29,7 +29,7 @@ export function GeneralSection({ draft, onUpdate }: GeneralSectionProps) {
                 onClick={() => onUpdate((d) => ({ ...d, defaultAgent: agent.id }))}
                 className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] border transition-colors ${
                   selected
-                    ? 'border-violet-500 bg-violet-500/10 text-zinc-200'
+                    ? 'border-[var(--t-accent)] bg-[var(--t-accent)]/10 text-zinc-200'
                     : 'border-[var(--t-border-input)] text-zinc-400 hover:border-[var(--t-border-input-hover)] hover:text-zinc-300'
                 }`}
               >
@@ -45,7 +45,7 @@ export function GeneralSection({ draft, onUpdate }: GeneralSectionProps) {
         <label className="block text-[13px] text-zinc-300 mb-2">Max Agents</label>
         <input type="number" min={1} max={50} value={draft.maxSessions}
           onChange={(e) => onUpdate((d) => ({ ...d, maxSessions: parseInt(e.target.value) || 10 }))}
-          className="w-full bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded-md px-3 py-2 text-[13px] text-zinc-200 focus:outline-none focus:border-violet-500/50 transition-colors" />
+          className="w-full bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded-md px-3 py-2 text-[13px] text-zinc-200 focus:outline-none focus:border-[var(--t-accent)]/50 transition-colors" />
       </div>
 
       <div>
@@ -53,7 +53,7 @@ export function GeneralSection({ draft, onUpdate }: GeneralSectionProps) {
         <div className="flex gap-2">
           <input type="text" value={draft.defaultProjectPath}
             onChange={(e) => onUpdate((d) => ({ ...d, defaultProjectPath: e.target.value }))}
-            className="flex-1 w-full bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded-md px-3 py-2 text-[13px] text-zinc-200 focus:outline-none focus:border-violet-500/50 transition-colors"
+            className="flex-1 w-full bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded-md px-3 py-2 text-[13px] text-zinc-200 focus:outline-none focus:border-[var(--t-accent)]/50 transition-colors"
             placeholder="/path/to/projects" />
           <button onClick={handleBrowse}
             className="px-3 py-2 bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded-md text-[12px] text-zinc-400 hover:text-zinc-200 hover:border-[var(--t-border-input-hover)] transition-colors">

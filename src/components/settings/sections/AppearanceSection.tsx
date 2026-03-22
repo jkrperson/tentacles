@@ -26,7 +26,7 @@ export function AppearanceSection({ draft, onUpdate }: AppearanceSectionProps) {
                 onClick={() => onUpdate((d) => ({ ...d, theme: key }))}
                 className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-colors ${
                   selected
-                    ? 'border-violet-500 bg-violet-500/10'
+                    ? 'border-[var(--t-accent)] bg-[var(--t-accent)]/10'
                     : 'border-[var(--t-border-input)] hover:border-[var(--t-border-input-hover)]'
                 }`}
               >
@@ -43,7 +43,7 @@ export function AppearanceSection({ draft, onUpdate }: AppearanceSectionProps) {
             onClick={() => onUpdate((d) => ({ ...d, theme: 'system' }))}
             className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-colors ${
               draft.theme === 'system'
-                ? 'border-violet-500 bg-violet-500/10'
+                ? 'border-[var(--t-accent)] bg-[var(--t-accent)]/10'
                 : 'border-[var(--t-border-input)] hover:border-[var(--t-border-input-hover)]'
             }`}
           >
@@ -72,7 +72,7 @@ export function AppearanceSection({ draft, onUpdate }: AppearanceSectionProps) {
                     onClick={() => onUpdate((d) => ({ ...d, theme: key }))}
                     className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-colors group relative ${
                       selected
-                        ? 'border-violet-500 bg-violet-500/10'
+                        ? 'border-[var(--t-accent)] bg-[var(--t-accent)]/10'
                         : 'border-[var(--t-border-input)] hover:border-[var(--t-border-input-hover)]'
                     }`}
                   >
@@ -137,7 +137,7 @@ export function AppearanceSection({ draft, onUpdate }: AppearanceSectionProps) {
         <label className="block text-[13px] text-zinc-300 mb-2">Terminal Font Size</label>
         <input type="number" min={8} max={24} value={draft.terminalFontSize}
           onChange={(e) => onUpdate((d) => ({ ...d, terminalFontSize: parseInt(e.target.value) || 13 }))}
-          className="w-full bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded-md px-3 py-2 text-[13px] text-zinc-200 focus:outline-none focus:border-violet-500/50 transition-colors" />
+          className="w-full bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded-md px-3 py-2 text-[13px] text-zinc-200 focus:outline-none focus:border-[var(--t-accent)]/50 transition-colors" />
       </div>
 
       <div>

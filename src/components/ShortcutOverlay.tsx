@@ -76,7 +76,7 @@ export function ShortcutOverlay() {
                       <span className="text-[12px] text-zinc-300">{def.label}</span>
                       <div className="flex items-center gap-1.5">
                         {isCustom && (
-                          <span className="text-[9px] text-violet-400 uppercase tracking-wider">custom</span>
+                          <span className="text-[9px] text-[var(--t-accent)] uppercase tracking-wider">custom</span>
                         )}
                         <kbd className="px-2 py-0.5 text-[11px] text-zinc-400 bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded font-mono min-w-[28px] text-center">
                           {formatKeys(keys)}

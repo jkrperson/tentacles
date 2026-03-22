@@ -92,7 +92,7 @@ export function KeybindingsSection() {
                   ref={isRecording ? recordRef : undefined}
                   className={`flex items-center justify-between px-4 py-2.5 ${
                     i > 0 ? 'border-t border-[var(--t-border-input)]' : ''
-                  } ${isRecording ? 'bg-violet-500/10' : ''}`}
+                  } ${isRecording ? 'bg-[var(--t-accent)]/10' : ''}`}
                 >
                   <span className="text-[13px] text-zinc-300">{def.label}</span>
                   <div className="flex items-center gap-2">
@@ -107,7 +107,7 @@ export function KeybindingsSection() {
                     )}
                     {isRecording ? (
                       <div className="flex items-center gap-2">
-                        <kbd className="px-2 py-0.5 text-[11px] text-violet-300 bg-violet-500/20 border border-violet-500/40 rounded font-mono min-w-[80px] text-center animate-pulse">
+                        <kbd className="px-2 py-0.5 text-[11px] text-[var(--t-accent)] bg-[var(--t-accent)]/20 border border-[var(--t-accent)]/40 rounded font-mono min-w-[80px] text-center animate-pulse">
                           {recordedKeys ? formatKeys(recordedKeys) : 'Press keys...'}
                         </kbd>
                         <button
@@ -126,8 +126,8 @@ export function KeybindingsSection() {
                         className="group flex items-center gap-1.5"
                         title="Click to change shortcut"
                       >
-                        <kbd className={`px-2 py-0.5 text-[11px] bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded font-mono min-w-[28px] text-center group-hover:border-violet-500/50 transition-colors ${
-                          isCustom ? 'text-violet-400' : 'text-zinc-400'
+                        <kbd className={`px-2 py-0.5 text-[11px] bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded font-mono min-w-[28px] text-center group-hover:border-[var(--t-accent)]/50 transition-colors ${
+                          isCustom ? 'text-[var(--t-accent)]' : 'text-zinc-400'
                         }`}>
                           {formatKeys(keys)}
                         </kbd>
