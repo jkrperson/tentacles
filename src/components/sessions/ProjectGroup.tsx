@@ -402,9 +402,14 @@ export function ProjectGroup({
   return (
     <div
       className={`mb-0.5 mt-1 cursor-pointer ${isDraggingProject ? 'opacity-40' : ''}`}
+      draggable={projectDraggable}
+      onDragStart={onProjectDragStart}
+      onDragOver={onProjectDragOver}
+      onDragEnd={onProjectDragEnd}
+      onDrop={onProjectDrop}
       style={projectDropPosition ? {
-        borderTop: projectDropPosition === 'above' ? '2px solid rgb(139 92 246)' : undefined,
-        borderBottom: projectDropPosition === 'below' ? '2px solid rgb(139 92 246)' : undefined,
+        borderTop: projectDropPosition === 'above' ? '2px solid var(--t-accent)' : undefined,
+        borderBottom: projectDropPosition === 'below' ? '2px solid var(--t-accent)' : undefined,
       } : undefined}
       onClick={() => {
         setActiveProject(project.path)
@@ -413,12 +418,7 @@ export function ProjectGroup({
     >
       {/* Project header */}
       <div
-        draggable={projectDraggable}
-        onDragStart={onProjectDragStart}
-        onDragOver={onProjectDragOver}
-        onDragEnd={onProjectDragEnd}
-        onDrop={onProjectDrop}
-        className="flex items-center gap-1.5 px-2 py-1.5"
+        className="flex items-center gap-1.5 px-2 py-2.5"
       >
         <button
           onClick={(e) => {

@@ -63,6 +63,7 @@ interface SessionState {
 
   addSession: (session: Session) => void
   removeSession: (id: string) => void
+  closeTab: (id: string) => void
   setActiveSession: (id: string | null) => void
   updateStatus: (id: string, status: SessionStatus, exitCode?: number | null) => void
   setStatusDetail: (id: string, detail: string | null) => void
@@ -137,6 +138,18 @@ export const useSessionStore = create<SessionState>((set, get) => {
 
         persist()
         return { sessions, sessionOrder, tabOrder, activeSessionId }
+      }),
+
+    closeTab: (id) =>
+      set((state) => {
+        if (!state.tabOrder.includes(id)) return state
+        const tabOrder = state.tabOrder.filter((sid) => sid !== id)
+        const activeSessionId =
+          state.activeSessionId === id
+            ? tabOrder[tabOrder.length - 1] ?? null
+            : state.activeSessionId
+        persist()
+        return { tabOrder, activeSessionId }
       }),
 
     reorderSessions: (fromIndex, toIndex, projectPath) =>

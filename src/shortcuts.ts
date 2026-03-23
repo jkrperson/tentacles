@@ -34,10 +34,11 @@ export interface ShortcutDef {
 export const SHORTCUT_DEFS: ShortcutDef[] = [
   // Sessions
   { id: 'session.create',        label: 'New agent session',          category: 'Sessions', defaultKeys: 'meta+t' },
-  { id: 'session.close',         label: 'Close active session',      category: 'Sessions', defaultKeys: 'meta+w' },
+  { id: 'tab.close',             label: 'Close active tab',           category: 'Sessions', defaultKeys: 'meta+w' },
+  { id: 'session.close',         label: 'Close active session',      category: 'Sessions', defaultKeys: 'meta+shift+w' },
   { id: 'session.switch1-9',     label: 'Switch to session 1-9',     category: 'Sessions', defaultKeys: 'meta+1-9' },
-  { id: 'session.next',          label: 'Next session',              category: 'Sessions', defaultKeys: 'ctrl+tab' },
-  { id: 'session.prev',          label: 'Previous session',          category: 'Sessions', defaultKeys: 'ctrl+shift+tab' },
+  { id: 'tab.next',              label: 'Next tab',                  category: 'Sessions', defaultKeys: 'ctrl+tab' },
+  { id: 'tab.prev',              label: 'Previous tab',              category: 'Sessions', defaultKeys: 'ctrl+shift+tab' },
   { id: 'session.spawnDialog',   label: 'Open agent spawn dialog',   category: 'Sessions', defaultKeys: 'meta+shift+n' },
   { id: 'session.rename',        label: 'Rename active session',     category: 'Sessions', defaultKeys: 'f2' },
 
@@ -53,7 +54,7 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { id: 'terminal.toggle',       label: 'Toggle terminal panel',     category: 'Terminal', defaultKeys: 'meta+j' },
   { id: 'terminal.next',         label: 'Next terminal',             category: 'Terminal', defaultKeys: 'meta+alt+]' },
   { id: 'terminal.prev',         label: 'Previous terminal',         category: 'Terminal', defaultKeys: 'meta+alt+[' },
-  { id: 'terminal.close',        label: 'Close active terminal',     category: 'Terminal', defaultKeys: 'meta+shift+w' },
+  { id: 'terminal.close',        label: 'Close active terminal',     category: 'Terminal', defaultKeys: 'ctrl+shift+w' },
   { id: 'terminal.focus',        label: 'Focus terminal panel',      category: 'Terminal', defaultKeys: 'ctrl+`' },
 
   // General

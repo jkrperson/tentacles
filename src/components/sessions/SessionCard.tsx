@@ -104,8 +104,8 @@ export const SessionCard = memo(function SessionCard({
         dropPosition === 'above' ? 'ring-t-2 ring-[var(--t-accent)]' : ''
       } ${dropPosition === 'below' ? 'ring-b-2 ring-[var(--t-accent)]' : ''}`}
       style={dropPosition ? {
-        borderTop: dropPosition === 'above' ? '2px solid rgb(139 92 246)' : undefined,
-        borderBottom: dropPosition === 'below' ? '2px solid rgb(139 92 246)' : undefined,
+        borderTop: dropPosition === 'above' ? '2px solid var(--t-accent)' : undefined,
+        borderBottom: dropPosition === 'below' ? '2px solid var(--t-accent)' : undefined,
       } : undefined}
     >
       {/* Agent logo as status icon */}
@@ -157,7 +157,9 @@ export const SessionCard = memo(function SessionCard({
           e.stopPropagation()
           const isAlive = session.status === 'running' || session.status === 'idle' || session.status === 'needs_input'
           const doClose = () => {
-            if (isAlive) trpc.session.kill.mutate({ id: session.id })
+            // Always kill the daemon PTY — status tracking can be stale and
+            // the kill RPC is idempotent, so this is safe even for dead sessions.
+            trpc.session.kill.mutate({ id: session.id })
             // Workspace lifecycle is independent — don't remove worktree on session close
             removeSession(session.id)
           }

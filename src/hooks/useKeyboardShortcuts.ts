@@ -39,7 +39,20 @@ export function useKeyboardShortcuts() {
         return
       }
 
-      // Close active session
+      // Close active tab (session or file depending on what's visible)
+      if (m('tab.close')) {
+        e.preventDefault()
+        const mode = useUIStore.getState().mainPanelMode
+        if (mode === 'editor') {
+          window.dispatchEvent(new CustomEvent('editor:close-active-tab'))
+        } else {
+          const { activeSessionId: aid, closeTab } = useSessionStore.getState()
+          if (aid) closeTab(aid)
+        }
+        return
+      }
+
+      // Close active session (explicit, regardless of current view)
       if (m('session.close')) {
         e.preventDefault()
         const { activeSessionId: aid, sessions: sess, removeSession: rm } = useSessionStore.getState()
@@ -47,7 +60,7 @@ export function useKeyboardShortcuts() {
           const session = sess.get(aid)
           const isAlive = session?.status === 'running' || session?.status === 'idle' || session?.status === 'needs_input'
           const doClose = () => {
-            if (isAlive) trpc.session.kill.mutate({ id: aid })
+            trpc.session.kill.mutate({ id: aid })
             rm(aid)
           }
           if (isAlive) {
@@ -157,28 +170,11 @@ export function useKeyboardShortcuts() {
         return
       }
 
-      // Next / previous session
-      if (m('session.next') || m('session.prev')) {
+      // Next / previous tab (unified tab bar: sessions + files)
+      if (m('tab.next') || m('tab.prev')) {
         e.preventDefault()
-        const { sessionOrder: order, sessions: sess, activeSessionId: aid, setActiveSession: setAs } = useSessionStore.getState()
-        const apId = useProjectStore.getState().activeProjectId
-        const workspaces = useWorkspaceStore.getState().workspaces
-        const projectSessions = apId
-          ? order.filter((id) => {
-              const s = sess.get(id)
-              return s && sessionBelongsToProject(s.workspaceId, apId, workspaces)
-            })
-          : order
-        if (projectSessions.length < 2) return
-        const currentIdx = aid ? projectSessions.indexOf(aid) : -1
-        const forward = m('session.next')
-        let nextIdx: number
-        if (forward) {
-          nextIdx = currentIdx < projectSessions.length - 1 ? currentIdx + 1 : 0
-        } else {
-          nextIdx = currentIdx > 0 ? currentIdx - 1 : projectSessions.length - 1
-        }
-        setAs(projectSessions[nextIdx])
+        const direction = m('tab.next') ? 'next' : 'prev'
+        window.dispatchEvent(new CustomEvent('tabs:cycle', { detail: { direction } }))
         return
       }
 
@@ -271,7 +267,19 @@ export function useKeyboardShortcuts() {
       }
     }
 
+    // Handle shortcuts forwarded from Electron menu accelerators (e.g. Cmd+` on macOS)
+    const menuHandler = (e: Event) => {
+      const action = (e as CustomEvent<string>).detail
+      if (action === 'terminal.create') {
+        useTerminalStore.getState().createTerminal()
+      }
+    }
+
     window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
+    window.addEventListener('menu-shortcut', menuHandler)
+    return () => {
+      window.removeEventListener('keydown', handler)
+      window.removeEventListener('menu-shortcut', menuHandler)
+    }
   }, [])
 }

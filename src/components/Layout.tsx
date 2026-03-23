@@ -54,40 +54,49 @@ export function Layout() {
         <div className="absolute inset-y-0 left-0 w-px bg-[var(--t-border)] group-hover:bg-[var(--t-accent)]/50 transition-colors" />
       </div>
 
-      {/* Center column: workspace page OR agents + shell terminals */}
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        {centerView === 'projectSettings' && activeProjectSettingsId ? (
-          <Suspense fallback={null}>
-            <ProjectSettingsPage projectId={activeProjectSettingsId} />
-          </Suspense>
-        ) : centerView === 'workspace' && activeWorkspaceId ? (
-          <WorkspacePage workspaceId={activeWorkspaceId} />
-        ) : (
-          <>
-            {/* Terminal view */}
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <TerminalView />
-            </div>
+      {/* Center column: all views rendered, toggled via display:none to preserve state */}
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden relative">
+        {/* Terminal + agent view (always mounted, hidden when other views active) */}
+        <div className="absolute inset-0 flex flex-col" style={{ display: centerView === 'terminal' ? undefined : 'none' }}>
+          {/* Terminal view */}
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <TerminalView />
+          </div>
 
-            {/* Bottom: Shell terminal panel */}
-            {bottomExpanded && (
-              <div
-                className="group relative h-1 flex-shrink-0 cursor-row-resize"
-                onMouseDown={bottomDrag.onMouseDown}
-              >
-                <div className="absolute inset-x-0 -top-2 -bottom-2" />
-                <div className="absolute inset-x-0 top-0 h-px bg-[var(--t-border)] group-hover:bg-[var(--t-accent)]/50 transition-colors" />
-              </div>
-            )}
-
-            <div className="flex-shrink-0 overflow-hidden" style={{ height: bottomExpanded ? bottomDrag.value : undefined }}>
-              <TerminalBottomPanel
-                onNewTerminal={handleNewTerminal}
-                expanded={bottomExpanded}
-                onToggleExpanded={() => setBottomExpanded(!bottomExpanded)}
-              />
+          {/* Bottom: Shell terminal panel */}
+          {bottomExpanded && (
+            <div
+              className="group relative h-1 flex-shrink-0 cursor-row-resize"
+              onMouseDown={bottomDrag.onMouseDown}
+            >
+              <div className="absolute inset-x-0 -top-2 -bottom-2" />
+              <div className="absolute inset-x-0 top-0 h-px bg-[var(--t-border)] group-hover:bg-[var(--t-accent)]/50 transition-colors" />
             </div>
-          </>
+          )}
+
+          <div className="flex-shrink-0 overflow-hidden" style={{ height: bottomExpanded ? bottomDrag.value : undefined }}>
+            <TerminalBottomPanel
+              onNewTerminal={handleNewTerminal}
+              expanded={bottomExpanded}
+              onToggleExpanded={() => setBottomExpanded(!bottomExpanded)}
+            />
+          </div>
+        </div>
+
+        {/* Workspace page */}
+        {activeWorkspaceId && (
+          <div className="absolute inset-0" style={{ display: centerView === 'workspace' ? undefined : 'none' }}>
+            <WorkspacePage workspaceId={activeWorkspaceId} />
+          </div>
+        )}
+
+        {/* Project settings page */}
+        {activeProjectSettingsId && (
+          <div className="absolute inset-0" style={{ display: centerView === 'projectSettings' ? undefined : 'none' }}>
+            <Suspense fallback={null}>
+              <ProjectSettingsPage projectId={activeProjectSettingsId} />
+            </Suspense>
+          </div>
         )}
       </div>
 

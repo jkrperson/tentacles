@@ -92,6 +92,46 @@ export function TerminalTabs() {
     [unifiedOrder],
   )
 
+  // Listen for tabs:cycle events from keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { direction } = (e as CustomEvent<{ direction: 'next' | 'prev' }>).detail
+      if (tabs.length < 2) return
+
+      // Find the currently active tab index
+      let activeIdx = -1
+      for (let i = 0; i < tabs.length; i++) {
+        const tab = tabs[i]
+        if (tab.type === 'session' && tab.id === activeSessionId && mainPanelMode === 'session') {
+          activeIdx = i
+          break
+        }
+        if (tab.type === 'file' && tab.path === selectedFilePath && mainPanelMode === 'editor') {
+          activeIdx = i
+          break
+        }
+      }
+
+      let nextIdx: number
+      if (direction === 'next') {
+        nextIdx = activeIdx < tabs.length - 1 ? activeIdx + 1 : 0
+      } else {
+        nextIdx = activeIdx > 0 ? activeIdx - 1 : tabs.length - 1
+      }
+
+      const nextTab = tabs[nextIdx]
+      if (nextTab.type === 'session') {
+        setActive(nextTab.id)
+        setMainPanelMode('session')
+      } else {
+        if (activeProjectId) openFile(activeProjectId, nextTab.path)
+      }
+    }
+
+    window.addEventListener('tabs:cycle', handler)
+    return () => window.removeEventListener('tabs:cycle', handler)
+  }, [tabs, activeSessionId, selectedFilePath, mainPanelMode, activeProjectId, setActive, setMainPanelMode, openFile])
+
   // Drag state
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null)
@@ -136,6 +176,8 @@ export function TerminalTabs() {
     setDropSide(null)
   }
 
+  const closeTab = useSessionStore((s) => s.closeTab)
+
   if (tabs.length === 0) return null
 
   return (
@@ -159,19 +201,25 @@ export function TerminalTabs() {
                 setActive(tab.id)
                 setMainPanelMode('session')
               }}
+              onMouseDown={(e) => {
+                if (e.button === 1) {
+                  e.preventDefault()
+                  closeTab(tab.id)
+                }
+              }}
               draggable
               onDragStart={(e) => handleDragStart(index, e)}
               onDragOver={(e) => handleDragOver(index, e)}
               onDrop={handleDrop}
               onDragEnd={handleDragEnd}
-              className={`relative flex items-center gap-2 px-4 h-full text-[12px] border-r border-[var(--t-border)] transition-colors min-w-0 flex-shrink-0 ${
+              className={`group/tab relative flex items-center gap-2 px-3 h-full text-[12px] border-r border-[var(--t-border)] transition-colors min-w-0 flex-shrink-0 ${
                 isActive
                   ? 'bg-[var(--t-bg-base)] text-zinc-200'
                   : 'text-zinc-500 hover:text-zinc-300 hover:bg-[var(--t-bg-base-50)]'
               } ${isDragging ? 'opacity-40' : ''}`}
               style={isDropTarget && dropSide ? {
-                borderLeft: dropSide === 'left' ? '2px solid rgb(139 92 246)' : undefined,
-                borderRight: dropSide === 'right' ? '2px solid rgb(139 92 246)' : undefined,
+                borderLeft: dropSide === 'left' ? '2px solid var(--t-accent)' : undefined,
+                borderRight: dropSide === 'right' ? '2px solid var(--t-accent)' : undefined,
               } : undefined}
             >
               <span
@@ -184,6 +232,18 @@ export function TerminalTabs() {
               {session.hasUnread && !isActive && (
                 <span className="w-1.5 h-1.5 rounded-full bg-[var(--t-accent)] flex-shrink-0" />
               )}
+              <span
+                onClick={(e) => {
+                  e.stopPropagation()
+                  closeTab(tab.id)
+                }}
+                className="flex-shrink-0 p-0.5 rounded hover:bg-[var(--t-border)] opacity-0 group-hover/tab:opacity-100 transition-opacity"
+                title="Close"
+              >
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z" />
+                </svg>
+              </span>
               {isActive && <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-[var(--t-accent)]" />}
             </button>
           )
@@ -214,8 +274,8 @@ export function TerminalTabs() {
                 : 'text-zinc-500 hover:text-zinc-300 hover:bg-[var(--t-bg-base-50)]'
             } ${isDragging ? 'opacity-40' : ''}`}
             style={isDropTarget && dropSide ? {
-              borderLeft: dropSide === 'left' ? '2px solid rgb(139 92 246)' : undefined,
-              borderRight: dropSide === 'right' ? '2px solid rgb(139 92 246)' : undefined,
+              borderLeft: dropSide === 'left' ? '2px solid var(--t-accent)' : undefined,
+              borderRight: dropSide === 'right' ? '2px solid var(--t-accent)' : undefined,
             } : undefined}
           >
             <FileIcon name={basename(tab.path)} size={12} />

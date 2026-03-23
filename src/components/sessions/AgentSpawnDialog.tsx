@@ -113,14 +113,14 @@ export function AgentSpawnDialog({ projectId, isOpen, onClose, preselectedWorksp
                 <button
                   key={agent.id}
                   onClick={() => setAgentType(agent.id)}
-                  className={`flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1.5 text-[11px] rounded border transition-colors ${
+                  title={agent.name}
+                  className={`flex items-center justify-center p-2 rounded border transition-colors ${
                     agentType === agent.id
                       ? 'border-[var(--t-accent)]/50 bg-[var(--t-accent)]/10 text-zinc-200'
                       : 'border-[var(--t-border)] text-zinc-500 hover:text-zinc-300 hover:border-zinc-600'
                   }`}
                 >
-                  <AgentIcon icon={agent.icon} size={12} />
-                  <span className="truncate">{agent.name}</span>
+                  <AgentIcon icon={agent.icon} size={22} />
                 </button>
               ))}
             </div>

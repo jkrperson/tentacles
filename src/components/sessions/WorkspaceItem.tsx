@@ -102,8 +102,8 @@ export function WorkspaceItem({ workspace, draggable, isDragging, dropPosition, 
         isActive ? 'bg-[var(--t-bg-hover)]' : 'hover:bg-[var(--t-bg-active)]'
       } ${isDragging ? 'opacity-40' : ''}`}
       style={dropPosition ? {
-        borderTop: dropPosition === 'above' ? '2px solid rgb(139 92 246)' : undefined,
-        borderBottom: dropPosition === 'below' ? '2px solid rgb(139 92 246)' : undefined,
+        borderTop: dropPosition === 'above' ? '2px solid var(--t-accent)' : undefined,
+        borderBottom: dropPosition === 'below' ? '2px solid var(--t-accent)' : undefined,
       } : undefined}
     >
       {/* Branch icon */}
