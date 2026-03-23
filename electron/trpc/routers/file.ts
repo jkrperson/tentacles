@@ -24,6 +24,12 @@ export function createFileRouter(deps: FileDeps) {
         return fs.readFileSync(input.filePath, 'utf-8')
       }),
 
+    readFileBase64: t.procedure
+      .input(z.object({ filePath: z.string() }))
+      .query(({ input }) => {
+        return fs.readFileSync(input.filePath).toString('base64')
+      }),
+
     writeFile: t.procedure
       .input(z.object({ filePath: z.string(), content: z.string() }))
       .mutation(({ input }) => {

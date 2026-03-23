@@ -8,7 +8,7 @@ import { trpc } from '../../trpc'
 import { getMonacoThemeData } from '../../themes'
 import { useResolvedTheme, useCustomThemes } from '../../hooks/useResolvedTheme'
 import { DiffViewer } from './DiffViewer'
-import { getLang } from '../../utils/lang'
+import { getLang, getFileKind, getMimeType, type FileKind } from '../../utils/lang'
 
 /** Maps Monaco language IDs to LSP server language IDs */
 const LSP_LANGUAGE_MAP: Record<string, string> = {
@@ -61,6 +61,8 @@ export function EditorPanel() {
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [binaryDataUrl, setBinaryDataUrl] = useState<string | null>(null)
+  const [fileKind, setFileKind] = useState<FileKind>('text')
   const [dirtyFiles, setDirtyFiles] = useState<Set<string>>(new Set())
   const [conflictedFiles, setConflictedFiles] = useState<Set<string>>(new Set())
   const [pendingClose, setPendingClose] = useState<string | null>(null)
@@ -130,9 +132,39 @@ export function EditorPanel() {
   // Fetch file content when a tab is activated (if not cached)
   useEffect(() => {
     if (!selectedFilePath) return
+    const kind = getFileKind(selectedFilePath)
+    setFileKind(kind)
+
+    // For binary/unreadable files, no loading needed
+    if (kind === 'binary') {
+      setLoading(false)
+      setBinaryDataUrl(null)
+      return
+    }
+
+    // For media files (image, video, audio, pdf), load as base64
+    if (kind === 'image' || kind === 'video' || kind === 'audio' || kind === 'pdf') {
+      let cancelled = false
+      setLoading(true)
+      setBinaryDataUrl(null)
+      trpc.file.readFileBase64.query({ filePath: selectedFilePath }).then((base64) => {
+        if (cancelled) return
+        const mime = getMimeType(selectedFilePath)
+        setBinaryDataUrl(`data:${mime};base64,${base64}`)
+        setLoading(false)
+      }).catch(() => {
+        if (cancelled) return
+        setFileKind('binary') // fallback to unreadable
+        setLoading(false)
+      })
+      return () => { cancelled = true }
+    }
+
+    // Text files — use existing logic
     const cached = contentCache.current.get(selectedFilePath)
     if (cached) {
       setContent(cached.content)
+      setBinaryDataUrl(null)
       setLoading(false)
       return
     }
@@ -393,10 +425,7 @@ export function EditorPanel() {
         e.preventDefault()
         handleSave()
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'w') {
-        e.preventDefault()
-        handleCloseActiveTab()
-      }
+      // Cmd+W is now handled globally by useKeyboardShortcuts (tab.close)
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -411,6 +440,13 @@ export function EditorPanel() {
     window.addEventListener('editor:close-tab', handler)
     return () => window.removeEventListener('editor:close-tab', handler)
   }, [requestCloseTab])
+
+  // Listen for close-active-tab from global shortcut (Cmd+W)
+  useEffect(() => {
+    const handler = () => handleCloseActiveTab()
+    window.addEventListener('editor:close-active-tab', handler)
+    return () => window.removeEventListener('editor:close-active-tab', handler)
+  }, [handleCloseActiveTab])
 
   const handleEditorMount: OnMount = (editor) => {
     editorRef.current = editor
@@ -489,6 +525,49 @@ export function EditorPanel() {
           <div className="flex items-center justify-center h-full text-zinc-600 text-[13px]">No file selected</div>
         ) : loading ? (
           <div className="flex items-center justify-center h-full text-zinc-600 text-[13px]">Loading...</div>
+        ) : fileKind === 'binary' ? (
+          <div className="flex flex-col items-center justify-center h-full gap-3 text-zinc-500">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-600">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="9" y1="15" x2="15" y2="15" />
+            </svg>
+            <span className="text-[13px]">Cannot read this file</span>
+            <span className="text-[11px] text-zinc-600">{selectedFilePath.split('/').pop()}</span>
+          </div>
+        ) : fileKind === 'image' && binaryDataUrl ? (
+          <div className="flex items-center justify-center h-full p-8 overflow-auto">
+            <img
+              src={binaryDataUrl}
+              alt={selectedFilePath.split('/').pop() ?? ''}
+              className="max-w-full max-h-full object-contain rounded"
+              style={{ imageRendering: 'auto' }}
+            />
+          </div>
+        ) : fileKind === 'video' && binaryDataUrl ? (
+          <div className="flex items-center justify-center h-full p-8">
+            <video
+              src={binaryDataUrl}
+              controls
+              className="max-w-full max-h-full rounded"
+            />
+          </div>
+        ) : fileKind === 'audio' && binaryDataUrl ? (
+          <div className="flex flex-col items-center justify-center h-full gap-4">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-zinc-500">
+              <path d="M9 18V5l12-2v13" />
+              <circle cx="6" cy="18" r="3" />
+              <circle cx="18" cy="16" r="3" />
+            </svg>
+            <span className="text-[13px] text-zinc-400">{selectedFilePath.split('/').pop()}</span>
+            <audio src={binaryDataUrl} controls className="w-80" />
+          </div>
+        ) : fileKind === 'pdf' && binaryDataUrl ? (
+          <iframe
+            src={binaryDataUrl}
+            className="w-full h-full border-0"
+            title={selectedFilePath.split('/').pop() ?? 'PDF'}
+          />
         ) : (
           <Editor
             height="100%"
