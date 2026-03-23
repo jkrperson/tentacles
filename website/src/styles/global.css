@@ -966,11 +966,12 @@ section {
   position: relative;
   display: inline-flex;
   align-items: stretch;
+  border-radius: 100px;
+  overflow: hidden;
 }
 
 .download-main {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
+  border-radius: 0;
   gap: 10px;
   padding-right: 28px;
 }
@@ -988,7 +989,7 @@ section {
   background: var(--color-accent-dim);
   border: none;
   border-left: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 0 var(--radius) var(--radius) 0;
+  border-radius: 0;
   color: white;
   cursor: pointer;
   transition: background 0.2s;
