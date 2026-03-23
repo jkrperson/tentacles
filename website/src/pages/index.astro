@@ -15,10 +15,10 @@ import Layout from '../layouts/Layout.astro';
         <a href="#features">Features</a>
         <a href="https://discord.gg/8SFrcfhc" target="_blank">Discord</a>
         <a href="https://github.com/jkrperson/tentacles" target="_blank">GitHub</a>
-        <button class="navbar-cta" data-tally-open="VL808y" data-tally-layout="modal" data-tally-auto-close="1000">
-          Join Waitlist
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
-        </button>
+        <a href="#download" class="navbar-cta">
+          Download
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </a>
       </div>
     </div>
   </nav>
@@ -34,10 +34,10 @@ import Layout from '../layouts/Layout.astro';
         Manage swarms of coding agents and multitask like Tony Stark. Claude Code, Codex, the whole shabang...
       </p>
       <div class="hero-buttons">
-        <button class="btn btn-primary" data-tally-open="VL808y" data-tally-layout="modal" data-tally-auto-close="1000">
-          Join the Waitlist
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
-        </button>
+        <a href="#download" class="btn btn-primary">
+          Download Now
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </a>
         <a href="https://github.com/jkrperson/tentacles" class="btn btn-secondary">
           View on GitHub
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
@@ -385,21 +385,119 @@ import Layout from '../layouts/Layout.astro';
 
   </section>
 
-  <!-- Waitlist -->
-  <section class="waitlist" id="waitlist">
+  <!-- Download -->
+  <section class="download" id="download">
     <div class="container">
-      <h2 class="section-title">Get Early Access</h2>
-      <p class="section-subtitle">Tentacles is launching soon. Join the waitlist and we'll notify you when it's ready.</p>
+      <h2 class="section-title">Download Tentacles</h2>
+      <p class="section-subtitle">Get the latest release and start orchestrating your coding agents.</p>
 
-      <div class="waitlist-card">
-        <p class="waitlist-description">Be among the first to orchestrate swarms of coding agents from a single window.</p>
-        <button class="btn btn-primary" data-tally-open="VL808y" data-tally-layout="modal" data-tally-auto-close="1000">
-          Join the Waitlist
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
-        </button>
+      <div class="download-card">
+        <div class="platform-selector">
+          <label for="platform-select" class="platform-label">Select your platform</label>
+          <div class="platform-dropdown">
+            <select id="platform-select">
+              <option value="mac-arm">macOS (Apple Silicon)</option>
+              <option value="mac-intel">macOS (Intel)</option>
+              <option value="windows">Windows</option>
+              <option value="linux">Linux</option>
+            </select>
+            <svg class="dropdown-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+        </div>
+
+        <a id="download-btn" href="https://github.com/jkrperson/tentacles/releases/latest" class="btn btn-primary" target="_blank">
+          Download for macOS (Apple Silicon)
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </a>
+
+        <div class="install-instructions" id="instructions-mac-arm">
+          <h3>Running on macOS (Apple Silicon)</h3>
+          <p>Since the app is not code-signed, macOS will block it by default. Follow these steps after downloading:</p>
+          <ol>
+            <li>Download the <code>.dmg</code> file from the latest release</li>
+            <li>Open the <code>.dmg</code> and drag Tentacles to your Applications folder</li>
+            <li>On first launch, macOS will show a security warning — click <strong>Cancel</strong></li>
+            <li>Go to <strong>System Settings → Privacy & Security</strong>, scroll down, and click <strong>"Open Anyway"</strong> next to the Tentacles message</li>
+            <li>Alternatively, run this in Terminal to remove the quarantine flag:
+              <code>xattr -cr /Applications/Tentacles.app</code>
+            </li>
+          </ol>
+        </div>
+
+        <div class="install-instructions" id="instructions-mac-intel" style="display:none;">
+          <h3>Running on macOS (Intel)</h3>
+          <p>Since the app is not code-signed, macOS will block it by default. Follow these steps after downloading:</p>
+          <ol>
+            <li>Download the <code>.dmg</code> file from the latest release</li>
+            <li>Open the <code>.dmg</code> and drag Tentacles to your Applications folder</li>
+            <li>On first launch, macOS will show a security warning — click <strong>Cancel</strong></li>
+            <li>Go to <strong>System Settings → Privacy & Security</strong>, scroll down, and click <strong>"Open Anyway"</strong> next to the Tentacles message</li>
+            <li>Alternatively, run this in Terminal to remove the quarantine flag:
+              <code>xattr -cr /Applications/Tentacles.app</code>
+            </li>
+          </ol>
+        </div>
+
+        <div class="install-instructions" id="instructions-windows" style="display:none;">
+          <h3>Running on Windows</h3>
+          <ol>
+            <li>Download the <code>.exe</code> installer from the latest release</li>
+            <li>Run the installer — Windows SmartScreen may show a warning</li>
+            <li>Click <strong>"More info"</strong>, then <strong>"Run anyway"</strong></li>
+            <li>Follow the installation wizard to complete setup</li>
+          </ol>
+        </div>
+
+        <div class="install-instructions" id="instructions-linux" style="display:none;">
+          <h3>Running on Linux</h3>
+          <ol>
+            <li>Download the <code>.AppImage</code> or <code>.deb</code> file from the latest release</li>
+            <li>For <code>.AppImage</code>: make it executable and run it:
+              <code>chmod +x Tentacles-*.AppImage && ./Tentacles-*.AppImage</code>
+            </li>
+            <li>For <code>.deb</code> (Debian/Ubuntu):
+              <code>sudo dpkg -i Tentacles-*.deb</code>
+            </li>
+          </ol>
+        </div>
       </div>
     </div>
   </section>
+
+  <script>
+    const select = document.getElementById('platform-select') as HTMLSelectElement;
+    const downloadBtn = document.getElementById('download-btn') as HTMLAnchorElement;
+    const allInstructions = document.querySelectorAll('.install-instructions');
+
+    const labels: Record<string, string> = {
+      'mac-arm': 'Download for macOS (Apple Silicon)',
+      'mac-intel': 'Download for macOS (Intel)',
+      'windows': 'Download for Windows',
+      'linux': 'Download for Linux',
+    };
+
+    // Auto-detect platform
+    const ua = navigator.userAgent.toLowerCase();
+    if (ua.includes('win')) {
+      select.value = 'windows';
+    } else if (ua.includes('linux')) {
+      select.value = 'linux';
+    } else if (ua.includes('mac')) {
+      // Default is mac-arm, keep it
+    }
+    updatePlatform();
+
+    select.addEventListener('change', updatePlatform);
+
+    function updatePlatform() {
+      const platform = select.value;
+      downloadBtn.textContent = '';
+      downloadBtn.insertAdjacentHTML('beforeend', `${labels[platform]} <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`);
+      allInstructions.forEach(el => {
+        (el as HTMLElement).style.display = el.id === `instructions-${platform}` ? 'block' : 'none';
+      });
+    }
+  </script>
 
   <!-- Footer -->
   <footer class="footer">

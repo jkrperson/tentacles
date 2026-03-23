@@ -145,6 +145,7 @@ code {
   gap: 8px;
   padding: 8px 18px;
   background: transparent;
+  text-decoration: none;
   color: var(--color-text);
   border: 1px solid var(--color-text-muted);
   border-radius: 100px;
@@ -959,19 +960,19 @@ section {
   background: rgba(0, 0, 0, 0.85) !important;
 }
 
-/* ---- Waitlist ---- */
+/* ---- Download ---- */
 
-.waitlist {
+.download {
   border-top: 1px solid var(--color-border);
   text-align: center;
 }
 
-.waitlist-card {
+.download-card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   padding: 48px 32px;
-  max-width: 560px;
+  max-width: 640px;
   margin: 0 auto 48px;
   display: flex;
   flex-direction: column;
@@ -979,44 +980,112 @@ section {
   gap: 28px;
 }
 
-.waitlist-description {
-  color: var(--color-text-muted);
-  font-size: 1.05rem;
-  line-height: 1.6;
+.platform-selector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
 }
 
-.install-note {
+.platform-label {
   color: var(--color-text-muted);
-  font-size: 0.88rem;
+  font-size: 0.92rem;
 }
 
-.build-from-source h3 {
+.platform-dropdown {
+  position: relative;
+  width: 100%;
+  max-width: 300px;
+}
+
+.platform-dropdown select {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 12px 40px 12px 16px;
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.platform-dropdown select:hover {
+  border-color: var(--color-border-hover);
+}
+
+.platform-dropdown select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.platform-dropdown select option {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+.dropdown-chevron {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.install-instructions {
+  width: 100%;
+  text-align: left;
+  margin-top: 8px;
+}
+
+.install-instructions h3 {
   font-family: var(--font-heading);
   font-size: 1.1rem;
   font-weight: 600;
-  margin-bottom: 8px;
-}
-
-.build-from-source .code-block {
-  max-width: 480px;
-}
-
-.code-block {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 20px 24px;
-  margin-top: 32px;
-  max-width: 640px;
-  overflow-x: auto;
-}
-
-.code-block code {
-  background: none;
-  padding: 0;
-  font-size: 0.9rem;
+  margin-bottom: 12px;
   color: var(--color-text);
-  line-height: 1.8;
+}
+
+.install-instructions p {
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+.install-instructions ol {
+  list-style: decimal;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.install-instructions li {
+  color: var(--color-text-muted);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.install-instructions code {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--color-aqua);
+}
+
+.install-instructions strong {
+  color: var(--color-text);
 }
 
 /* ---- Footer ---- */

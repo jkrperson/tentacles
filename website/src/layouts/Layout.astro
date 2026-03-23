@@ -23,6 +23,10 @@ const { title, description = 'An IDE for orchestrating multiple Claude Code agen
   <body>
     <slot />
     <script async src="https://tally.so/widgets/embed.js"></script>
+    <script>
+      import { inject } from '@vercel/analytics';
+      inject();
+    </script>
   </body>
 </html>
 
