@@ -65,6 +65,7 @@ export function wireEvents({ ptyManager, fileWatcher, hookManager, loadSettings 
     if (exitCode !== 0) {
       const output = earlyOutput.get(id)
       // Strip ANSI escape codes for readable logs
+      // eslint-disable-next-line no-control-regex
       const clean = output?.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim()
       console.error(`[session] agent "${name}" crashed with exitCode=${exitCode}`)
       if (clean) {
