@@ -35,7 +35,7 @@ Tentacles lets you run as many Claude Code agents as you want from a single wind
 
 ---
 
-## Installation
+## Installation 
 
 ### macOS
 
