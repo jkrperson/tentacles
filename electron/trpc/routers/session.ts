@@ -18,7 +18,12 @@ export function createSessionRouter(deps: SessionDeps) {
     create: t.procedure
       .input(z.object({ name: z.string(), cwd: z.string(), agentType: z.string().optional() }))
       .mutation(async ({ input }) => {
-        return await deps.spawnAgent(input.name, input.cwd, (input.agentType as AgentType) ?? 'claude')
+        try {
+          return await deps.spawnAgent(input.name, input.cwd, (input.agentType as AgentType) ?? 'claude')
+        } catch (err) {
+          console.error('[session.create] error:', err)
+          throw err
+        }
       }),
 
     reattach: t.procedure

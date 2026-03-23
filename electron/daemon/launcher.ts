@@ -1,7 +1,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { spawn } from 'node:child_process'
+import { spawn, execSync } from 'node:child_process'
 import { homedir } from 'node:os'
 
 const __launcherDir = path.dirname(fileURLToPath(import.meta.url))
@@ -25,6 +25,30 @@ export function isDaemonRunning(): boolean {
     if (isNaN(pid)) return false
     // signal 0 checks if process exists without sending a signal
     process.kill(pid, 0)
+
+    // Verify this PID is actually a Tentacles daemon, not a reused PID
+    // after a system reboot. Check that the process command contains our daemon script.
+    try {
+      const cmd = execSync(`ps -p ${pid} -o command=`, { encoding: 'utf-8', timeout: 2000 }).trim()
+      if (!cmd.includes('daemon.mjs') && !cmd.includes('tentacles')) {
+        console.log(`[daemon] Stale PID ${pid} belongs to another process, cleaning up`)
+        try { fs.unlinkSync(PID_FILE) } catch { /* ignore */ }
+        try { fs.unlinkSync(getSocketPath()) } catch { /* ignore */ }
+        return false
+      }
+    } catch {
+      // ps failed — PID might have just died, treat as not running
+      return false
+    }
+
+    // Also verify the socket file exists — no socket means daemon can't accept connections
+    if (!fs.existsSync(getSocketPath())) {
+      console.log(`[daemon] PID ${pid} alive but socket missing, cleaning up`)
+      try { process.kill(pid, 'SIGTERM') } catch { /* ignore */ }
+      try { fs.unlinkSync(PID_FILE) } catch { /* ignore */ }
+      return false
+    }
+
     return true
   } catch {
     return false

@@ -124,11 +124,18 @@ export class PtyManager {
 
     if (this.daemonClient?.isConnected()) {
       const id = randomUUID()
-      const { pid } = await this.daemonClient.spawn(id, command, args, safeCwd, env ?? {})
-      this.daemonSessions.add(id)
-      return { id, pid }
+      try {
+        const { pid } = await this.daemonClient.spawn(id, command, args, safeCwd, env ?? {})
+        this.daemonSessions.add(id)
+        console.log(`[ptyManager] daemon spawn ok id="${id}" pid=${pid}`)
+        return { id, pid }
+      } catch (err) {
+        console.error(`[ptyManager] daemon spawn FAILED command="${command}" args=${JSON.stringify(args)} cwd="${safeCwd}"`, err)
+        throw err
+      }
     }
 
+    console.log(`[ptyManager] daemon not connected, falling back to local spawn command="${command}"`)
     // Fallback to local spawn if daemon is not connected
     return this._spawn(name, safeCwd, command, args, 'agent', env)
   }

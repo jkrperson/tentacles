@@ -19,8 +19,20 @@ export function wireEvents({ ptyManager, fileWatcher, hookManager, loadSettings 
   const sessionNames = new Map<string, string>()
 
   // --- PTY events → event emitter ---
+  // Buffer early output per session so we can log it if the agent crashes immediately
+  const earlyOutput = new Map<string, string>()
+  const EARLY_WINDOW_MS = 5000
+
   ptyManager.onData((id, data) => {
     ee.emit('session:data', { id, data })
+
+    // Capture early output for crash diagnostics
+    if (earlyOutput.has(id)) {
+      earlyOutput.set(id, (earlyOutput.get(id) ?? '') + data)
+    } else {
+      earlyOutput.set(id, data)
+      setTimeout(() => earlyOutput.delete(id), EARLY_WINDOW_MS)
+    }
   })
 
   ptyManager.onTitle((id, title) => {
@@ -48,6 +60,20 @@ export function wireEvents({ ptyManager, fileWatcher, hookManager, loadSettings 
   })
 
   ptyManager.onExit((id, exitCode) => {
+    const name = sessionNames.get(id) ?? id
+    console.log(`[session] exit id="${id}" name="${name}" exitCode=${exitCode}`)
+    if (exitCode !== 0) {
+      const output = earlyOutput.get(id)
+      // Strip ANSI escape codes for readable logs
+      const clean = output?.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim()
+      console.error(`[session] agent "${name}" crashed with exitCode=${exitCode}`)
+      if (clean) {
+        console.error(`[session] agent output:\n${clean}`)
+      } else {
+        console.error(`[session] no output captured — run the command manually to see the error`)
+      }
+    }
+    earlyOutput.delete(id)
     lastTitleStatus.delete(id)
 
     const hookInfo = hookManager.getInfo(id)

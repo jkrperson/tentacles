@@ -119,6 +119,14 @@ function handleRequest(client: net.Socket, tagged: TaggedRequest) {
       })
 
       ptyProcess.onExit(({ exitCode }: { exitCode: number }) => {
+        // Flush any buffered data before broadcasting exit,
+        // so clients see output from short-lived processes.
+        if (session.dataBuffer) {
+          const event: DaemonEvent = { event: 'data', id: session.id, data: session.dataBuffer }
+          session.dataBuffer = ''
+          session.flushScheduled = false
+          broadcast(event)
+        }
         scrollback.close()
         sessions.delete(request.id)
         broadcast({ event: 'exit', id: request.id, exitCode })

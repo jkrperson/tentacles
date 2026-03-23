@@ -44,6 +44,8 @@ export function createAgentSpawner(deps: SpawnerDeps) {
     const hookId = randomUUID()
     const hookPort = getHookPort()
 
+    console.log(`[spawn] agent="${agentType}" command="${rawCommand}" cwd="${cwd}"`)
+
     const hookSetup = adapter.setupHooks?.(hookId, hookPort) ?? null
     const extraArgs = hookSetup?.extraArgs ?? []
 
@@ -56,15 +58,21 @@ export function createAgentSpawner(deps: SpawnerDeps) {
     const mergedEnv = { ...spawnConfig.env, ...hookSetup?.env }
     const hasEnv = Object.keys(mergedEnv).length > 0
 
-    const result = await ptyManager.create(name, spawnConfig.cwd, spawnConfig.command, spawnConfig.args, hasEnv ? mergedEnv : undefined)
+    try {
+      const result = await ptyManager.create(name, spawnConfig.cwd, spawnConfig.command, spawnConfig.args, hasEnv ? mergedEnv : undefined)
 
-    if (hookSetup) {
-      registerHookSession(hookId, result.id, agentType)
-      hookManager.register(result.id, { hookId, agentType, hookCleanup: hookSetup.cleanup })
-      hookSetup.postSpawn?.()
+      if (hookSetup) {
+        registerHookSession(hookId, result.id, agentType)
+        hookManager.register(result.id, { hookId, agentType, hookCleanup: hookSetup.cleanup })
+        hookSetup.postSpawn?.()
+      }
+
+      console.log(`[spawn] success id="${result.id}" pid=${result.pid}`)
+      return { id: result.id, pid: result.pid, hookId }
+    } catch (err) {
+      console.error(`[spawn] FAILED agent="${agentType}" command="${rawCommand}" cwd="${cwd}"`, err)
+      throw err
     }
-
-    return { id: result.id, pid: result.pid, hookId }
   }
 
   async function reattach(sessionId: string, hookId: string, _name: string, _cwd: string, agentType?: AgentType): Promise<{ id: string; scrollbackAvailable: boolean; initialStatus?: SessionStatus; initialStatusDetail?: string | null } | null> {

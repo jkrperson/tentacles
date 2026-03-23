@@ -4,7 +4,7 @@ import * as net from 'node:net'
 import { existsSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
-import { getSocketPath, ensureDaemon, isDaemonRunning } from './launcher'
+import { getSocketPath, ensureDaemon, isDaemonRunning, getDaemonPid, launchDaemon } from './launcher'
 import type {
   DaemonRequest,
   DaemonResponse,
@@ -32,6 +32,23 @@ export class DaemonClient extends EventEmitter {
       await this.waitForDaemon(5000)
     }
     await this.connect()
+
+    // Verify the daemon is healthy with a ping
+    try {
+      await this.ping()
+    } catch {
+      console.log('[daemon] Connected but ping failed — restarting daemon')
+      this.disconnect()
+      this.intentionalDisconnect = false
+      // Force a fresh daemon
+      const pid = getDaemonPid()
+      if (pid) {
+        try { process.kill(pid, 'SIGTERM') } catch { /* ignore */ }
+      }
+      launchDaemon()
+      await this.waitForDaemon(5000)
+      await this.connect()
+    }
   }
 
   /** Connect to the daemon socket. */
