@@ -222,7 +222,7 @@ code {
   gap: 16px;
   justify-content: center;
   flex-wrap: wrap;
-  margin-bottom: 80px;
+  margin-bottom: 12px;
 }
 
 /* ---- Product Screenshot Placeholder ---- */
@@ -972,7 +972,7 @@ section {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
   gap: 10px;
-  padding-right: 20px;
+  padding-right: 28px;
 }
 
 .download-platform-icon {
@@ -1048,7 +1048,8 @@ section {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 4px;
+  margin-bottom: 60px;
 }
 
 .hero-install-hint p {
