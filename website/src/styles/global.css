@@ -966,14 +966,18 @@ section {
   position: relative;
   display: inline-flex;
   align-items: stretch;
-  border-radius: 100px;
-  overflow: hidden;
 }
 
 .download-main {
-  border-radius: 0;
+  border-radius: 100px 0 0 100px;
   gap: 10px;
-  padding-right: 28px;
+  padding-right: 24px;
+}
+
+.download-main:hover {
+  background: var(--color-accent-dim);
+  color: white;
+  border-color: var(--color-accent-dim);
 }
 
 .download-platform-icon {
@@ -985,33 +989,34 @@ section {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 12px;
-  background: var(--color-accent-dim);
-  border: none;
-  border-left: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 0;
-  color: white;
+  width: 44px;
+  background: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  border-left: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 0 100px 100px 0;
+  color: var(--color-bg);
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .download-chevron:hover {
-  background: var(--color-accent);
+  background: var(--color-accent-dim);
+  border-color: var(--color-accent-dim);
 }
 
 .platform-menu {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + 8px);
+  left: 0;
   right: 0;
-  min-width: 200px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 6px;
   display: none;
   flex-direction: column;
   z-index: 100;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 
 .platform-menu.open {
@@ -1025,12 +1030,13 @@ section {
   padding: 10px 14px;
   background: none;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   color: var(--color-text-muted);
   font-family: var(--font-sans);
   font-size: 0.92rem;
   cursor: pointer;
   transition: all 0.15s;
+  white-space: nowrap;
 }
 
 .platform-option:hover {
@@ -1040,6 +1046,7 @@ section {
 
 .platform-option.active {
   color: var(--color-accent);
+  background: var(--color-accent-glow);
 }
 
 /* ---- Install Hints ---- */

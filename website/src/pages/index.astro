@@ -426,6 +426,7 @@ import Layout from '../layouts/Layout.astro';
     const menu = document.getElementById('platform-menu')!;
     const label = document.getElementById('download-label')!;
     const icon = document.getElementById('platform-icon')!;
+    const downloadLink = document.getElementById('download-link') as HTMLAnchorElement;
     const hints = document.querySelectorAll('.hero-install-hint');
 
     const icons: Record<string, string> = {
@@ -440,12 +441,54 @@ import Layout from '../layouts/Layout.astro';
       linux: 'Download for Linux',
     };
 
-    let current = 'mac';
+    // Asset filenames — updated per release
+    const assetNames: Record<string, string> = {
+      'mac-arm': 'Tentacles-Mac-arm64.dmg',
+      'mac-intel': 'Tentacles-Mac-x64.dmg',
+      windows: 'Tentacles-Windows-Setup.exe',
+      linux: 'Tentacles-Linux.AppImage',
+    };
 
-    // Auto-detect platform
+    let current = 'mac';
+    let latestTag = 'latest'; // will be replaced by API response
+
+    // Detect platform + architecture
     const ua = navigator.userAgent.toLowerCase();
     if (ua.includes('win')) current = 'windows';
     else if (ua.includes('linux')) current = 'linux';
+
+    // Detect Mac arch — default arm64 for modern Macs
+    function getMacArch(): 'mac-arm' | 'mac-intel' {
+      // WebGL renderer can hint at architecture
+      try {
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl');
+        if (gl) {
+          const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+          if (dbg) {
+            const renderer = gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL).toLowerCase();
+            if (renderer.includes('apple m') || renderer.includes('apple gpu')) return 'mac-arm';
+            if (renderer.includes('intel')) return 'mac-intel';
+          }
+        }
+      } catch {}
+      return 'mac-arm'; // default to Apple Silicon
+    }
+
+    function getAssetKey(platform: string): string {
+      if (platform === 'mac') return getMacArch();
+      return platform;
+    }
+
+    function getDownloadUrl(platform: string): string {
+      const key = getAssetKey(platform);
+      const file = assetNames[key];
+      if (latestTag === 'latest') {
+        return `https://github.com/jkrperson/tentacles/releases/latest/download/${file}`;
+      }
+      return `https://github.com/jkrperson/tentacles/releases/download/${latestTag}/${file}`;
+    }
+
     setPlatform(current);
 
     // Toggle dropdown
@@ -469,17 +512,28 @@ import Layout from '../layouts/Layout.astro';
       current = platform;
       label.textContent = labels[platform];
       icon.innerHTML = icons[platform];
-      const hintKey = platform;
+      downloadLink.href = getDownloadUrl(platform);
+      downloadLink.removeAttribute('target');
       hints.forEach(el => {
-        (el as HTMLElement).style.display = el.id === `install-hint-${hintKey}` ? 'flex' : 'none';
+        (el as HTMLElement).style.display = el.id === `install-hint-${platform}` ? 'flex' : 'none';
       });
-      // Highlight active option
       menu.querySelectorAll('.platform-option').forEach(opt => {
         opt.classList.toggle('active', (opt as HTMLElement).dataset.platform === platform);
       });
     }
 
-    // Fetch GitHub stars
+    // Fetch latest release tag + GitHub stars
+    fetch('https://api.github.com/repos/jkrperson/tentacles/releases/latest')
+      .then(r => r.json())
+      .then(data => {
+        if (data.tag_name) {
+          latestTag = data.tag_name;
+          // Re-apply current platform to update URL with real tag
+          downloadLink.href = getDownloadUrl(current);
+        }
+      })
+      .catch(() => {});
+
     fetch('https://api.github.com/repos/jkrperson/tentacles')
       .then(r => r.json())
       .then(data => {
