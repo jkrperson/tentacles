@@ -1,4 +1,4 @@
-import { app, BrowserWindow, nativeTheme, shell } from 'electron'
+import { app, BrowserWindow, dialog, Menu, nativeTheme, shell } from 'electron'
 import { fileURLToPath } from 'node:url'
 import * as path from 'node:path'
 import * as fs from 'node:fs'
@@ -11,7 +11,7 @@ import { LspManager } from './lspManager'
 import { DaemonClient } from './daemon/client'
 import { removeScrollback } from './daemon/scrollback'
 import { getScrollbackDir } from './daemon/launcher'
-import { initAutoUpdater, autoUpdater } from './updater'
+import { initUpdater, checkForUpdates } from './updater'
 import { cleanupAllAdapters } from './agents/registry'
 import { startHookServer, stopHookServer } from './hookServer'
 import { startRendererServer } from './rendererServer'
@@ -113,7 +113,7 @@ const appRouter = createRouter({
   themesDir,
   soundsDir,
   getWindow: () => win,
-  getAutoUpdater: () => autoUpdater,
+  checkForUpdates,
   spawnAgent: spawner.spawn,
   reattachAgent: spawner.reattach,
   daemonClient,
@@ -174,16 +174,106 @@ function createWindow() {
     ipcHandler.attachWindow(win)
   }
 
+  // Build application menu with accelerators for shortcuts that macOS would
+  // otherwise intercept (e.g. Cmd+` is "switch window" at the OS level).
+  const menu = Menu.buildFromTemplate([
+    {
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' },
+      ],
+    },
+    {
+      label: 'Terminal',
+      submenu: [
+        {
+          label: 'New Terminal',
+          accelerator: 'CommandOrControl+`',
+          click: () => {
+            win?.webContents.executeJavaScript(
+              `window.dispatchEvent(new CustomEvent('menu-shortcut', { detail: 'terminal.create' }))`
+            )
+          },
+        },
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        { role: 'close' },
+      ],
+    },
+  ])
+  Menu.setApplicationMenu(menu)
+
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL)
     win.webContents.openDevTools()
   } else {
     win.loadURL(rendererURL!)
-    initAutoUpdater()
+    initUpdater(app.getVersion())
   }
 }
 
 // --- Lifecycle ---
+let forceQuit = false
+
+app.on('before-quit', (event) => {
+  if (forceQuit) return
+
+  event.preventDefault()
+
+  const focusedWindow = BrowserWindow.getFocusedWindow() ?? win
+  const choice = dialog.showMessageBoxSync(focusedWindow!, {
+    type: 'question',
+    buttons: ['Quit', 'Cancel'],
+    defaultId: 1,
+    cancelId: 1,
+    title: 'Quit Tentacles',
+    message: 'Are you sure you want to quit?',
+    detail: 'Any running sessions will be stopped.',
+  })
+
+  if (choice === 0) {
+    forceQuit = true
+    app.quit()
+  }
+})
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()

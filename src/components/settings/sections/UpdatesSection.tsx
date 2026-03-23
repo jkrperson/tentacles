@@ -12,6 +12,13 @@ export function UpdatesSection() {
     return () => sub.unsubscribe()
   }, [])
 
+  const handleDownload = () => {
+    if (!updateStatus) return
+    const url = updateStatus.downloadUrl || updateStatus.releaseUrl
+      || 'https://github.com/jkrperson/tentacles/releases/latest'
+    trpc.app.openExternal.mutate({ url })
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -22,30 +29,19 @@ export function UpdatesSection() {
               ? 'Checking for updates...'
               : updateStatus.status === 'available'
                 ? `v${updateStatus.version} available`
-                : updateStatus.status === 'downloading'
-                  ? `Downloading... ${Math.round(updateStatus.percent ?? 0)}%`
-                  : updateStatus.status === 'ready'
-                    ? 'Update ready — restart to apply'
-                    : `Update error: ${updateStatus.message ?? 'unknown'}`}
+                : `Update error: ${updateStatus.message ?? 'unknown'}`}
         </span>
         {updateStatus?.status === 'available' ? (
           <button
-            onClick={() => trpc.updater.download.mutate()}
+            onClick={handleDownload}
             className="px-3 py-1 text-[12px] bg-[var(--t-accent)] hover:bg-[var(--t-accent-hover)] text-white rounded-md transition-colors"
           >
             Download
           </button>
-        ) : updateStatus?.status === 'ready' ? (
-          <button
-            onClick={() => trpc.updater.install.mutate()}
-            className="px-3 py-1 text-[12px] bg-green-600 hover:bg-green-500 text-white rounded-md transition-colors"
-          >
-            Restart
-          </button>
         ) : (
           <button
             onClick={() => trpc.updater.check.mutate()}
-            disabled={updateStatus?.status === 'checking' || updateStatus?.status === 'downloading'}
+            disabled={updateStatus?.status === 'checking'}
             className="px-3 py-1 text-[12px] text-zinc-400 hover:text-zinc-200 border border-[var(--t-border-input)] hover:border-[var(--t-border-input-hover)] rounded-md transition-colors disabled:opacity-40"
           >
             Check

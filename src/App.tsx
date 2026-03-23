@@ -16,6 +16,7 @@ import { useSessionSubscriptions } from './hooks/useSessionSubscriptions'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useSoundPlayer } from './hooks/useSoundPlayer'
 import { useUIStore } from './stores/uiStore'
+import { UpdateBanner } from './components/UpdateBanner'
 
 function App() {
   const loadSettings = useSettingsStore((s) => s.loadSettings)
@@ -84,41 +85,40 @@ function App() {
           Tentacles
         </span>
         <div
-          className="ml-2 flex items-center bg-zinc-800/50 rounded-md p-0.5 border border-zinc-700/50"
+          className="ml-2 flex items-center bg-zinc-800/50 rounded-md p-0.5 border border-zinc-700/50 cursor-pointer"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          onClick={toggleViewMode}
+          title={`Sessions: ${viewMode === 'flat' ? 'flat view' : 'tree view'}`}
         >
-          <button
-            onClick={() => viewMode !== 'flat' && toggleViewMode()}
+          <div
             className={`p-1 rounded transition-all ${
               viewMode === 'flat'
                 ? 'bg-zinc-700 text-zinc-200 shadow-sm'
-                : 'text-zinc-600 hover:text-zinc-400'
+                : 'text-zinc-600'
             }`}
-            title="Flat view"
           >
             <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
               <path d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/>
             </svg>
-          </button>
-          <button
-            onClick={() => viewMode !== 'grouped' && toggleViewMode()}
+          </div>
+          <div
             className={`p-1 rounded transition-all ${
               viewMode === 'grouped'
                 ? 'bg-zinc-700 text-zinc-200 shadow-sm'
-                : 'text-zinc-600 hover:text-zinc-400'
+                : 'text-zinc-600'
             }`}
-            title="Grouped view"
           >
             <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
               <path d="M2 2a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3A.5.5 0 0 1 2 2zm2 4a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 4 6zm0 4a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 4 10zm-2 4a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3A.5.5 0 0 1 2 14z"/>
             </svg>
-          </button>
+          </div>
         </div>
         <div className="flex-1" />
         <div className="pr-3">
           <UserAvatar />
         </div>
       </div>
+      <UpdateBanner />
       <div className="flex-1 min-h-0 relative">
         <div className="absolute inset-0" style={{ display: isSettingsOpen ? 'none' : undefined }}>
           <Layout />

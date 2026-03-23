@@ -32,7 +32,7 @@ export default defineConfig({
               fileName: () => '[name].cjs',
             },
             rollupOptions: {
-              external: ['node-pty', 'ws', 'electron-updater', 'electron-trpc', 'express'],
+              external: ['node-pty', 'ws', 'electron-trpc', 'express'],
             },
           },
         },

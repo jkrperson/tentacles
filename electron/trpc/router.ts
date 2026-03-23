@@ -17,7 +17,6 @@ import type { LspManager } from '../lspManager'
 import type { DaemonClient } from '../daemon/client'
 import type { AgentType } from '../agents/types'
 import type { SessionStatus } from '../../src/types'
-import type { autoUpdater as AutoUpdaterType } from 'electron-updater'
 import type { AuthManager } from '../authManager'
 
 export interface RouterDeps {
@@ -31,7 +30,7 @@ export interface RouterDeps {
   soundsDir: string
   projectsConfigDir: string
   getWindow: () => BrowserWindow | null
-  getAutoUpdater: () => typeof AutoUpdaterType | null
+  checkForUpdates: () => Promise<void>
   spawnAgent: (name: string, cwd: string, agentType: AgentType, resumeId?: string) => Promise<{ id: string; pid: number; hookId: string }>
   reattachAgent: (sessionId: string, hookId: string, name: string, cwd: string, agentType?: AgentType) => Promise<{ id: string; scrollbackAvailable: boolean; initialStatus?: SessionStatus; initialStatusDetail?: string | null; recoveredClaudeSessionId?: string } | null>
   daemonClient: DaemonClient
@@ -62,7 +61,7 @@ export function createRouter(deps: RouterDeps) {
       lspManager: deps.lspManager,
     }),
     updater: createUpdaterRouter({
-      getAutoUpdater: deps.getAutoUpdater,
+      checkForUpdates: deps.checkForUpdates,
     }),
     auth: createAuthRouter({
       authManager: deps.authManager,
