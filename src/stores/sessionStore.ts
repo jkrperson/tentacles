@@ -166,7 +166,14 @@ export const useSessionStore = create<SessionState>((set, get) => {
         return { tabOrder }
       }),
 
-    setActiveSession: (id) => set({ activeSessionId: id }),
+    setActiveSession: (id) =>
+      set((state) => {
+        if (!id) return { activeSessionId: id }
+        const tabOrder = state.tabOrder.includes(id)
+          ? state.tabOrder
+          : [...state.tabOrder, id]
+        return { activeSessionId: id, tabOrder }
+      }),
 
     updateStatus: (id, status, exitCode) =>
       set((state) => {
