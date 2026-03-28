@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { GitPanelViewMode } from '../types'
+import { useSettingsStore } from './settingsStore'
 
 export type CenterView = 'terminal' | 'workspace' | 'projectSettings'
 export type MainPanelMode = 'session' | 'editor'
@@ -48,6 +49,7 @@ interface UIState {
 
   // Sidebar view mode (flat vs grouped)
   sidebarViewMode: 'flat' | 'grouped'
+  setSidebarViewMode: (mode: 'flat' | 'grouped') => void
   toggleSidebarViewMode: () => void
 
   // Git panel view mode
@@ -106,7 +108,12 @@ export const useUIStore = create<UIState>((set) => ({
 
   // Sidebar view mode
   sidebarViewMode: 'flat',
-  toggleSidebarViewMode: () => set((s) => ({ sidebarViewMode: s.sidebarViewMode === 'flat' ? 'grouped' : 'flat' })),
+  setSidebarViewMode: (mode) => set({ sidebarViewMode: mode }),
+  toggleSidebarViewMode: () => set((s) => {
+    const next = s.sidebarViewMode === 'flat' ? 'grouped' : 'flat'
+    useSettingsStore.getState().saveSettings({ sidebarViewMode: next })
+    return { sidebarViewMode: next }
+  }),
 
   // Git panel view mode
   gitPanelViewMode: 'flat',

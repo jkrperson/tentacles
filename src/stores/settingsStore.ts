@@ -24,6 +24,7 @@ const defaultSettings: AppSettings = {
   scrollSpeed: 3,
   enableMediaPanel: false,
   customKeybindings: {},
+  sidebarViewMode: 'flat',
 }
 
 interface SettingsState {

@@ -52,9 +52,13 @@ function App() {
     applyThemeToDOM(resolvedTheme)
   }, [resolvedTheme])
 
-  // Load projects after settings are loaded
+  // Load projects and restore UI preferences after settings are loaded
   useEffect(() => {
-    if (settingsLoaded) loadProjects()
+    if (!settingsLoaded) return
+    loadProjects()
+    // Restore persisted sidebar view mode
+    const saved = useSettingsStore.getState().settings.sidebarViewMode
+    if (saved) useUIStore.getState().setSidebarViewMode(saved)
   }, [settingsLoaded, loadProjects])
 
   // Initialize the single-listener data router for all terminal panels.
