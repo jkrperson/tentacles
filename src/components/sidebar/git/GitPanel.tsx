@@ -18,7 +18,7 @@ export function GitPanel({ onToggle }: GitPanelProps) {
   })
   const setGitStatuses = useProjectStore((s) => s.setGitStatuses)
   const setGitDiffStats = useProjectStore((s) => s.setGitDiffStats)
-  const setActiveDiff = useProjectStore((s) => s.setActiveDiff)
+  const openDiff = useProjectStore((s) => s.openDiff)
   const [commitMsg, setCommitMsg] = useState('')
   const [loading, setLoading] = useState<string | null>(null)
   const [showBranchMenu, setShowBranchMenu] = useState(false)
@@ -251,8 +251,8 @@ export function GitPanel({ onToggle }: GitPanelProps) {
 
   const handleFileClick = useCallback((filePath: string, staged: boolean) => {
     if (!activeProjectId) return
-    setActiveDiff(activeProjectId, { filePath, staged })
-  }, [activeProjectId, setActiveDiff])
+    openDiff(activeProjectId, { filePath, staged })
+  }, [activeProjectId, openDiff])
 
   return (
     <div className="flex flex-col h-full bg-[var(--t-bg-surface)]">

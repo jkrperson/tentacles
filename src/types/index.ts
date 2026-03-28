@@ -150,6 +150,8 @@ export interface ProjectFileTreeState {
   gitAhead: number
   gitBehind: number
   activeDiff: DiffViewState | null
+  openDiffs: DiffViewState[]
+  selectedDiffPath: string | null
   gitDiffStats: Map<string, FileDiffStat>
 }
 
@@ -205,6 +207,7 @@ export interface AppSettings {
   scrollSpeed: number
   enableMediaPanel: boolean
   customKeybindings: Record<string, string>
+  sidebarViewMode?: 'flat' | 'grouped'
 }
 
 export interface LspServerStatus {

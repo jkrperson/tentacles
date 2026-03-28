@@ -38,7 +38,16 @@ export function EditorPanel() {
     const apId = s.activeProjectId
     return apId ? s.fileTreeCache.get(apId)?.activeDiff ?? null : null
   })
+  const selectedDiffPath = useProjectStore((s) => {
+    const apId = s.activeProjectId
+    return apId ? s.fileTreeCache.get(apId)?.selectedDiffPath ?? null : null
+  })
+  const openDiffs = useProjectStore((s) => {
+    const apId = s.activeProjectId
+    return apId ? s.fileTreeCache.get(apId)?.openDiffs ?? [] : []
+  })
   const setActiveDiff = useProjectStore((s) => s.setActiveDiff)
+  const closeDiff = useProjectStore((s) => s.closeDiff)
   const closeFile = useProjectStore((s) => s.closeFile)
   const openFile = useProjectStore((s) => s.openFile)
   const themeSetting = useSettingsStore((s) => s.settings.theme)
@@ -453,13 +462,18 @@ export function EditorPanel() {
   }
 
   const handleCloseDiff = useCallback(() => {
-    if (activeProjectId) setActiveDiff(activeProjectId, null)
-  }, [activeProjectId, setActiveDiff])
+    if (activeProjectId) {
+      if (selectedDiffPath) {
+        closeDiff(activeProjectId, selectedDiffPath)
+      }
+      setActiveDiff(activeProjectId, null)
+    }
+  }, [activeProjectId, selectedDiffPath, closeDiff, setActiveDiff])
 
-  if (openFiles.length === 0 && !activeDiff) return null
+  if (openFiles.length === 0 && openDiffs.length === 0 && !activeDiff) return null
 
-  // Show DiffViewer when activeDiff is set
-  if (activeDiff && activeProjectId) {
+  // Show DiffViewer when a diff tab is selected
+  if (selectedDiffPath && activeDiff && activeProjectId) {
     return (
       <DiffViewer
         filePath={activeDiff.filePath}

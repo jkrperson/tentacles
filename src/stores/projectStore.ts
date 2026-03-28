@@ -34,6 +34,11 @@ interface ProjectState {
   openFile: (projectId: string, path: string) => void
   closeFile: (projectId: string, path: string) => void
   closeOtherFiles: (projectId: string, path: string) => void
+
+  // Diff tab actions
+  openDiff: (projectId: string, diff: DiffViewState) => void
+  closeDiff: (projectId: string, filePath: string) => void
+  setSelectedDiff: (projectId: string, filePath: string | null) => void
 }
 
 // Priority order for folder propagation (higher index = higher priority)
@@ -58,6 +63,8 @@ function emptyFileTreeState(): ProjectFileTreeState {
     gitAhead: 0,
     gitBehind: 0,
     activeDiff: null,
+    openDiffs: [],
+    selectedDiffPath: null,
     gitDiffStats: new Map(),
   }
 }
@@ -292,7 +299,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         ? cache.openFiles
         : [...cache.openFiles, path]
       const fileTreeCache = new Map(state.fileTreeCache)
-      fileTreeCache.set(projectId, { ...cache, openFiles, selectedFilePath: path })
+      fileTreeCache.set(projectId, { ...cache, openFiles, selectedFilePath: path, selectedDiffPath: null, activeDiff: null })
       return { fileTreeCache }
     })
     useUIStore.getState().setMainPanelMode('editor')
@@ -323,6 +330,48 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const selectedFilePath = openFiles.length > 0 ? path : null
       const fileTreeCache = new Map(state.fileTreeCache)
       fileTreeCache.set(projectId, { ...cache, openFiles, selectedFilePath })
+      return { fileTreeCache }
+    }),
+
+  openDiff: (projectId, diff) => {
+    set((state) => {
+      const cache = state.fileTreeCache.get(projectId)
+      if (!cache) return state
+      const exists = cache.openDiffs.some((d) => d.filePath === diff.filePath && d.staged === diff.staged)
+      const openDiffs = exists ? cache.openDiffs : [...cache.openDiffs, diff]
+      const fileTreeCache = new Map(state.fileTreeCache)
+      fileTreeCache.set(projectId, { ...cache, openDiffs, selectedDiffPath: diff.filePath, activeDiff: diff })
+      return { fileTreeCache }
+    })
+    useUIStore.getState().setMainPanelMode('editor')
+  },
+
+  closeDiff: (projectId, filePath) =>
+    set((state) => {
+      const cache = state.fileTreeCache.get(projectId)
+      if (!cache) return state
+      const idx = cache.openDiffs.findIndex((d) => d.filePath === filePath)
+      if (idx === -1) return state
+      const openDiffs = cache.openDiffs.filter((d) => d.filePath !== filePath)
+      let selectedDiffPath = cache.selectedDiffPath
+      let activeDiff = cache.activeDiff
+      if (selectedDiffPath === filePath) {
+        const next = openDiffs[Math.min(idx, openDiffs.length - 1)] ?? null
+        selectedDiffPath = next?.filePath ?? null
+        activeDiff = next
+      }
+      const fileTreeCache = new Map(state.fileTreeCache)
+      fileTreeCache.set(projectId, { ...cache, openDiffs, selectedDiffPath, activeDiff })
+      return { fileTreeCache }
+    }),
+
+  setSelectedDiff: (projectId, filePath) =>
+    set((state) => {
+      const cache = state.fileTreeCache.get(projectId)
+      if (!cache) return state
+      const diff = cache.openDiffs.find((d) => d.filePath === filePath) ?? null
+      const fileTreeCache = new Map(state.fileTreeCache)
+      fileTreeCache.set(projectId, { ...cache, selectedDiffPath: filePath, activeDiff: diff })
       return { fileTreeCache }
     }),
 }))
