@@ -17,6 +17,7 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useSoundPlayer } from './hooks/useSoundPlayer'
 import { useUIStore } from './stores/uiStore'
 import { UpdateBanner } from './components/UpdateBanner'
+import { DictationOverlay } from './components/DictationOverlay'
 
 function App() {
   const loadSettings = useSettingsStore((s) => s.loadSettings)
@@ -74,6 +75,7 @@ function App() {
     <div className="h-full flex flex-col bg-[var(--t-bg-base)]">
       <ConfirmModal />
       <ShortcutOverlay />
+      <DictationOverlay />
       {/* Login modal overlay */}
       {authInitialized && !user && <LoginScreen />}
       {/* macOS traffic light area */}

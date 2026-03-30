@@ -12,6 +12,7 @@ import { LspSection } from './sections/LspSection'
 import { UpdatesSection } from './sections/UpdatesSection'
 import { AdvancedSection } from './sections/AdvancedSection'
 import { AgentsSection } from './sections/AgentsSection'
+import { DictationSection } from './sections/DictationSection'
 
 export type SettingsSection =
   | 'general'
@@ -21,6 +22,7 @@ export type SettingsSection =
   | 'notifications'
   | 'editor'
   | 'keybindings'
+  | 'dictation'
   | 'lsp'
   | 'updates'
   | 'advanced'
@@ -33,6 +35,7 @@ const SECTION_TITLES: Record<SettingsSection, string> = {
   notifications: 'Notifications',
   editor: 'Editor',
   keybindings: 'Keybindings',
+  dictation: 'Dictation',
   lsp: 'Language Servers',
   updates: 'Updates',
   advanced: 'Advanced',
@@ -99,6 +102,8 @@ export function SettingsPage() {
         return <EditorSection />
       case 'keybindings':
         return <KeybindingsSection />
+      case 'dictation':
+        return <DictationSection draft={draft} onUpdate={handleUpdate} />
       case 'lsp':
         return <LspSection draft={draft} onUpdate={handleUpdate} />
       case 'updates':

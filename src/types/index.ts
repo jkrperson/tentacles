@@ -184,6 +184,21 @@ export interface CustomSoundFile {
   filename: string   // actual filename on disk
 }
 
+export interface DictationSettings {
+  serverUrl: string
+  autoInsert: boolean
+  micDeviceId: string           // '' = system default
+  micSensitivity: number        // 1–10, maps to silence threshold
+  noiseSuppression: number      // 1–10, maps to cleanup aggressiveness
+}
+
+export interface DictationUsage {
+  usedSeconds: number
+  limitSeconds: number
+  tier: string
+  periodEnd: string
+}
+
 export interface AppSettings {
   maxSessions: number
   defaultProjectPath: string
@@ -208,6 +223,7 @@ export interface AppSettings {
   enableMediaPanel: boolean
   customKeybindings: Record<string, string>
   sidebarViewMode?: 'flat' | 'grouped'
+  dictation: DictationSettings
 }
 
 export interface LspServerStatus {

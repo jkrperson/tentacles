@@ -6,6 +6,7 @@ import { useTerminalStore } from '../stores/terminalStore'
 import { useWorkspaceStore, sessionBelongsToProject } from '../stores/workspaceStore'
 import { useConfirmStore } from '../stores/confirmStore'
 import { useUIStore } from '../stores/uiStore'
+import { useDictationStore } from '../stores/dictationStore'
 import { resolveKeys, parseKeys, matchesEvent } from '../shortcuts'
 import { trpc } from '../trpc'
 
@@ -74,6 +75,13 @@ export function useKeyboardShortcuts() {
             doClose()
           }
         }
+        return
+      }
+
+      // Dictation toggle
+      if (m('dictation.toggle')) {
+        e.preventDefault()
+        useDictationStore.getState().toggle()
         return
       }
 

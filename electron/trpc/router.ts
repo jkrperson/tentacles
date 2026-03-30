@@ -1,3 +1,4 @@
+import * as fs from 'node:fs'
 import { BrowserWindow } from 'electron'
 import { t } from './trpc'
 import { createSessionRouter } from './routers/session'
@@ -10,6 +11,7 @@ import { createUpdaterRouter } from './routers/updater'
 import { createAppRouter } from './routers/app'
 import { createAuthRouter } from './routers/auth'
 import { createProjectConfigRouter } from './routers/projectConfig'
+import { createDictationRouter } from './routers/dictation'
 import type { PtyManager } from '../ptyManager'
 import type { FileWatcher } from '../fileWatcher'
 import type { GitManager } from '../gitManager'
@@ -75,6 +77,20 @@ export function createRouter(deps: RouterDeps) {
     }),
     projectConfig: createProjectConfigRouter({
       projectsConfigDir: deps.projectsConfigDir,
+    }),
+    dictation: createDictationRouter({
+      authManager: deps.authManager,
+      getServerUrl: () => {
+        const isDev = !!process.env['VITE_DEV_SERVER_URL']
+        const defaultUrl = isDev ? 'http://localhost:3001' : 'https://stt.tentacles.sh'
+        try {
+          const raw = fs.readFileSync(deps.settingsPath, 'utf-8')
+          const settings = JSON.parse(raw)
+          return settings.dictation?.serverUrl || defaultUrl
+        } catch {
+          return defaultUrl
+        }
+      },
     }),
   })
 }

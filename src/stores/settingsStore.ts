@@ -25,6 +25,13 @@ const defaultSettings: AppSettings = {
   enableMediaPanel: false,
   customKeybindings: {},
   sidebarViewMode: 'flat',
+  dictation: {
+    serverUrl: 'https://stt.tentacles.sh',
+    autoInsert: true,
+    micDeviceId: '',
+    micSensitivity: 5,
+    noiseSuppression: 5,
+  },
 }
 
 interface SettingsState {
@@ -45,7 +52,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   loadSettings: async () => {
     try {
       const saved = await trpc.app.getSettings.query() as AppSettings & Record<string, unknown>
-      const merged = { ...defaultSettings, ...saved }
+      const merged = {
+        ...defaultSettings,
+        ...saved,
+        dictation: { ...defaultSettings.dictation, ...(saved.dictation ?? {}) },
+      }
 
       // Migration: convert old *CliPath fields to agents[] if not yet migrated
       if (!saved.agents) {

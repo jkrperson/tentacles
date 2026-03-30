@@ -73,6 +73,12 @@ export class AuthManager {
     return this.currentUser
   }
 
+  /** Get the current Supabase access token (auto-refreshed). */
+  async getAccessToken(): Promise<string | null> {
+    const { data } = await this.supabase.auth.getSession()
+    return data.session?.access_token ?? null
+  }
+
   /** Start the OAuth login flow. Returns a promise that resolves when callback is handled. */
   async startLogin(): Promise<GitHubUser> {
     const redirectUrl = `http://localhost:${CALLBACK_PORT}/callback`

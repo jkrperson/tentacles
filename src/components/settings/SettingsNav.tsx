@@ -35,6 +35,12 @@ const SECTION_ICONS: Record<SettingsSection, JSX.Element> = {
       <path d="M4.5 12.5A.5.5 0 0 1 5 12h3a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5zm0-2A.5.5 0 0 1 5 10h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5zm0-2A.5.5 0 0 1 5 8h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5zm0-2A.5.5 0 0 1 5 6h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5z"/>
     </svg>
   ),
+  dictation: (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M3.5 6.5A.5.5 0 0 1 4 7v1a4 4 0 0 0 8 0V7a.5.5 0 0 1 1 0v1a5 5 0 0 1-4.5 4.975V15h3a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1h3v-2.025A5 5 0 0 1 3 8V7a.5.5 0 0 1 .5-.5z"/>
+      <path d="M10 8a2 2 0 1 1-4 0V3a2 2 0 1 1 4 0v5zM8 0a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V3a3 3 0 0 0-3-3z"/>
+    </svg>
+  ),
   keybindings: (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
       <path d="M14 5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h12zM2 4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H2z"/>
@@ -67,6 +73,7 @@ const SECTION_LABELS: Record<SettingsSection, string> = {
   notifications: 'Notifications',
   editor: 'Editor',
   keybindings: 'Keybindings',
+  dictation: 'Dictation',
   lsp: 'Language Servers',
   updates: 'Updates',
   advanced: 'Advanced',
@@ -80,6 +87,7 @@ const SECTIONS: SettingsSection[] = [
   'notifications',
   'editor',
   'keybindings',
+  'dictation',
   'lsp',
   'updates',
   'advanced',

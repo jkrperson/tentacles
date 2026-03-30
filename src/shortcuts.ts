@@ -57,6 +57,9 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { id: 'terminal.close',        label: 'Close active terminal',     category: 'Terminal', defaultKeys: 'ctrl+shift+w' },
   { id: 'terminal.focus',        label: 'Focus terminal panel',      category: 'Terminal', defaultKeys: 'ctrl+`' },
 
+  // Dictation
+  { id: 'dictation.toggle',      label: 'Toggle dictation',          category: 'Dictation', defaultKeys: 'meta+shift+d' },
+
   // General
   { id: 'app.settings',          label: 'Open settings',             category: 'General', defaultKeys: 'meta+,' },
   { id: 'app.shortcuts',         label: 'Show keyboard shortcuts',   category: 'General', defaultKeys: 'meta+/' },
