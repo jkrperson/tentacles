@@ -1,6 +1,6 @@
 {
   "name": "tentacles",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "An IDE for orchestrating multiple Claude Code agents across your projects",
   "license": "Elastic-2.0",
   "repository": {
