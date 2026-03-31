@@ -91,7 +91,7 @@ function App() {
           Tentacles
         </span>
         <div
-          className="ml-2 flex items-center bg-zinc-800/50 rounded-md p-0.5 border border-zinc-700/50 cursor-pointer"
+          className="ml-2 flex items-center bg-zinc-800/50 rounded-md p-0.5 border border-zinc-700/50 cursor-pointer hidden"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           onClick={toggleViewMode}
           title={`Sessions: ${viewMode === 'flat' ? 'flat view' : 'tree view'}`}
