@@ -10,6 +10,7 @@ interface UIState {
   centerView: CenterView
   activeWorkspaceId: string | null
   activeProjectSettingsId: string | null
+  setActiveWorkspaceId: (workspaceId: string | null) => void
   openWorkspacePage: (workspaceId: string) => void
   openTerminalView: () => void
   openProjectSettingsPage: (projectId: string) => void
@@ -62,6 +63,8 @@ export const useUIStore = create<UIState>((set) => ({
   centerView: 'terminal',
   activeWorkspaceId: null,
   activeProjectSettingsId: null,
+  setActiveWorkspaceId: (workspaceId) =>
+    set({ activeWorkspaceId: workspaceId }),
   openWorkspacePage: (workspaceId) =>
     set({ centerView: 'workspace', activeWorkspaceId: workspaceId }),
   openTerminalView: () =>
