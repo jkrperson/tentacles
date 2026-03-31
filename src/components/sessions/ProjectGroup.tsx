@@ -29,8 +29,6 @@ export function ProjectGroup({
 }: ProjectGroupProps) {
   const sessions = useSessionStore((s) => s.sessions)
   const sessionOrder = useSessionStore((s) => s.sessionOrder)
-  const setActiveSession = useSessionStore((s) => s.setActiveSession)
-  const setActiveProject = useProjectStore((s) => s.setActiveProject)
   const workspaces = useWorkspaceStore((s) => s.workspaces)
   const getProjectWorkspaces = useWorkspaceStore((s) => s.getProjectWorkspaces)
   const reorderWorkspaces = useWorkspaceStore((s) => s.reorderWorkspaces)
@@ -93,8 +91,7 @@ export function ProjectGroup({
       <div
         className="flex items-center gap-1.5 px-2 py-2 cursor-pointer"
         onClick={() => {
-          setActiveProject(project.path)
-          if (projectSessions[0]) setActiveSession(projectSessions[0])
+          setProjectCollapsed(!projectCollapsed)
         }}
       >
         <button
