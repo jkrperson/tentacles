@@ -38,9 +38,9 @@ export function GitPanelHeader({
   const currentView = VIEW_MODES.find((v) => v.mode === viewMode) ?? VIEW_MODES[0]
 
   return (
-    <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--t-border)] flex-shrink-0">
-      <div className="flex items-center gap-2 min-w-0">
-        {gitBranch && (
+    <div className="flex flex-col border-b border-[var(--t-border)] flex-shrink-0">
+      {gitBranch && (
+        <div className="flex items-center gap-2 px-3 pt-1.5 pb-1 min-w-0">
           <Tooltip label="Switch branch">
             <button
               onClick={onFetchBranches}
@@ -52,15 +52,15 @@ export function GitPanelHeader({
               <span className="truncate">{gitBranch}</span>
             </button>
           </Tooltip>
-        )}
-        {gitAhead > 0 && (
-          <span className="text-[10px] text-zinc-500 flex-shrink-0">↑{gitAhead}</span>
-        )}
-        {gitBehind > 0 && (
-          <span className="text-[10px] text-zinc-500 flex-shrink-0">↓{gitBehind}</span>
-        )}
-      </div>
-      <div className="flex items-center gap-0.5">
+          {gitAhead > 0 && (
+            <span className="text-[10px] text-zinc-500 flex-shrink-0">↑{gitAhead}</span>
+          )}
+          {gitBehind > 0 && (
+            <span className="text-[10px] text-zinc-500 flex-shrink-0">↓{gitBehind}</span>
+          )}
+        </div>
+      )}
+      <div className="flex items-center justify-end gap-0.5 px-3 pb-1.5 pt-0.5">
         <Tooltip label={currentView.label}>
           <button
             onClick={cycleViewMode}
