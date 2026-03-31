@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { useProjectStore } from '../../stores/projectStore'
+import { useActiveWorkspaceDir } from '../../hooks/useActiveWorkspaceDir'
 import { FileIcon } from '../common/FileIcon'
 
 interface EditorTabBarProps {
@@ -14,13 +15,13 @@ function basename(path: string): string {
 
 export function EditorTabBar({ dirtyFiles, conflictedFiles, onCloseTab }: EditorTabBarProps) {
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
+  const { dir: workspaceDir } = useActiveWorkspaceDir()
+  const cacheKey = workspaceDir ?? activeProjectId
   const openFiles = useProjectStore((s) => {
-    const apId = s.activeProjectId
-    return apId ? s.fileTreeCache.get(apId)?.openFiles ?? [] : []
+    return cacheKey ? s.fileTreeCache.get(cacheKey)?.openFiles ?? [] : []
   })
   const selectedFilePath = useProjectStore((s) => {
-    const apId = s.activeProjectId
-    return apId ? s.fileTreeCache.get(apId)?.selectedFilePath ?? null : null
+    return cacheKey ? s.fileTreeCache.get(cacheKey)?.selectedFilePath ?? null : null
   })
   const openFile = useProjectStore((s) => s.openFile)
 
@@ -54,7 +55,7 @@ export function EditorTabBar({ dirtyFiles, conflictedFiles, onCloseTab }: Editor
         return (
           <button
             key={path}
-            onClick={() => activeProjectId && openFile(activeProjectId, path)}
+            onClick={() => cacheKey && openFile(cacheKey, path)}
             onMouseDown={(e) => handleMouseDown(e, path)}
             className={`group/tab relative flex items-center gap-1.5 px-3 h-full text-[12px] border-r border-[var(--t-border)] transition-colors min-w-0 flex-shrink-0 ${
               isActive

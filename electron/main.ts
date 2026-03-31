@@ -206,7 +206,7 @@ function createWindow() {
       submenu: [
         {
           label: 'New Terminal',
-          accelerator: 'CommandOrControl+`',
+          accelerator: 'Control+`',
           click: () => {
             win?.webContents.executeJavaScript(
               `window.dispatchEvent(new CustomEvent('menu-shortcut', { detail: 'terminal.create' }))`

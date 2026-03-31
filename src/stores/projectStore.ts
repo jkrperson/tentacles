@@ -28,6 +28,7 @@ interface ProjectState {
 
   setGitStatuses: (projectId: string, result: GitStatusDetailResult) => void
   setGitDiffStats: (projectId: string, stats: Map<string, FileDiffStat>) => void
+  ensureFileTreeCache: (dirPath: string) => void
   setActiveDiff: (projectId: string, diff: DiffViewState | null) => void
 
   // Editor tab actions
@@ -279,6 +280,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       if (!cache) return state
       const fileTreeCache = new Map(state.fileTreeCache)
       fileTreeCache.set(projectId, { ...cache, gitDiffStats: stats })
+      return { fileTreeCache }
+    }),
+
+  ensureFileTreeCache: (dirPath) =>
+    set((state) => {
+      if (state.fileTreeCache.has(dirPath)) return state
+      const fileTreeCache = new Map(state.fileTreeCache)
+      fileTreeCache.set(dirPath, emptyFileTreeState())
       return { fileTreeCache }
     }),
 

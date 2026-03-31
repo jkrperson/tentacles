@@ -47,15 +47,15 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { id: 'project.remove',        label: 'Remove current project',    category: 'Projects', defaultKeys: 'meta+shift+backspace' },
   { id: 'project.next',          label: 'Next project',              category: 'Projects', defaultKeys: 'meta+shift+]' },
   { id: 'project.prev',          label: 'Previous project',          category: 'Projects', defaultKeys: 'meta+shift+[' },
-  { id: 'project.newWorktree',   label: 'New worktree workspace',    category: 'Projects', defaultKeys: 'meta+shift+b' },
+  { id: 'project.newWorktree',   label: 'New workspace',             category: 'Projects', defaultKeys: 'meta+n' },
 
   // Terminal
-  { id: 'terminal.create',       label: 'New terminal',              category: 'Terminal', defaultKeys: 'meta+`' },
+  { id: 'terminal.create',       label: 'New terminal',              category: 'Terminal', defaultKeys: 'ctrl+`' },
   { id: 'terminal.toggle',       label: 'Toggle terminal panel',     category: 'Terminal', defaultKeys: 'meta+j' },
   { id: 'terminal.next',         label: 'Next terminal',             category: 'Terminal', defaultKeys: 'meta+alt+]' },
   { id: 'terminal.prev',         label: 'Previous terminal',         category: 'Terminal', defaultKeys: 'meta+alt+[' },
   { id: 'terminal.close',        label: 'Close active terminal',     category: 'Terminal', defaultKeys: 'ctrl+shift+w' },
-  { id: 'terminal.focus',        label: 'Focus terminal panel',      category: 'Terminal', defaultKeys: 'ctrl+`' },
+  { id: 'terminal.focus',        label: 'Focus terminal panel',      category: 'Terminal', defaultKeys: 'ctrl+shift+`' },
 
   // Dictation
   { id: 'dictation.toggle',      label: 'Toggle dictation',          category: 'Dictation', defaultKeys: 'meta+shift+d' },

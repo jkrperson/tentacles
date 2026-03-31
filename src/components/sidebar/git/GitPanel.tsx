@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useProjectStore } from '../../../stores/projectStore'
+import { useActiveWorkspaceDir } from '../../../hooks/useActiveWorkspaceDir'
 import { trpc } from '../../../trpc'
 import { GitPanelHeader } from './GitPanelHeader'
 import { GitCommitArea } from './GitCommitArea'
@@ -12,9 +13,13 @@ interface GitPanelProps {
 
 export function GitPanel({ onToggle }: GitPanelProps) {
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
+  const { dir: workspaceDir } = useActiveWorkspaceDir()
+
+  // Use workspace dir for cache lookup and all git operations
+  const gitDir = workspaceDir ?? activeProjectId
+
   const cache = useProjectStore((s) => {
-    const apId = s.activeProjectId
-    return apId ? s.fileTreeCache.get(apId) ?? null : null
+    return gitDir ? s.fileTreeCache.get(gitDir) ?? null : null
   })
   const setGitStatuses = useProjectStore((s) => s.setGitStatuses)
   const setGitDiffStats = useProjectStore((s) => s.setGitDiffStats)
@@ -43,31 +48,31 @@ export function GitPanel({ onToggle }: GitPanelProps) {
   }, [cache])
 
   const fetchDiffStats = useCallback(async () => {
-    if (!activeProjectId) return
+    if (!gitDir) return
     try {
-      const result = await trpc.git.diffNumstat.query({ repoPath: activeProjectId })
+      const result = await trpc.git.diffNumstat.query({ repoPath: gitDir })
       const map = new Map<string, FileDiffStat>()
       for (const s of [...result.staged, ...result.unstaged]) {
         map.set(s.filePath, s)
       }
-      setGitDiffStats(activeProjectId, map)
+      setGitDiffStats(gitDir, map)
     } catch {
       // ignore
     }
-  }, [activeProjectId, setGitDiffStats])
+  }, [gitDir, setGitDiffStats])
 
   const refreshStatus = useCallback(async () => {
-    if (!activeProjectId) return
+    if (!gitDir) return
     try {
       const [result] = await Promise.all([
-        trpc.git.status.query({ dirPath: activeProjectId }),
+        trpc.git.status.query({ dirPath: gitDir }),
         fetchDiffStats(),
       ])
-      setGitStatuses(activeProjectId, result as GitStatusDetailResult)
+      setGitStatuses(gitDir, result as GitStatusDetailResult)
     } catch {
       // ignore
     }
-  }, [activeProjectId, setGitStatuses, fetchDiffStats])
+  }, [gitDir, setGitStatuses, fetchDiffStats])
 
   // Fetch diff stats on mount
   useEffect(() => {
@@ -75,49 +80,49 @@ export function GitPanel({ onToggle }: GitPanelProps) {
   }, [fetchDiffStats])
 
   const handleStage = useCallback(async (paths: string[]) => {
-    if (!activeProjectId) return
+    if (!gitDir) return
     setLoading('stage')
     try {
-      await trpc.git.stage.mutate({ repoPath: activeProjectId, paths })
+      await trpc.git.stage.mutate({ repoPath: gitDir, paths })
       await refreshStatus()
     } catch (err) {
       console.error('Stage failed', err)
     } finally {
       setLoading(null)
     }
-  }, [activeProjectId, refreshStatus])
+  }, [gitDir, refreshStatus])
 
   const handleUnstage = useCallback(async (paths: string[]) => {
-    if (!activeProjectId) return
+    if (!gitDir) return
     setLoading('unstage')
     try {
-      await trpc.git.unstage.mutate({ repoPath: activeProjectId, paths })
+      await trpc.git.unstage.mutate({ repoPath: gitDir, paths })
       await refreshStatus()
     } catch (err) {
       console.error('Unstage failed', err)
     } finally {
       setLoading(null)
     }
-  }, [activeProjectId, refreshStatus])
+  }, [gitDir, refreshStatus])
 
   const handleDiscard = useCallback(async (paths: string[], statuses: string[]) => {
-    if (!activeProjectId) return
+    if (!gitDir) return
     setLoading('discard')
     try {
-      await trpc.git.discardChanges.mutate({ repoPath: activeProjectId, paths, statuses })
+      await trpc.git.discardChanges.mutate({ repoPath: gitDir, paths, statuses })
       await refreshStatus()
     } catch (err) {
       console.error('Discard failed', err)
     } finally {
       setLoading(null)
     }
-  }, [activeProjectId, refreshStatus])
+  }, [gitDir, refreshStatus])
 
   const handleCommit = useCallback(async () => {
-    if (!activeProjectId || !commitMsg.trim() || stagedFiles.length === 0) return
+    if (!gitDir || !commitMsg.trim() || stagedFiles.length === 0) return
     setLoading('commit')
     try {
-      await trpc.git.commit.mutate({ repoPath: activeProjectId, message: commitMsg.trim() })
+      await trpc.git.commit.mutate({ repoPath: gitDir, message: commitMsg.trim() })
       setCommitMsg('')
       await refreshStatus()
     } catch (err) {
@@ -125,29 +130,29 @@ export function GitPanel({ onToggle }: GitPanelProps) {
     } finally {
       setLoading(null)
     }
-  }, [activeProjectId, commitMsg, stagedFiles.length, refreshStatus])
+  }, [gitDir, commitMsg, stagedFiles.length, refreshStatus])
 
   const handleCommitAndPush = useCallback(async () => {
-    if (!activeProjectId || !commitMsg.trim() || stagedFiles.length === 0) return
+    if (!gitDir || !commitMsg.trim() || stagedFiles.length === 0) return
     setLoading('commit')
     try {
-      await trpc.git.commit.mutate({ repoPath: activeProjectId, message: commitMsg.trim() })
+      await trpc.git.commit.mutate({ repoPath: gitDir, message: commitMsg.trim() })
       setCommitMsg('')
-      await trpc.git.push.mutate({ repoPath: activeProjectId })
+      await trpc.git.push.mutate({ repoPath: gitDir })
       await refreshStatus()
     } catch (err) {
       console.error('Commit & push failed', err)
     } finally {
       setLoading(null)
     }
-  }, [activeProjectId, commitMsg, stagedFiles.length, refreshStatus])
+  }, [gitDir, commitMsg, stagedFiles.length, refreshStatus])
 
   const handleAmend = useCallback(async () => {
-    if (!activeProjectId) return
+    if (!gitDir) return
     setLoading('amend')
     try {
       const msg = commitMsg.trim() || undefined
-      await trpc.git.amendCommit.mutate({ repoPath: activeProjectId, message: msg })
+      await trpc.git.amendCommit.mutate({ repoPath: gitDir, message: msg })
       setCommitMsg('')
       await refreshStatus()
     } catch (err) {
@@ -155,91 +160,91 @@ export function GitPanel({ onToggle }: GitPanelProps) {
     } finally {
       setLoading(null)
     }
-  }, [activeProjectId, commitMsg, refreshStatus])
+  }, [gitDir, commitMsg, refreshStatus])
 
   const handlePush = useCallback(async () => {
-    if (!activeProjectId) return
+    if (!gitDir) return
     setLoading('push')
     try {
-      await trpc.git.push.mutate({ repoPath: activeProjectId })
+      await trpc.git.push.mutate({ repoPath: gitDir })
       await refreshStatus()
     } catch (err) {
       console.error('Push failed', err)
     } finally {
       setLoading(null)
     }
-  }, [activeProjectId, refreshStatus])
+  }, [gitDir, refreshStatus])
 
   const handlePull = useCallback(async () => {
-    if (!activeProjectId) return
+    if (!gitDir) return
     setLoading('pull')
     try {
-      await trpc.git.pull.mutate({ repoPath: activeProjectId })
+      await trpc.git.pull.mutate({ repoPath: gitDir })
       await refreshStatus()
     } catch (err) {
       console.error('Pull failed', err)
     } finally {
       setLoading(null)
     }
-  }, [activeProjectId, refreshStatus])
+  }, [gitDir, refreshStatus])
 
   const handleStash = useCallback(async () => {
-    if (!activeProjectId) return
+    if (!gitDir) return
     setLoading('stash')
     try {
-      await trpc.git.stash.mutate({ repoPath: activeProjectId })
+      await trpc.git.stash.mutate({ repoPath: gitDir })
       await refreshStatus()
     } catch (err) {
       console.error('Stash failed', err)
     } finally {
       setLoading(null)
     }
-  }, [activeProjectId, refreshStatus])
+  }, [gitDir, refreshStatus])
 
   const handleStashPop = useCallback(async () => {
-    if (!activeProjectId) return
+    if (!gitDir) return
     setLoading('stashPop')
     try {
-      await trpc.git.stashPop.mutate({ repoPath: activeProjectId })
+      await trpc.git.stashPop.mutate({ repoPath: gitDir })
       await refreshStatus()
     } catch (err) {
       console.error('Stash pop failed', err)
     } finally {
       setLoading(null)
     }
-  }, [activeProjectId, refreshStatus])
+  }, [gitDir, refreshStatus])
 
   const handleFetchBranches = useCallback(async () => {
-    if (!activeProjectId) return
+    if (!gitDir) return
     try {
-      const result = await trpc.git.branches.query({ repoPath: activeProjectId })
+      const result = await trpc.git.branches.query({ repoPath: gitDir })
       setBranches(result.branches)
       setShowBranchMenu(true)
     } catch (err) {
       console.error('Failed to list branches', err)
     }
-  }, [activeProjectId])
+  }, [gitDir])
 
   const handleSwitchBranch = useCallback(async (branch: string) => {
-    if (!activeProjectId) return
+    if (!gitDir) return
     setShowBranchMenu(false)
     setLoading('switch')
     try {
-      await trpc.git.switchBranch.mutate({ repoPath: activeProjectId, branch })
+      await trpc.git.switchBranch.mutate({ repoPath: gitDir, branch })
       await refreshStatus()
     } catch (err) {
       console.error('Switch failed', err)
     } finally {
       setLoading(null)
     }
-  }, [activeProjectId, refreshStatus])
+  }, [gitDir, refreshStatus])
 
   const handleCreateBranch = useCallback(async () => {
-    if (!activeProjectId || !newBranchName.trim()) return
+    if (!gitDir || !newBranchName.trim()) return
     setShowNewBranch(false)
     setLoading('switch')
     try {
-      await trpc.git.createBranch.mutate({ repoPath: activeProjectId, name: newBranchName.trim(), checkout: true })
+      await trpc.git.createBranch.mutate({ repoPath: gitDir, name: newBranchName.trim(), checkout: true })
       setNewBranchName('')
       await refreshStatus()
     } catch (err) {
@@ -247,12 +252,12 @@ export function GitPanel({ onToggle }: GitPanelProps) {
     } finally {
       setLoading(null)
     }
-  }, [activeProjectId, newBranchName, refreshStatus])
+  }, [gitDir, newBranchName, refreshStatus])
 
   const handleFileClick = useCallback((filePath: string, staged: boolean) => {
-    if (!activeProjectId) return
-    openDiff(activeProjectId, { filePath, staged })
-  }, [activeProjectId, openDiff])
+    if (!gitDir) return
+    openDiff(gitDir, { filePath, staged })
+  }, [gitDir, openDiff])
 
   return (
     <div className="flex flex-col h-full bg-[var(--t-bg-surface)]">
@@ -334,14 +339,14 @@ export function GitPanel({ onToggle }: GitPanelProps) {
       )}
 
       <div className="flex-1 overflow-y-auto">
-        {!activeProjectId && (
+        {!gitDir && (
           <div className="text-center py-12 px-4">
             <div className="text-zinc-600 text-[13px] mb-2">No project selected</div>
             <div className="text-zinc-700 text-[11px]">Add a project to view changes</div>
           </div>
         )}
 
-        {activeProjectId && (
+        {gitDir && (
           <>
             <GitCommitArea
               commitMsg={commitMsg}
@@ -360,7 +365,7 @@ export function GitPanel({ onToggle }: GitPanelProps) {
                 title="Staged"
                 files={stagedFiles}
                 staged={true}
-                projectId={activeProjectId}
+                projectId={gitDir}
                 diffStats={diffStats}
                 onClick={handleFileClick}
                 onStage={handleStage}
@@ -375,7 +380,7 @@ export function GitPanel({ onToggle }: GitPanelProps) {
               title="Changes"
               files={unstagedFiles}
               staged={false}
-              projectId={activeProjectId}
+              projectId={gitDir}
               diffStats={diffStats}
               onClick={handleFileClick}
               onStage={handleStage}
