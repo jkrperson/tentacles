@@ -4,6 +4,7 @@ import { useSettingsStore } from '../../stores/settingsStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useWorkspaceStore, sessionBelongsToProject } from '../../stores/workspaceStore'
+import { useActiveWorkspaceDir } from '../../hooks/useActiveWorkspaceDir'
 import { AgentIcon } from '../icons/AgentIcons'
 import { FileIcon } from '../common/FileIcon'
 import type { AgentIconKey, DiffViewState } from '../../types'
@@ -40,22 +41,20 @@ export function TerminalTabs() {
   const tabOrder = useSessionStore((s) => s.tabOrder)
   const setActive = useSessionStore((s) => s.setActiveSession)
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
+  const { dir: workspaceDir } = useActiveWorkspaceDir()
+  const cacheKey = workspaceDir ?? activeProjectId
   const openFiles = useProjectStore((s) => {
-    const apId = s.activeProjectId
-    return apId ? s.fileTreeCache.get(apId)?.openFiles ?? EMPTY_FILES : EMPTY_FILES
+    return cacheKey ? s.fileTreeCache.get(cacheKey)?.openFiles ?? EMPTY_FILES : EMPTY_FILES
   })
   const selectedFilePath = useProjectStore((s) => {
-    const apId = s.activeProjectId
-    return apId ? s.fileTreeCache.get(apId)?.selectedFilePath ?? null : null
+    return cacheKey ? s.fileTreeCache.get(cacheKey)?.selectedFilePath ?? null : null
   })
   const openFile = useProjectStore((s) => s.openFile)
   const openDiffs = useProjectStore((s) => {
-    const apId = s.activeProjectId
-    return apId ? s.fileTreeCache.get(apId)?.openDiffs ?? EMPTY_DIFFS : EMPTY_DIFFS
+    return cacheKey ? s.fileTreeCache.get(cacheKey)?.openDiffs ?? EMPTY_DIFFS : EMPTY_DIFFS
   })
   const selectedDiffPath = useProjectStore((s) => {
-    const apId = s.activeProjectId
-    return apId ? s.fileTreeCache.get(apId)?.selectedDiffPath ?? null : null
+    return cacheKey ? s.fileTreeCache.get(cacheKey)?.selectedDiffPath ?? null : null
   })
   const setSelectedDiff = useProjectStore((s) => s.setSelectedDiff)
   const closeDiff = useProjectStore((s) => s.closeDiff)
@@ -64,14 +63,33 @@ export function TerminalTabs() {
   const workspaces = useWorkspaceStore((s) => s.workspaces)
   const agents = useSettingsStore((s) => s.settings.agents)
 
-  const projectSessions = useMemo(
-    () => activeProjectId
-      ? tabOrder.filter((id) => {
-          const s = sessions.get(id)
-          return s && sessionBelongsToProject(s.workspaceId, activeProjectId, workspaces)
-        })
-      : tabOrder,
-    [tabOrder, sessions, activeProjectId, workspaces],
+  // Filter session tabs to the active workspace
+  // Priority: session's workspace > explicit UI workspace selection
+  const sessionWorkspaceId = useSessionStore((s) => {
+    const aid = s.activeSessionId
+    if (!aid) return null
+    return s.sessions.get(aid)?.workspaceId ?? null
+  })
+  const explicitWorkspaceId = useUIStore((s) => s.activeWorkspaceId)
+  const activeWorkspaceId = sessionWorkspaceId ?? explicitWorkspaceId
+
+  const workspaceSessions = useMemo(
+    () => {
+      if (!activeWorkspaceId) {
+        // Fallback: filter by project
+        return activeProjectId
+          ? tabOrder.filter((id) => {
+              const s = sessions.get(id)
+              return s && sessionBelongsToProject(s.workspaceId, activeProjectId, workspaces)
+            })
+          : tabOrder
+      }
+      return tabOrder.filter((id) => {
+        const s = sessions.get(id)
+        return s?.workspaceId === activeWorkspaceId
+      })
+    },
+    [tabOrder, sessions, activeProjectId, activeWorkspaceId, workspaces],
   )
 
   // Unified tab order — reconciled with actual sessions and open files
@@ -79,7 +97,7 @@ export function TerminalTabs() {
   const prevKeysRef = useRef<string>('')
 
   useEffect(() => {
-    const sessionKeys = projectSessions.map((id) => `s:${id}`)
+    const sessionKeys = workspaceSessions.map((id) => `s:${id}`)
     const fileKeys = openFiles.map((path) => `f:${path}`)
     const diffKeys = openDiffs.map((d) => `d:${d.filePath}`)
     const allKeys = new Set([...sessionKeys, ...fileKeys, ...diffKeys])
@@ -97,7 +115,7 @@ export function TerminalTabs() {
       if (newItems.length === 0 && kept.length === prev.length) return prev
       return [...kept, ...newItems]
     })
-  }, [projectSessions, openFiles, openDiffs])
+  }, [workspaceSessions, openFiles, openDiffs])
 
   // Parse unified order into TabItems
   const tabs: TabItem[] = useMemo(() =>
@@ -150,10 +168,10 @@ export function TerminalTabs() {
         setActive(nextTab.id)
         setMainPanelMode('session')
       } else if (nextTab.type === 'file') {
-        if (activeProjectId) openFile(activeProjectId, nextTab.path)
+        if (cacheKey) openFile(cacheKey, nextTab.path)
       } else if (nextTab.type === 'diff') {
-        if (activeProjectId) {
-          setSelectedDiff(activeProjectId, nextTab.filePath)
+        if (cacheKey) {
+          setSelectedDiff(cacheKey, nextTab.filePath)
           setMainPanelMode('editor')
         }
       }
@@ -161,7 +179,7 @@ export function TerminalTabs() {
 
     window.addEventListener('tabs:cycle', handler)
     return () => window.removeEventListener('tabs:cycle', handler)
-  }, [tabs, activeSessionId, selectedFilePath, selectedDiffPath, mainPanelMode, activeProjectId, setActive, setMainPanelMode, openFile, setSelectedDiff])
+  }, [tabs, activeSessionId, selectedFilePath, selectedDiffPath, mainPanelMode, cacheKey, setActive, setMainPanelMode, openFile, setSelectedDiff])
 
   // Drag state
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
@@ -225,6 +243,9 @@ export function TerminalTabs() {
           const statusConfig = STATUS_COLORS[session.status]
           const agentConfig = agents.find((a) => a.id === session.agentType)
           const agentIcon: AgentIconKey = agentConfig?.icon ?? 'generic'
+          const ws = workspaces.get(session.workspaceId)
+          const isWorktree = ws?.type === 'worktree'
+          const branchName = isWorktree ? ws?.name : null
           return (
             <button
               key={key}
@@ -260,6 +281,15 @@ export function TerminalTabs() {
                 <AgentIcon icon={agentIcon} size={12} />
               </span>
               <span className="truncate max-w-36">{session.name}</span>
+              {/* Worktree branch badge */}
+              {branchName && (
+                <span className="flex items-center gap-0.5 text-[9px] text-[var(--t-accent)]/60 flex-shrink-0 font-mono">
+                  <svg width="9" height="9" viewBox="0 0 16 16" fill="currentColor" className="opacity-50">
+                    <path d="M11.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zm-2.25.75a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6A2.5 2.5 0 0 1 3.5 6v-.628a2.25 2.25 0 1 1 1.5 0V6a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-.628A2.251 2.251 0 0 1 9.5 3.25zM4.25 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zM8 11.878v-1.25a.75.75 0 0 0-1.5 0v1.25a2.25 2.25 0 1 0 1.5 0zM7.25 13a.75.75 0 1 1 .001 1.501A.75.75 0 0 1 7.25 13z"/>
+                  </svg>
+                  {branchName}
+                </span>
+              )}
               {session.hasUnread && !isActive && (
                 <span className="w-1.5 h-1.5 rounded-full bg-[var(--t-accent)] flex-shrink-0" />
               )}
@@ -287,9 +317,9 @@ export function TerminalTabs() {
             <button
               key={key}
               onClick={() => {
-                if (activeProjectId) openFile(activeProjectId, tab.path)
+                if (cacheKey) openFile(cacheKey, tab.path)
                 // Clear diff selection when switching to a file tab
-                if (activeProjectId) setSelectedDiff(activeProjectId, null)
+                if (cacheKey) setSelectedDiff(cacheKey, null)
               }}
               onMouseDown={(e) => {
                 if (e.button === 1) {
@@ -338,15 +368,15 @@ export function TerminalTabs() {
             <button
               key={key}
               onClick={() => {
-                if (activeProjectId) {
-                  setSelectedDiff(activeProjectId, tab.filePath)
+                if (cacheKey) {
+                  setSelectedDiff(cacheKey, tab.filePath)
                   setMainPanelMode('editor')
                 }
               }}
               onMouseDown={(e) => {
                 if (e.button === 1) {
                   e.preventDefault()
-                  if (activeProjectId) closeDiff(activeProjectId, tab.filePath)
+                  if (cacheKey) closeDiff(cacheKey, tab.filePath)
                 }
               }}
               draggable
@@ -370,7 +400,7 @@ export function TerminalTabs() {
               <span
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (activeProjectId) closeDiff(activeProjectId, tab.filePath)
+                  if (cacheKey) closeDiff(cacheKey, tab.filePath)
                 }}
                 className="flex-shrink-0 p-0.5 rounded hover:bg-[var(--t-border)] opacity-0 group-hover/tab:opacity-100 transition-opacity"
                 title="Close"
