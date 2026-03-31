@@ -1,4 +1,5 @@
 import { useProjectStore } from '../../stores/projectStore'
+import { useActiveWorkspaceDir } from '../../hooks/useActiveWorkspaceDir'
 import { FileTreeNode } from './FileTreeNode'
 
 interface FileTreeProps {
@@ -8,18 +9,33 @@ interface FileTreeProps {
 export function FileTree({ onToggle }: FileTreeProps) {
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
   const fileTreeCache = useProjectStore((s) => s.fileTreeCache)
+  const { dir: workspaceDir, branch, isWorktree } = useActiveWorkspaceDir()
 
-  const cache = activeProjectId ? fileTreeCache.get(activeProjectId) : null
+  // Use workspace dir for cache lookup (falls back to project root for main)
+  const cacheKey = workspaceDir ?? activeProjectId
+  const cache = cacheKey ? fileTreeCache.get(cacheKey) ?? null : null
   const nodes = cache?.nodes ?? []
 
-  const dirName = activeProjectId?.split('/').pop() ?? ''
+  const projectName = activeProjectId?.split('/').pop() ?? ''
 
   return (
     <div className="flex flex-col h-full bg-[var(--t-bg-surface)]">
       <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--t-border)] flex-shrink-0">
-        <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
-          {activeProjectId ? dirName : 'Explorer'}
-        </span>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider truncate">
+            {activeProjectId ? projectName : 'Explorer'}
+          </span>
+          {isWorktree && branch && (
+            <>
+              <svg width="8" height="8" viewBox="0 0 16 16" fill="currentColor" className="text-zinc-600 flex-shrink-0">
+                <path d="M6.3 3.3a1 1 0 0 1 1.4 0l4 4a1 1 0 0 1 0 1.4l-4 4a1 1 0 0 1-1.4-1.4L9.58 8 6.3 4.7a1 1 0 0 1 0-1.4z"/>
+              </svg>
+              <span className="text-[10px] font-medium text-[var(--t-accent)] truncate" title={branch}>
+                {branch}
+              </span>
+            </>
+          )}
+        </div>
         <div className="flex items-center gap-1">
           <button
             onClick={onToggle}

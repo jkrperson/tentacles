@@ -1,5 +1,6 @@
 import { memo, useCallback, useState } from 'react'
 import { useProjectStore } from '../../stores/projectStore'
+import { useActiveWorkspaceDir } from '../../hooks/useActiveWorkspaceDir'
 import { trpc } from '../../trpc'
 import { FileIcon } from '../common/FileIcon'
 import type { FileNode, GitFileStatus } from '../../types'
@@ -26,25 +27,29 @@ function ChevronIcon({ expanded }: { expanded: boolean }) {
 
 export const FileTreeNode = memo(function FileTreeNode({ node, depth }: { node: FileNode; depth: number }) {
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
+  const { dir: workspaceDir } = useActiveWorkspaceDir()
   const toggleFileTreeExpanded = useProjectStore((s) => s.toggleFileTreeExpanded)
   const openFile = useProjectStore((s) => s.openFile)
   const updateFileTreeChildren = useProjectStore((s) => s.updateFileTreeChildren)
 
+  // Use workspace dir for cache lookup (falls back to project root for main)
+  const cacheKey = workspaceDir ?? activeProjectId
+
   // Granular selectors — only re-render when this node's derived state actually changes
   const isExpanded = useProjectStore((s) => {
-    const cache = activeProjectId ? s.fileTreeCache.get(activeProjectId) : null
+    const cache = cacheKey ? s.fileTreeCache.get(cacheKey) : null
     return cache?.expandedPaths.has(node.path) ?? false
   })
   const isSelected = useProjectStore((s) => {
-    const cache = activeProjectId ? s.fileTreeCache.get(activeProjectId) : null
+    const cache = cacheKey ? s.fileTreeCache.get(cacheKey) : null
     return cache?.selectedFilePath === node.path
   })
   const isChanged = useProjectStore((s) => {
-    const cache = activeProjectId ? s.fileTreeCache.get(activeProjectId) : null
+    const cache = cacheKey ? s.fileTreeCache.get(cacheKey) : null
     return cache?.recentlyChangedPaths.has(node.path) ?? false
   })
   const gitStatus = useProjectStore((s) => {
-    const cache = activeProjectId ? s.fileTreeCache.get(activeProjectId) : null
+    const cache = cacheKey ? s.fileTreeCache.get(cacheKey) : null
     return cache?.gitStatuses?.get(node.path) ?? null
   })
 
@@ -52,19 +57,19 @@ export const FileTreeNode = memo(function FileTreeNode({ node, depth }: { node: 
   const [loaded, setLoaded] = useState(false)
 
   const handleClick = useCallback(async () => {
-    if (!activeProjectId) return
+    if (!cacheKey) return
     if (node.type === 'directory') {
-      toggleFileTreeExpanded(activeProjectId, node.path)
+      toggleFileTreeExpanded(cacheKey, node.path)
       if (!loaded && !isExpanded) {
         const nodes = await trpc.file.readDir.query({ dirPath: node.path })
         setChildren(nodes)
-        updateFileTreeChildren(activeProjectId, node.path, nodes)
+        updateFileTreeChildren(cacheKey, node.path, nodes)
         setLoaded(true)
       }
     } else {
-      openFile(activeProjectId, node.path)
+      openFile(cacheKey, node.path)
     }
-  }, [node, isExpanded, loaded, activeProjectId, toggleFileTreeExpanded, openFile, updateFileTreeChildren])
+  }, [node, isExpanded, loaded, cacheKey, toggleFileTreeExpanded, openFile, updateFileTreeChildren])
 
   return (
     <div>
