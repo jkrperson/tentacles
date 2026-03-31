@@ -4,6 +4,7 @@ import { useProjectStore } from '../../stores/projectStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useLspStore } from '../../stores/lspStore'
 import { useLspClient } from '../../hooks/useLspClient'
+import { useActiveWorkspaceDir } from '../../hooks/useActiveWorkspaceDir'
 import { trpc } from '../../trpc'
 import { getMonacoThemeData } from '../../themes'
 import { useResolvedTheme, useCustomThemes } from '../../hooks/useResolvedTheme'
@@ -26,25 +27,23 @@ interface CacheEntry {
 
 export function EditorPanel() {
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
+  const { dir: workspaceDir } = useActiveWorkspaceDir()
+  // Use workspace dir for cache lookups (falls back to project root for main)
+  const cacheKey = workspaceDir ?? activeProjectId
   const selectedFilePath = useProjectStore((s) => {
-    const apId = s.activeProjectId
-    return apId ? s.fileTreeCache.get(apId)?.selectedFilePath ?? null : null
+    return cacheKey ? s.fileTreeCache.get(cacheKey)?.selectedFilePath ?? null : null
   })
   const openFiles = useProjectStore((s) => {
-    const apId = s.activeProjectId
-    return apId ? s.fileTreeCache.get(apId)?.openFiles ?? [] : []
+    return cacheKey ? s.fileTreeCache.get(cacheKey)?.openFiles ?? [] : []
   })
   const activeDiff = useProjectStore((s) => {
-    const apId = s.activeProjectId
-    return apId ? s.fileTreeCache.get(apId)?.activeDiff ?? null : null
+    return cacheKey ? s.fileTreeCache.get(cacheKey)?.activeDiff ?? null : null
   })
   const selectedDiffPath = useProjectStore((s) => {
-    const apId = s.activeProjectId
-    return apId ? s.fileTreeCache.get(apId)?.selectedDiffPath ?? null : null
+    return cacheKey ? s.fileTreeCache.get(cacheKey)?.selectedDiffPath ?? null : null
   })
   const openDiffs = useProjectStore((s) => {
-    const apId = s.activeProjectId
-    return apId ? s.fileTreeCache.get(apId)?.openDiffs ?? [] : []
+    return cacheKey ? s.fileTreeCache.get(cacheKey)?.openDiffs ?? [] : []
   })
   const setActiveDiff = useProjectStore((s) => s.setActiveDiff)
   const closeDiff = useProjectStore((s) => s.closeDiff)
@@ -122,10 +121,10 @@ export function EditorPanel() {
 
   // Callback for go-to-definition cross-file jumps
   const handleOpenFile = useCallback((path: string) => {
-    if (activeProjectId) {
-      openFile(activeProjectId, path)
+    if (cacheKey) {
+      openFile(cacheKey, path)
     }
-  }, [activeProjectId, openFile])
+  }, [cacheKey, openFile])
 
   // Wire up the LSP client hook
   useLspClient({
@@ -330,7 +329,7 @@ export function EditorPanel() {
 
   // Actually close a tab (no confirmation)
   const doCloseTab = useCallback((path: string) => {
-    if (!activeProjectId) return
+    if (!cacheKey) return
     contentCache.current.delete(path)
     setConflictedFiles((prev) => {
       if (!prev.has(path)) return prev
@@ -339,8 +338,8 @@ export function EditorPanel() {
       return next
     })
     setPendingClose(null)
-    closeFile(activeProjectId, path)
-  }, [activeProjectId, closeFile])
+    closeFile(cacheKey, path)
+  }, [cacheKey, closeFile])
 
   // Request to close a tab — prompts if dirty
   const requestCloseTab = useCallback((path: string) => {
@@ -462,23 +461,23 @@ export function EditorPanel() {
   }
 
   const handleCloseDiff = useCallback(() => {
-    if (activeProjectId) {
+    if (cacheKey) {
       if (selectedDiffPath) {
-        closeDiff(activeProjectId, selectedDiffPath)
+        closeDiff(cacheKey, selectedDiffPath)
       }
-      setActiveDiff(activeProjectId, null)
+      setActiveDiff(cacheKey, null)
     }
-  }, [activeProjectId, selectedDiffPath, closeDiff, setActiveDiff])
+  }, [cacheKey, selectedDiffPath, closeDiff, setActiveDiff])
 
   if (openFiles.length === 0 && openDiffs.length === 0 && !activeDiff) return null
 
   // Show DiffViewer when a diff tab is selected
-  if (selectedDiffPath && activeDiff && activeProjectId) {
+  if (selectedDiffPath && activeDiff && cacheKey) {
     return (
       <DiffViewer
         filePath={activeDiff.filePath}
         staged={activeDiff.staged}
-        projectRoot={activeProjectId}
+        projectRoot={cacheKey}
         onClose={handleCloseDiff}
       />
     )
