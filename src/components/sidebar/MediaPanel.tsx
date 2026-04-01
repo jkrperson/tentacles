@@ -70,10 +70,14 @@ function parseTwitchChannel(input: string): string | null {
   return null
 }
 
-export function MediaPanel() {
+interface MediaPanelProps {
+  collapsed: boolean
+  onToggleCollapsed: () => void
+}
+
+export function MediaPanel({ collapsed, onToggleCollapsed }: MediaPanelProps) {
   const [service, setService] = useState<Service>('youtube')
   const [url, setUrl] = useState('')
-  const [collapsed, setCollapsed] = useState(false)
 
   const youtubeResult = service === 'youtube' ? parseYouTube(url) : null
   const youtubeEmbedUrl = youtubeResult ? buildYouTubeEmbedUrl(youtubeResult) : null
@@ -90,7 +94,7 @@ export function MediaPanel() {
       {/* Header */}
       <div className="flex items-center gap-1 px-2 h-7 flex-shrink-0 border-b border-[var(--t-border)]">
         <button
-          onClick={() => setCollapsed((v) => !v)}
+          onClick={onToggleCollapsed}
           className="text-zinc-500 hover:text-zinc-300 transition-colors"
         >
           <svg
