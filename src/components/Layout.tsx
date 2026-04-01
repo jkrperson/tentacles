@@ -1,4 +1,4 @@
-import { useCallback, lazy, Suspense } from 'react'
+import { useCallback, useState, lazy, Suspense } from 'react'
 import { FileTree } from './sidebar/FileTree'
 import { GitPanel } from './sidebar/git/GitPanel'
 import { MediaPanel } from './sidebar/MediaPanel'
@@ -36,6 +36,8 @@ export function Layout() {
   const centerView = useUIStore((s) => s.centerView)
   const activeWorkspaceId = useUIStore((s) => s.activeWorkspaceId)
   const activeProjectSettingsId = useUIStore((s) => s.activeProjectSettingsId)
+
+  const [mediaPanelCollapsed, setMediaPanelCollapsed] = useState(false)
 
   const handleNewTerminal = useCallback(() => {
     useTerminalStore.getState().createTerminal()
@@ -156,18 +158,23 @@ export function Layout() {
             {/* Media Panel */}
             {enableMediaPanel && (
               <>
-                <div
-                  className="group relative h-1 flex-shrink-0 cursor-row-resize"
-                  onMouseDown={mediaDrag.onMouseDown}
-                >
-                  <div className="absolute inset-x-0 -top-2 -bottom-2" />
-                  <div className="absolute inset-x-0 top-0 h-px bg-[var(--t-border)] group-hover:bg-[var(--t-accent)]/50 transition-colors" />
-                </div>
-                <div className="flex-shrink-0 overflow-hidden relative" style={{ height: mediaDrag.value }}>
+                {!mediaPanelCollapsed && (
+                  <div
+                    className="group relative h-1 flex-shrink-0 cursor-row-resize"
+                    onMouseDown={mediaDrag.onMouseDown}
+                  >
+                    <div className="absolute inset-x-0 -top-2 -bottom-2" />
+                    <div className="absolute inset-x-0 top-0 h-px bg-[var(--t-border)] group-hover:bg-[var(--t-accent)]/50 transition-colors" />
+                  </div>
+                )}
+                <div className="flex-shrink-0 overflow-hidden relative" style={{ height: mediaPanelCollapsed ? undefined : mediaDrag.value }}>
                   {isDragging && (
                     <div className="absolute inset-0 z-10" />
                   )}
-                  <MediaPanel />
+                  <MediaPanel
+                    collapsed={mediaPanelCollapsed}
+                    onToggleCollapsed={() => setMediaPanelCollapsed((v) => !v)}
+                  />
                 </div>
               </>
             )}
