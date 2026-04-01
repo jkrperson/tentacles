@@ -13,7 +13,8 @@ Create a pull request for the current branch. Follow these steps exactly:
    - `git push -u origin <branch-name>`
 
 4. **Craft PR** — Based on the full commit history (NOT just the latest commit), draft:
-   - A short title (under 70 characters)
+   - A short title using **Conventional Commits** format: `<type>(<optional scope>): <description>` (e.g., `feat(terminal): add split-pane support`, `fix(editor): resolve crash on large files`). Under 70 characters.
+   - Types: `feat`, `fix`, `refactor`, `chore`, `docs`, `style`, `test`, `perf`, `ci`, `build`
    - A body with a `## Summary` section (1-3 bullet points) and a `## Test plan` section (bulleted checklist)
 
 5. **Get user approval** — Present the title and body to the user. Wait for confirmation before creating. Do NOT create the PR until the user explicitly approves.

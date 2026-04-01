@@ -18,6 +18,6 @@ Merge a pull request. Follow these steps exactly:
    ```
    gh pr merge <number> --merge
    ```
-   Use `--merge` by default. If the user requests squash or rebase, use `--squash` or `--rebase` instead.
+   Use `--squash` by default to keep a clean history. If the user requests merge or rebase, use `--merge` or `--rebase` instead. When squashing, ensure the squash commit message follows **Conventional Commits** format: `<type>(<optional scope>): <description>` (e.g., `feat(terminal): add split-pane support`).
 
 5. **Verify** — Run `gh pr view <number> --json state` to confirm the PR was merged successfully. Report the result to the user.
