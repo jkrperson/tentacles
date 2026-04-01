@@ -94,7 +94,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const ws = workspaces.get(id)
     if (!ws || ws.type !== 'worktree' || !ws.worktreePath) return
 
-    await trpc.git.worktree.remove.mutate({ repoPath: ws.projectId, worktreePath: ws.worktreePath })
+    await trpc.git.worktree.remove.mutate({ repoPath: ws.projectId, worktreePath: ws.worktreePath, branch: ws.branch })
 
     set((state) => {
       const next = new Map(state.workspaces)

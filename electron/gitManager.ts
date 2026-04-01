@@ -93,9 +93,10 @@ export class GitManager {
     return { worktreePath: worktreeDir, branch }
   }
 
-  async removeWorktree(repoPath: string, worktreePath: string): Promise<void> {
+  async removeWorktree(repoPath: string, worktreePath: string, branch?: string): Promise<void> {
     try {
-      await execFileAsync('git', ['worktree', 'remove', worktreePath, '--force'], {
+      // Double --force handles worktrees that were locked externally
+      await execFileAsync('git', ['worktree', 'remove', '--force', '--force', worktreePath], {
         cwd: repoPath,
         timeout: 10000,
       })
@@ -109,6 +110,17 @@ export class GitManager {
       })
     } catch {
       // ignore prune errors
+    }
+    // Delete the associated branch after worktree removal
+    if (branch) {
+      try {
+        await execFileAsync('git', ['branch', '-D', branch], {
+          cwd: repoPath,
+          timeout: 5000,
+        })
+      } catch {
+        // branch may already be gone or checked out elsewhere
+      }
     }
   }
 
