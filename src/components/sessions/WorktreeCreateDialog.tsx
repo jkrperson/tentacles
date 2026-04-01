@@ -1,6 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
+import { useSessionStore } from '../../stores/sessionStore'
+import { useSettingsStore } from '../../stores/settingsStore'
 import { getErrorMessage } from '../../utils/errors'
+import { AgentIcon } from '../icons/AgentIcons'
+import type { AgentType } from '../../types'
 
 interface WorktreeCreateDialogProps {
   projectId: string
@@ -10,8 +14,14 @@ interface WorktreeCreateDialogProps {
 
 export function WorktreeCreateDialog({ projectId, isOpen, onClose }: WorktreeCreateDialogProps) {
   const createWorktreeWorkspace = useWorkspaceStore((s) => s.createWorktreeWorkspace)
+  const createSessionInWorkspace = useSessionStore((s) => s.createSessionInWorkspace)
+  const persistSessions = useSessionStore((s) => s.persistSessions)
+  const defaultAgent = useSettingsStore((s) => s.settings.defaultAgent)
+  const agents = useSettingsStore((s) => s.settings.agents)
+  const enabledAgents = agents.filter((a) => a.enabled)
 
   const [branchName, setBranchName] = useState('')
+  const [selectedAgent, setSelectedAgent] = useState<AgentType | null>(defaultAgent)
   const [creating, setCreating] = useState(false)
 
   const sanitize = (value: string) =>
@@ -23,10 +33,11 @@ export function WorktreeCreateDialog({ projectId, isOpen, onClose }: WorktreeCre
   useEffect(() => {
     if (isOpen) {
       setBranchName('')
+      setSelectedAgent(defaultAgent)
       setCreating(false)
       setTimeout(() => inputRef.current?.focus(), 50)
     }
-  }, [isOpen])
+  }, [isOpen, defaultAgent])
 
   // Close on Escape
   useEffect(() => {
@@ -54,19 +65,23 @@ export function WorktreeCreateDialog({ projectId, isOpen, onClose }: WorktreeCre
     if (creating) return
     setCreating(true)
     try {
-      await createWorktreeWorkspace(projectId, branchName.replace(/-+$/, '').trim() || undefined)
+      const ws = await createWorktreeWorkspace(projectId, branchName.replace(/-+$/, '').trim() || undefined)
+      if (selectedAgent) {
+        await createSessionInWorkspace(ws.id, undefined, selectedAgent)
+        persistSessions()
+      }
       onClose()
     } catch (err: unknown) {
       console.error('Failed to create worktree', getErrorMessage(err))
       setCreating(false)
     }
-  }, [creating, projectId, branchName, createWorktreeWorkspace, onClose])
+  }, [creating, projectId, branchName, selectedAgent, createWorktreeWorkspace, createSessionInWorkspace, persistSessions, onClose])
 
   if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div ref={dialogRef} className="w-80 bg-[var(--t-bg-elevated)] border border-[var(--t-border)] rounded-lg shadow-2xl">
+      <div ref={dialogRef} className="w-80 bg-[var(--t-bg-elevated)] border border-[var(--t-border)] shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--t-border)]">
           <h3 className="text-[12px] font-semibold text-zinc-200">New Worktree</h3>
@@ -86,8 +101,31 @@ export function WorktreeCreateDialog({ projectId, isOpen, onClose }: WorktreeCre
             onChange={(e) => setBranchName(sanitize(e.target.value))}
             onKeyDown={(e) => { if (e.key === 'Enter') handleCreate() }}
             placeholder="e.g. add-auth"
-            className="w-full px-2 py-1.5 text-[11px] bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded text-zinc-200 placeholder-zinc-600 outline-none focus:border-[var(--t-accent)]/50"
+            className="w-full px-2 py-1.5 text-[11px] bg-[var(--t-bg-base)] border border-[var(--t-border-input)] text-zinc-200 placeholder-zinc-600 outline-none focus:border-[var(--t-accent)]/50"
           />
+        </div>
+
+        {/* Spawn agent selector */}
+        <div className="px-4 pb-3">
+          <label className="text-[10px] text-zinc-500 mb-1 block">Spawn agent</label>
+          <div className="flex">
+            {enabledAgents.map((agent, i) => (
+              <button
+                key={agent.id}
+                onClick={() => setSelectedAgent(selectedAgent === agent.id ? null : agent.id)}
+                title={agent.name}
+                className={`flex-1 flex items-center justify-center py-2 border transition-colors ${
+                  i > 0 ? '-ml-px' : ''
+                } ${
+                  selectedAgent === agent.id
+                    ? 'border-[var(--t-accent)]/50 bg-[var(--t-accent)]/10 text-zinc-200 z-10'
+                    : 'border-[var(--t-border)] text-zinc-500 hover:text-zinc-300 hover:border-zinc-600'
+                }`}
+              >
+                <AgentIcon icon={agent.icon} size={22} />
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Footer */}
@@ -101,7 +139,7 @@ export function WorktreeCreateDialog({ projectId, isOpen, onClose }: WorktreeCre
           <button
             onClick={handleCreate}
             disabled={creating}
-            className="px-3 py-1.5 text-[11px] font-medium bg-[var(--t-accent)] hover:bg-[var(--t-accent-hover)] disabled:opacity-40 text-white rounded transition-colors"
+            className="px-3 py-1.5 text-[11px] font-medium bg-[var(--t-accent)] hover:bg-[var(--t-accent-hover)] disabled:opacity-40 text-white transition-colors"
           >
             {creating ? 'Creating...' : 'Create'}
           </button>
