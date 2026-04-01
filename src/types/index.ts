@@ -224,6 +224,7 @@ export interface AppSettings {
   customKeybindings: Record<string, string>
   sidebarViewMode?: 'flat' | 'grouped'
   dictation: DictationSettings
+  telemetryEnabled: boolean
 }
 
 export interface LspServerStatus {

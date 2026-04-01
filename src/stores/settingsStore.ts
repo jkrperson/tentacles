@@ -32,6 +32,7 @@ const defaultSettings: AppSettings = {
     micSensitivity: 5,
     noiseSuppression: 5,
   },
+  telemetryEnabled: true,
 }
 
 interface SettingsState {
