@@ -73,67 +73,73 @@ function handleRequest(client: net.Socket, tagged: TaggedRequest) {
 
   switch (request.method) {
     case 'spawn': {
-      const sessionDir = path.join(SCROLLBACK_DIR, request.id)
-      const scrollback = new ScrollbackWriter(sessionDir, request.cols, request.rows, request.cwd)
+      try {
+        const sessionDir = path.join(SCROLLBACK_DIR, request.id)
+        const scrollback = new ScrollbackWriter(sessionDir, request.cols, request.rows, request.cwd)
 
-      const ptyProcess: PtyProcess = pty.spawn(request.command, request.args, {
-        name: 'xterm-256color',
-        cols: request.cols,
-        rows: request.rows,
-        cwd: request.cwd,
-        env: {
-          ...process.env,
-          ...request.env,
-          TERM: 'xterm-256color',
-        },
-      })
+        const ptyProcess: PtyProcess = pty.spawn(request.command, request.args, {
+          name: 'xterm-256color',
+          cols: request.cols,
+          rows: request.rows,
+          cwd: request.cwd,
+          env: {
+            ...process.env,
+            ...request.env,
+            TERM: 'xterm-256color',
+          },
+        })
 
-      const session: ManagedSession = {
-        id: request.id,
-        pid: ptyProcess.pid,
-        cwd: request.cwd,
-        createdAt: Date.now(),
-        ptyProcess,
-        scrollback,
-        dataBuffer: '',
-        flushScheduled: false,
-      }
-      sessions.set(request.id, session)
+        const session: ManagedSession = {
+          id: request.id,
+          pid: ptyProcess.pid,
+          cwd: request.cwd,
+          createdAt: Date.now(),
+          ptyProcess,
+          scrollback,
+          dataBuffer: '',
+          flushScheduled: false,
+        }
+        sessions.set(request.id, session)
 
-      ptyProcess.onData((data: string) => {
-        scrollback.write(data)
+        ptyProcess.onData((data: string) => {
+          scrollback.write(data)
 
-        // Coalesce data and flush via setImmediate
-        session.dataBuffer += data
-        if (!session.flushScheduled) {
-          session.flushScheduled = true
-          setImmediate(() => {
+          // Coalesce data and flush via setImmediate
+          session.dataBuffer += data
+          if (!session.flushScheduled) {
+            session.flushScheduled = true
+            setImmediate(() => {
+              session.flushScheduled = false
+              if (session.dataBuffer) {
+                const event: DaemonEvent = { event: 'data', id: session.id, data: session.dataBuffer }
+                session.dataBuffer = ''
+                broadcast(event)
+              }
+            })
+          }
+        })
+
+        ptyProcess.onExit(({ exitCode }: { exitCode: number }) => {
+          // Flush any buffered data before broadcasting exit,
+          // so clients see output from short-lived processes.
+          if (session.dataBuffer) {
+            const event: DaemonEvent = { event: 'data', id: session.id, data: session.dataBuffer }
+            session.dataBuffer = ''
             session.flushScheduled = false
-            if (session.dataBuffer) {
-              const event: DaemonEvent = { event: 'data', id: session.id, data: session.dataBuffer }
-              session.dataBuffer = ''
-              broadcast(event)
-            }
-          })
-        }
-      })
+            broadcast(event)
+          }
+          scrollback.close()
+          sessions.delete(request.id)
+          broadcast({ event: 'exit', id: request.id, exitCode })
+          resetIdleTimer()
+        })
 
-      ptyProcess.onExit(({ exitCode }: { exitCode: number }) => {
-        // Flush any buffered data before broadcasting exit,
-        // so clients see output from short-lived processes.
-        if (session.dataBuffer) {
-          const event: DaemonEvent = { event: 'data', id: session.id, data: session.dataBuffer }
-          session.dataBuffer = ''
-          session.flushScheduled = false
-          broadcast(event)
-        }
-        scrollback.close()
-        sessions.delete(request.id)
-        broadcast({ event: 'exit', id: request.id, exitCode })
-        resetIdleTimer()
-      })
-
-      sendTo(client, { ok: true, reqId, pid: ptyProcess.pid })
+        sendTo(client, { ok: true, reqId, pid: ptyProcess.pid })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        console.error(`[daemon] spawn failed id="${request.id}" command="${request.command}" cwd="${request.cwd}":`, message)
+        sendTo(client, { ok: false, reqId, error: `Spawn failed: ${message}` })
+      }
       break
     }
 
