@@ -9,6 +9,9 @@ const __launcherDir = path.dirname(fileURLToPath(import.meta.url))
 const isDev = !!process.env['VITE_DEV_SERVER_URL']
 const DAEMON_DIR = path.join(homedir(), '.tentacles', isDev ? 'daemon-dev' : 'daemon')
 const PID_FILE = path.join(DAEMON_DIR, 'daemon.pid')
+// Tracks which script launched the daemon — used to detect stale daemons
+// from a different worktree or build.
+const ORIGIN_FILE = path.join(DAEMON_DIR, 'daemon.origin')
 
 export function getSocketPath(): string {
   return path.join(DAEMON_DIR, 'daemon.sock')
@@ -36,6 +39,7 @@ export function isDaemonRunning(): boolean {
         try { fs.unlinkSync(getSocketPath()) } catch { /* ignore */ }
         return false
       }
+
     } catch {
       // ps failed — PID might have just died, treat as not running
       return false
@@ -46,6 +50,28 @@ export function isDaemonRunning(): boolean {
       console.log(`[daemon] PID ${pid} alive but socket missing, cleaning up`)
       try { process.kill(pid, 'SIGTERM') } catch { /* ignore */ }
       try { fs.unlinkSync(PID_FILE) } catch { /* ignore */ }
+      return false
+    }
+
+    // Check if the daemon was launched from the same script as the current app.
+    // In dev mode, switching between worktrees should restart the daemon to avoid
+    // running stale code from a different build.
+    const currentScript = path.join(__launcherDir, 'daemon.mjs')
+    try {
+      const originScript = fs.readFileSync(ORIGIN_FILE, 'utf-8').trim()
+      if (originScript !== currentScript) {
+        console.log(`[daemon] Daemon origin mismatch: running="${originScript}", current="${currentScript}", restarting`)
+        try { process.kill(pid, 'SIGTERM') } catch { /* ignore */ }
+        try { fs.unlinkSync(PID_FILE) } catch { /* ignore */ }
+        try { fs.unlinkSync(getSocketPath()) } catch { /* ignore */ }
+        return false
+      }
+    } catch {
+      // No origin file — old daemon, restart to be safe
+      console.log(`[daemon] No origin marker found, restarting daemon`)
+      try { process.kill(pid, 'SIGTERM') } catch { /* ignore */ }
+      try { fs.unlinkSync(PID_FILE) } catch { /* ignore */ }
+      try { fs.unlinkSync(getSocketPath()) } catch { /* ignore */ }
       return false
     }
 
@@ -93,6 +119,10 @@ export function launchDaemon(): void {
   if (child.pid) {
     fs.writeFileSync(PID_FILE, String(child.pid))
   }
+
+  // Record which script launched this daemon so we can detect stale daemons
+  // when the app is run from a different worktree or build.
+  fs.writeFileSync(ORIGIN_FILE, daemonScript)
 
   child.unref()
 }

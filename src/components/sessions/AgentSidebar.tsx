@@ -67,11 +67,13 @@ export function AgentSidebar() {
     if (dir) addProject(dir)
   }, [addProject])
 
-  // Spawn agent into the active workspace (derived from active session),
+  const activeWorkspaceId = useUIStore((s) => s.activeWorkspaceId)
+
+  // Spawn agent into the active workspace (derived from active session or explicit selection),
   // falling back to main workspace of active project
   const spawnAgent = useCallback(async (agentId: string) => {
     const activeSession = activeSessionId ? sessions.get(activeSessionId) : null
-    const activeWsId = activeSession?.workspaceId ?? null
+    const activeWsId = activeSession?.workspaceId ?? activeWorkspaceId ?? null
     const activeWs = activeWsId ? workspaces.get(activeWsId) : null
 
     if (activeWs) {
@@ -87,7 +89,7 @@ export function AgentSidebar() {
       createSessionInWorkspace(ws.id, undefined, agentId)
     }
     setMoreOpen(false)
-  }, [activeSessionId, sessions, workspaces, activeProjectId, ensureMainWorkspace, createSessionInWorkspace, addProject])
+  }, [activeSessionId, sessions, workspaces, activeWorkspaceId, activeProjectId, ensureMainWorkspace, createSessionInWorkspace, addProject])
 
   const handleSpawnAgent = useCallback((workspaceId: string, name?: string) => {
     createSessionInWorkspace(workspaceId, name)
