@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import * as path from 'node:path'
 import * as os from 'node:os'
-import { mkdir, rm, stat } from 'node:fs/promises'
+import { mkdir, readdir, rm, stat } from 'node:fs/promises'
 
 const execFileAsync = promisify(execFile)
 
@@ -141,6 +141,42 @@ export class GitManager {
         })
       } catch {
         // branch may already be gone or checked out elsewhere
+      }
+    }
+  }
+
+  /**
+   * Prune ghost worktree entries for all projects under ~/.tentacles/worktrees/.
+   * Safe to call on startup to clean up after crashes or manual rm -rf.
+   */
+  async pruneAllWorktrees(): Promise<void> {
+    const baseDir = path.join(os.homedir(), '.tentacles', 'worktrees')
+    let projects: string[]
+    try {
+      projects = await readdir(baseDir)
+    } catch {
+      return // no worktrees directory yet
+    }
+    for (const project of projects) {
+      const projectDir = path.join(baseDir, project)
+      // Each sub-directory under a project is a worktree — use any to run prune
+      let entries: string[]
+      try {
+        entries = await readdir(projectDir)
+      } catch {
+        continue
+      }
+      for (const entry of entries) {
+        const worktreePath = path.join(projectDir, entry)
+        try {
+          await execFileAsync('git', ['worktree', 'prune'], {
+            cwd: worktreePath,
+            timeout: 5000,
+          })
+          break // only need to prune once per repo
+        } catch {
+          // not a valid git dir, try next
+        }
       }
     }
   }
