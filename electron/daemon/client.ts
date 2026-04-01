@@ -33,11 +33,18 @@ export class DaemonClient extends EventEmitter {
     }
     await this.connect()
 
-    // Verify the daemon is healthy with a ping
+    // Verify the daemon is healthy with a ping and a test spawn
+    let healthy = false
     try {
       await this.ping()
+      // Verify spawning works — a stale daemon may respond to pings but fail to spawn
+      await this.spawnTest()
+      healthy = true
     } catch {
-      console.log('[daemon] Connected but ping failed — restarting daemon')
+      console.log('[daemon] Connected but health check failed — restarting daemon')
+    }
+
+    if (!healthy) {
       this.disconnect()
       this.intentionalDisconnect = false
       // Force a fresh daemon
@@ -184,6 +191,21 @@ export class DaemonClient extends EventEmitter {
     const resp = await this.send({ method: 'ping' })
     if (!resp.ok) throw new Error((resp as { error: string }).error)
     return { uptime: (resp as { uptime: number }).uptime }
+  }
+
+  /** Spawn a short-lived process to verify the daemon can actually create PTYs. */
+  async spawnTest(): Promise<void> {
+    const testId = `health-check-${Date.now()}`
+    // Race spawn against a 3s timeout — if the daemon can't spawn, fail fast
+    const result = await Promise.race([
+      this.spawn(testId, '/bin/true', [], process.env.HOME || '/tmp', {}),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Spawn health check timed out')), 3000)
+      ),
+    ])
+    if (!result.pid) throw new Error('Spawn test returned no PID')
+    // Clean up the test session
+    await this.kill(testId).catch(() => {})
   }
 
   /** Disconnect without killing daemon sessions. */
