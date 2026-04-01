@@ -1,13 +1,26 @@
-export function AdvancedSection() {
+import type { AppSettings } from '../../../types'
+import { ToggleSwitch } from '../settingsControls'
+
+interface AdvancedSectionProps {
+  draft: AppSettings
+  onUpdate: (updater: (d: AppSettings) => AppSettings) => void
+}
+
+export function AdvancedSection({ draft, onUpdate }: AdvancedSectionProps) {
   return (
-    <div className="space-y-4">
-      <p className="text-[13px] text-zinc-500">
-        Advanced settings will be available in a future update.
-      </p>
-      <div className="rounded-lg border border-[var(--t-border-input)] bg-[var(--t-bg-surface)] px-4 py-3">
-        <span className="text-[12px] text-zinc-400">
-          Planned options include developer tools toggle, custom data directory, and configuration reset.
-        </span>
+    <div className="space-y-6">
+      {/* Telemetry */}
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-[13px] text-[var(--t-text-primary)]">Send anonymous usage data</div>
+          <div className="text-[11px] text-[var(--t-text-secondary)] mt-0.5">
+            Help improve Tentacles by sending anonymous usage analytics. No code, file paths, or personal data is ever collected.
+          </div>
+        </div>
+        <ToggleSwitch
+          enabled={draft.telemetryEnabled}
+          onClick={() => onUpdate((d) => ({ ...d, telemetryEnabled: !d.telemetryEnabled }))}
+        />
       </div>
     </div>
   )

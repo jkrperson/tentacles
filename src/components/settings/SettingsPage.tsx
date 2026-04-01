@@ -109,7 +109,7 @@ export function SettingsPage() {
       case 'updates':
         return <UpdatesSection />
       case 'advanced':
-        return <AdvancedSection />
+        return <AdvancedSection draft={draft} onUpdate={handleUpdate} />
     }
   }
 
