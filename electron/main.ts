@@ -255,6 +255,9 @@ let forceQuit = false
 app.on('before-quit', (event) => {
   if (forceQuit) return
 
+  // Only show confirmation if there are active sessions that would be killed
+  if (!ptyManager.hasActiveSessions()) return
+
   event.preventDefault()
 
   const focusedWindow = BrowserWindow.getFocusedWindow() ?? win

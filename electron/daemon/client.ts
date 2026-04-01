@@ -4,7 +4,7 @@ import * as net from 'node:net'
 import { existsSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
-import { getSocketPath, ensureDaemon, isDaemonRunning, getDaemonPid, launchDaemon } from './launcher'
+import { getSocketPath, ensureDaemon, isDaemonPidAlive, getDaemonPid, launchDaemon } from './launcher'
 import type {
   DaemonRequest,
   DaemonResponse,
@@ -251,8 +251,10 @@ export class DaemonClient extends EventEmitter {
     return new Promise((resolve) => {
       const start = Date.now()
       const check = () => {
-        // Wait for both the PID to be alive AND the socket file to exist
-        if (isDaemonRunning() && existsSync(socketPath)) {
+        // Wait for both the PID to be alive AND the socket file to exist.
+        // Use the non-destructive isDaemonPidAlive() check — isDaemonRunning()
+        // would kill a freshly launched daemon whose socket doesn't exist yet.
+        if (isDaemonPidAlive() && existsSync(socketPath)) {
           resolve()
         } else if (Date.now() - start > timeoutMs) {
           resolve() // give up waiting, connect will fail

@@ -155,7 +155,7 @@ export const SessionCard = memo(function SessionCard({
       <button
         onClick={(e) => {
           e.stopPropagation()
-          const isAlive = session.status === 'running' || session.status === 'idle' || session.status === 'needs_input'
+          const isAlive = session.exitCode == null && (session.status === 'running' || session.status === 'idle' || session.status === 'needs_input')
           const doClose = () => {
             // Always kill the daemon PTY — status tracking can be stale and
             // the kill RPC is idempotent, so this is safe even for dead sessions.

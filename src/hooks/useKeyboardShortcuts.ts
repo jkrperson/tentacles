@@ -59,7 +59,7 @@ export function useKeyboardShortcuts() {
         const { activeSessionId: aid, sessions: sess, removeSession: rm } = useSessionStore.getState()
         if (aid) {
           const session = sess.get(aid)
-          const isAlive = session?.status === 'running' || session?.status === 'idle' || session?.status === 'needs_input'
+          const isAlive = session?.exitCode == null && (session?.status === 'running' || session?.status === 'idle' || session?.status === 'needs_input')
           const doClose = () => {
             trpc.session.kill.mutate({ id: aid })
             rm(aid)

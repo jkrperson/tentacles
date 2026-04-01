@@ -273,6 +273,11 @@ export class PtyManager {
     return Array.from(this.ptys.values()).map(({ id, pid, name, cwd }) => ({ id, pid, name, cwd }))
   }
 
+  /** Check if there are any active agent or shell sessions. */
+  hasActiveSessions(): boolean {
+    return this.daemonSessions.size > 0 || this.ptys.size > 0
+  }
+
   /** Kill only local PTYs (shells). Daemon sessions are left alive. */
   killAll() {
     for (const [id, managed] of this.ptys) {

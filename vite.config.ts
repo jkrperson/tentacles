@@ -6,7 +6,11 @@ import electron from 'vite-plugin-electron/simple'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
-// Build the daemon entry point (runs as a standalone Node.js process)
+// Build the daemon entry point (runs as a standalone Node.js process).
+// Built eagerly so it's ready before Electron starts — building inside the
+// vite-plugin-electron `onstart` callback would write into dist-electron/
+// while the watcher is active, triggering a spurious rebuild of main.cjs
+// that races with the Electron launch.
 function buildDaemon() {
   mkdirSync(path.join(__dirname, 'dist-electron'), { recursive: true })
   spawnSync('node_modules/.bin/esbuild', [
@@ -17,6 +21,10 @@ function buildDaemon() {
   ], { cwd: __dirname, stdio: 'inherit' })
 }
 
+// Build daemon before Vite starts watching so the write doesn't trigger
+// a watch-mode rebuild of the main process bundle.
+buildDaemon()
+
 export default defineConfig({
   plugins: [
     react(),
@@ -26,19 +34,25 @@ export default defineConfig({
         entry: 'electron/main.ts',
         vite: {
           build: {
-            lib: {
-              entry: 'electron/main.ts',
-              formats: ['cjs'],
-              fileName: () => '[name].cjs',
-            },
+            // Disable lib mode entirely. vite-plugin-electron defaults to
+            // formats: ['es'] when package.json has "type": "module", and
+            // Vite's mergeConfig concatenates arrays — so our ['cjs'] would
+            // merge into ['es', 'cjs'], producing two competing builds that
+            // race to write main.cjs (one ESM, one CJS).
+            // Instead we drive the build through rollupOptions.
+            lib: false as never,
             rollupOptions: {
+              input: 'electron/main.ts',
               external: ['node-pty', 'ws', 'electron-trpc', 'express'],
+              output: {
+                format: 'cjs',
+                entryFileNames: '[name].cjs',
+                inlineDynamicImports: true,
+              },
             },
           },
         },
         onstart(args) {
-          // Build daemon before starting Electron in dev mode
-          buildDaemon()
           args.startup()
         },
       },
