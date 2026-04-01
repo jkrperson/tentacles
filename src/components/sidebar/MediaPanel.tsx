@@ -89,6 +89,16 @@ export function MediaPanel({ collapsed, onToggleCollapsed }: MediaPanelProps) {
     setUrl('')
   }, [])
 
+  const placeholderText =
+    service === 'youtube'
+      ? 'YouTube URL, video ID, or playlist'
+      : 'Twitch channel name or URL'
+
+  const emptyStateText =
+    service === 'youtube'
+      ? 'Paste a YouTube link above'
+      : 'Paste a Twitch link above'
+
   return (
     <div className="flex flex-col h-full bg-[var(--t-bg-surface)]">
       {/* Header */}
@@ -112,25 +122,33 @@ export function MediaPanel({ collapsed, onToggleCollapsed }: MediaPanelProps) {
         <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-medium">Media</span>
 
         <div className="ml-auto flex items-center gap-0.5">
+          {/* YouTube logo */}
           <button
             onClick={() => handleServiceSwitch('youtube')}
-            className={`px-1.5 py-0.5 text-[10px] rounded transition-colors ${
+            className={`p-1 rounded transition-colors ${
               service === 'youtube'
                 ? 'text-zinc-200 bg-[var(--t-bg-hover)]'
                 : 'text-zinc-600 hover:text-zinc-400'
             }`}
+            title="YouTube"
           >
-            YT
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+            </svg>
           </button>
+          {/* Twitch logo */}
           <button
             onClick={() => handleServiceSwitch('twitch')}
-            className={`px-1.5 py-0.5 text-[10px] rounded transition-colors ${
+            className={`p-1 rounded transition-colors ${
               service === 'twitch'
                 ? 'text-zinc-200 bg-[var(--t-bg-hover)]'
                 : 'text-zinc-600 hover:text-zinc-400'
             }`}
+            title="Twitch"
           >
-            TTV
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z" />
+            </svg>
           </button>
         </div>
       </div>
@@ -143,7 +161,7 @@ export function MediaPanel({ collapsed, onToggleCollapsed }: MediaPanelProps) {
             type="text"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder={service === 'youtube' ? 'YouTube URL, video ID, or playlist' : 'Twitch channel name or URL'}
+            placeholder={placeholderText}
             className="w-full bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded px-2 py-1 text-[11px] text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-[var(--t-accent)]/50 transition-colors"
           />
         </div>
@@ -168,7 +186,7 @@ export function MediaPanel({ collapsed, onToggleCollapsed }: MediaPanelProps) {
           {!hasEmbed && (
             <div className="flex items-center justify-center h-full">
               <span className="text-[11px] text-zinc-600">
-                {url ? 'Invalid URL' : `Paste a ${service === 'youtube' ? 'YouTube' : 'Twitch'} link above`}
+                {url ? 'Invalid URL' : emptyStateText}
               </span>
             </div>
           )}
