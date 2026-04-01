@@ -21,7 +21,8 @@ export function getScrollbackDir(): string {
   return path.join(DAEMON_DIR, 'scrollback')
 }
 
-/** Check if a daemon is already running by verifying the PID file. */
+/** Check if a daemon is already running, healthy, and ready to accept connections.
+ *  This is a destructive check — it kills stale or mismatched daemons. */
 export function isDaemonRunning(): boolean {
   try {
     const pid = parseInt(fs.readFileSync(PID_FILE, 'utf-8').trim(), 10)
@@ -45,17 +46,9 @@ export function isDaemonRunning(): boolean {
       return false
     }
 
-    // Also verify the socket file exists — no socket means daemon can't accept connections
-    if (!fs.existsSync(getSocketPath())) {
-      console.log(`[daemon] PID ${pid} alive but socket missing, cleaning up`)
-      try { process.kill(pid, 'SIGTERM') } catch { /* ignore */ }
-      try { fs.unlinkSync(PID_FILE) } catch { /* ignore */ }
-      return false
-    }
-
-    // Check if the daemon was launched from the same script as the current app.
-    // In dev mode, switching between worktrees should restart the daemon to avoid
-    // running stale code from a different build.
+    // Check origin BEFORE socket — a daemon from another worktree should be
+    // killed even if its socket exists. Checking origin first avoids the
+    // misleading "socket missing" log for stale cross-worktree daemons.
     const currentScript = path.join(__launcherDir, 'daemon.mjs')
     try {
       const originScript = fs.readFileSync(ORIGIN_FILE, 'utf-8').trim()
@@ -75,6 +68,31 @@ export function isDaemonRunning(): boolean {
       return false
     }
 
+    // Verify the socket file exists — no socket means daemon can't accept connections.
+    // NOTE: This only runs for daemons with a matching origin, so it won't kill a
+    // daemon that was just launched and is still initializing (waitForDaemon checks
+    // isDaemonPidAlive instead).
+    if (!fs.existsSync(getSocketPath())) {
+      console.log(`[daemon] PID ${pid} alive but socket missing, cleaning up`)
+      try { process.kill(pid, 'SIGTERM') } catch { /* ignore */ }
+      try { fs.unlinkSync(PID_FILE) } catch { /* ignore */ }
+      return false
+    }
+
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Non-destructive check: is the daemon PID alive and is it our daemon?
+ *  Used by waitForDaemon to poll without killing a freshly launched daemon
+ *  that hasn't created its socket yet. */
+export function isDaemonPidAlive(): boolean {
+  try {
+    const pid = parseInt(fs.readFileSync(PID_FILE, 'utf-8').trim(), 10)
+    if (isNaN(pid)) return false
+    process.kill(pid, 0)
     return true
   } catch {
     return false
