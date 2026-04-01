@@ -41,6 +41,7 @@
     "express": "^5.2.1",
     "monaco-editor": "^0.55.1",
     "node-pty": "^1.1.0",
+    "posthog-js": "^1.364.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "vscode-jsonrpc": "^8.2.1",

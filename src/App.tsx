@@ -12,6 +12,7 @@ import { useProjectStore } from './stores/projectStore'
 import { applyThemeToDOM } from './themes'
 import { useResolvedTheme, useCustomThemes } from './hooks/useResolvedTheme'
 import { initDataRouter } from './dataRouter'
+import { capture, identifyUser, resetUser } from './lib/posthog'
 import { useSessionSubscriptions } from './hooks/useSessionSubscriptions'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useSoundPlayer } from './hooks/useSoundPlayer'
@@ -39,6 +40,20 @@ function App() {
     checkAuth()
     return subscribeToAuthChanges()
   }, [checkAuth, subscribeToAuthChanges])
+
+  // Track app launch once
+  useEffect(() => {
+    capture('app_launched')
+  }, [])
+
+  // Identify/reset user for telemetry
+  useEffect(() => {
+    if (user) {
+      identifyUser(user.id, { login: user.login })
+    } else if (authInitialized) {
+      resetUser()
+    }
+  }, [user, authInitialized])
 
   useEffect(() => {
     loadSettings()

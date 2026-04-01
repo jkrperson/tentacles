@@ -5,6 +5,7 @@ import { useProjectStore } from './projectStore'
 import { useWorkspaceStore, sessionBelongsToProject } from './workspaceStore'
 import { getErrorMessage } from '../utils/errors'
 import { generateRandomName } from '../utils/randomName'
+import { capture } from '../lib/posthog'
 import type { Session, SessionStatus, SessionsFile, AgentType, Workspace } from '../types'
 
 /** Agents that start in a REPL/interactive mode (waiting for user input, not immediately working). */
@@ -126,6 +127,8 @@ export const useSessionStore = create<SessionState>((set, get) => {
       set((state) => {
         const session = state.sessions.get(id)
         if (!session) return state
+
+        capture('session_killed', { agent_type: session.agentType })
 
         const sessions = new Map(state.sessions)
         sessions.delete(id)
@@ -258,6 +261,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
           workspaceId: workspace.id,
         })
         addProject(cwd)
+        capture('session_created', { agent_type: resolvedAgent })
       } catch (err: unknown) {
         console.error('Failed to spawn agent', getErrorMessage(err))
       }
@@ -282,6 +286,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
           workspaceId: workspace.id,
         })
         setActiveProject(projectPath)
+        capture('session_created', { agent_type: resolvedAgent })
       } catch (err: unknown) {
         console.error('Failed to spawn agent', getErrorMessage(err))
       }
@@ -309,6 +314,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
           workspaceId,
         })
         setActiveProject(workspace.projectId)
+        capture('session_created', { agent_type: resolvedAgent })
       } catch (err: unknown) {
         console.error('Failed to spawn agent', getErrorMessage(err))
       }
