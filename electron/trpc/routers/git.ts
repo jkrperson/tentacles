@@ -118,9 +118,9 @@ export function createGitRouter(deps: GitDeps) {
         }),
 
       remove: t.procedure
-        .input(z.object({ repoPath: z.string(), worktreePath: z.string() }))
+        .input(z.object({ repoPath: z.string(), worktreePath: z.string(), branch: z.string().optional() }))
         .mutation(({ input }) => {
-          return deps.gitManager.removeWorktree(input.repoPath, input.worktreePath)
+          return deps.gitManager.removeWorktree(input.repoPath, input.worktreePath, input.branch)
         }),
 
       list: t.procedure

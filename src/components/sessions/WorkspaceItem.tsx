@@ -103,6 +103,7 @@ export function WorkspaceItem({
   const showConfirm = useConfirmStore((s) => s.show)
 
   const isMain = workspace.type === 'main'
+  const isTearingDown = workspace.status === 'tearing_down'
 
   const wsSessionIds = useMemo(() => {
     return sessionOrder.filter((id) => sessions.get(id)?.workspaceId === workspace.id)
@@ -233,15 +234,15 @@ export function WorkspaceItem({
 
   return (
     <div
-      onClick={handleCardClick}
-      draggable={draggable}
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDragEnd={onDragEnd}
-      onDrop={onDrop}
-      className={`group relative cursor-pointer transition-all duration-150 ${
-        isDragging ? 'opacity-40' : ''
-      }`}
+      onClick={isTearingDown ? undefined : handleCardClick}
+      draggable={isTearingDown ? false : draggable}
+      onDragStart={isTearingDown ? undefined : onDragStart}
+      onDragOver={isTearingDown ? undefined : onDragOver}
+      onDragEnd={isTearingDown ? undefined : onDragEnd}
+      onDrop={isTearingDown ? undefined : onDrop}
+      className={`group relative transition-all duration-150 ${
+        isTearingDown ? 'opacity-50 pointer-events-none' : 'cursor-pointer'
+      } ${isDragging ? 'opacity-40' : ''}`}
       style={dropPosition ? {
         borderTop: dropPosition === 'above' ? '2px solid var(--t-accent)' : undefined,
         borderBottom: dropPosition === 'below' ? '2px solid var(--t-accent)' : undefined,
@@ -273,11 +274,14 @@ export function WorkspaceItem({
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
                 <span className={`text-[11px] font-semibold truncate ${
-                  isActiveWorkspace ? 'text-zinc-100' : 'text-zinc-300'
+                  isTearingDown ? 'text-zinc-600' : isActiveWorkspace ? 'text-zinc-100' : 'text-zinc-300'
                 }`}>
                   {isMain ? 'main' : workspace.name}
                 </span>
-                {hasDiff && (
+                {isTearingDown && (
+                  <span className="text-[9px] text-zinc-600 italic flex-shrink-0">Removing...</span>
+                )}
+                {!isTearingDown && hasDiff && (
                   <span className="flex items-center gap-0.5 font-mono text-[9px] flex-shrink-0">
                     {diffStats!.insertions > 0 && (
                       <span className="text-green-500/80">+{diffStats!.insertions}</span>

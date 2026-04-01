@@ -30,6 +30,7 @@ export function AgentSpawnDialog({ projectId, isOpen, onClose, preselectedWorksp
   const [newWorktree, setNewWorktree] = useState(false)
   const [worktreeName, setWorktreeName] = useState('')
   const [creating, setCreating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const sanitizeBranch = (value: string) =>
     value.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/-{2,}/g, '-').replace(/^-+/, '')
@@ -45,6 +46,7 @@ export function AgentSpawnDialog({ projectId, isOpen, onClose, preselectedWorksp
       setNewWorktree(false)
       setWorktreeName('')
       setCreating(false)
+      setError(null)
       setTimeout(() => nameInputRef.current?.focus(), 50)
     }
   }, [isOpen, defaultAgent, preselectedWorkspaceId]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -74,6 +76,7 @@ export function AgentSpawnDialog({ projectId, isOpen, onClose, preselectedWorksp
   const handleCreate = useCallback(async () => {
     if (creating) return
     setCreating(true)
+    setError(null)
     try {
       let wsId = selectedWorkspaceId
       if (newWorktree) {
@@ -84,7 +87,7 @@ export function AgentSpawnDialog({ projectId, isOpen, onClose, preselectedWorksp
       persistSessions()
       onClose()
     } catch (err: unknown) {
-      console.error('Failed to create agent', getErrorMessage(err))
+      setError(getErrorMessage(err))
       setCreating(false)
     }
   }, [creating, selectedWorkspaceId, newWorktree, projectId, worktreeName, agentName, agentType, createSessionInWorkspace, createWorktreeWorkspace, persistSessions, onClose])
@@ -180,6 +183,10 @@ export function AgentSpawnDialog({ projectId, isOpen, onClose, preselectedWorksp
             )}
           </div>
         </div>
+
+        {error && (
+          <p className="px-4 pb-2 text-[10px] text-red-400 leading-tight">{error}</p>
+        )}
 
         {/* Footer */}
         <div className="flex justify-end gap-2 px-4 py-3 border-t border-[var(--t-border)]">

@@ -322,6 +322,11 @@ app.whenReady().then(async () => {
 
   await reconcileSessions()
 
+  // Prune ghost worktree entries left by crashes or manual cleanup
+  gitManager.pruneAllWorktrees().catch((err: unknown) => {
+    console.warn('[tentacles] Failed to prune worktrees on startup:', err)
+  })
+
   ipcHandler = createIPCHandler({ router: appRouter })
   createWindow()
 })

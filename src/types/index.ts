@@ -22,7 +22,7 @@ export interface AgentConfig {
 }
 
 export type WorkspaceType = 'main' | 'worktree'
-export type WorkspaceStatus = 'active' | 'merged' | 'stale'
+export type WorkspaceStatus = 'active' | 'merged' | 'stale' | 'tearing_down'
 
 export interface Workspace {
   id: string

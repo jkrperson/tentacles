@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import * as path from 'node:path'
 import * as os from 'node:os'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, readdir, rm, stat } from 'node:fs/promises'
 
 const execFileAsync = promisify(execFile)
 
@@ -64,6 +64,22 @@ export class GitManager {
     const worktreeDir = path.join(os.homedir(), '.tentacles', 'worktrees', project, slug || `agent-${Date.now()}`)
     await mkdir(path.dirname(worktreeDir), { recursive: true })
 
+    // Prune stale worktree entries before creating — guards against ghost metadata
+    // from previous teardowns that crashed or used manual rm -rf
+    try {
+      await execFileAsync('git', ['worktree', 'prune'], { cwd: repoPath, timeout: 5000 })
+    } catch {
+      // best-effort
+    }
+
+    // If the directory already exists (leftover from a failed teardown), remove it
+    try {
+      await stat(worktreeDir)
+      await rm(worktreeDir, { recursive: true, force: true })
+    } catch {
+      // doesn't exist — expected path
+    }
+
     // Check if the branch already exists (e.g. from a previously removed worktree)
     let branchExists = false
     try {
@@ -76,26 +92,32 @@ export class GitManager {
       // branch doesn't exist
     }
 
-    if (branchExists) {
-      // Reuse existing branch
-      await execFileAsync('git', ['worktree', 'add', worktreeDir, branch], {
-        cwd: repoPath,
-        timeout: 10000,
-      })
-    } else {
-      // Create new branch
-      await execFileAsync('git', ['worktree', 'add', worktreeDir, '-b', branch], {
-        cwd: repoPath,
-        timeout: 10000,
-      })
+    try {
+      if (branchExists) {
+        // Reuse existing branch
+        await execFileAsync('git', ['worktree', 'add', worktreeDir, branch], {
+          cwd: repoPath,
+          timeout: 10000,
+        })
+      } else {
+        // Create new branch
+        await execFileAsync('git', ['worktree', 'add', worktreeDir, '-b', branch], {
+          cwd: repoPath,
+          timeout: 10000,
+        })
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      throw new Error(`Failed to create worktree "${name || branch}": ${msg}`)
     }
 
     return { worktreePath: worktreeDir, branch }
   }
 
-  async removeWorktree(repoPath: string, worktreePath: string): Promise<void> {
+  async removeWorktree(repoPath: string, worktreePath: string, branch?: string): Promise<void> {
     try {
-      await execFileAsync('git', ['worktree', 'remove', worktreePath, '--force'], {
+      // Double --force handles worktrees that were locked externally
+      await execFileAsync('git', ['worktree', 'remove', '--force', '--force', worktreePath], {
         cwd: repoPath,
         timeout: 10000,
       })
@@ -109,6 +131,53 @@ export class GitManager {
       })
     } catch {
       // ignore prune errors
+    }
+    // Delete the associated branch after worktree removal
+    if (branch) {
+      try {
+        await execFileAsync('git', ['branch', '-D', branch], {
+          cwd: repoPath,
+          timeout: 5000,
+        })
+      } catch {
+        // branch may already be gone or checked out elsewhere
+      }
+    }
+  }
+
+  /**
+   * Prune ghost worktree entries for all projects under ~/.tentacles/worktrees/.
+   * Safe to call on startup to clean up after crashes or manual rm -rf.
+   */
+  async pruneAllWorktrees(): Promise<void> {
+    const baseDir = path.join(os.homedir(), '.tentacles', 'worktrees')
+    let projects: string[]
+    try {
+      projects = await readdir(baseDir)
+    } catch {
+      return // no worktrees directory yet
+    }
+    for (const project of projects) {
+      const projectDir = path.join(baseDir, project)
+      // Each sub-directory under a project is a worktree — use any to run prune
+      let entries: string[]
+      try {
+        entries = await readdir(projectDir)
+      } catch {
+        continue
+      }
+      for (const entry of entries) {
+        const worktreePath = path.join(projectDir, entry)
+        try {
+          await execFileAsync('git', ['worktree', 'prune'], {
+            cwd: worktreePath,
+            timeout: 5000,
+          })
+          break // only need to prune once per repo
+        } catch {
+          // not a valid git dir, try next
+        }
+      }
     }
   }
 

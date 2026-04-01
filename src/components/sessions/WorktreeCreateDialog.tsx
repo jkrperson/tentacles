@@ -23,6 +23,7 @@ export function WorktreeCreateDialog({ projectId, isOpen, onClose }: WorktreeCre
   const [branchName, setBranchName] = useState('')
   const [selectedAgent, setSelectedAgent] = useState<AgentType | null>(defaultAgent)
   const [creating, setCreating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const sanitize = (value: string) =>
     value.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/-{2,}/g, '-').replace(/^-+/, '')
@@ -35,6 +36,7 @@ export function WorktreeCreateDialog({ projectId, isOpen, onClose }: WorktreeCre
       setBranchName('')
       setSelectedAgent(defaultAgent)
       setCreating(false)
+      setError(null)
       setTimeout(() => inputRef.current?.focus(), 50)
     }
   }, [isOpen, defaultAgent])
@@ -64,6 +66,7 @@ export function WorktreeCreateDialog({ projectId, isOpen, onClose }: WorktreeCre
   const handleCreate = useCallback(async () => {
     if (creating) return
     setCreating(true)
+    setError(null)
     try {
       const ws = await createWorktreeWorkspace(projectId, branchName.replace(/-+$/, '').trim() || undefined)
       if (selectedAgent) {
@@ -72,7 +75,7 @@ export function WorktreeCreateDialog({ projectId, isOpen, onClose }: WorktreeCre
       }
       onClose()
     } catch (err: unknown) {
-      console.error('Failed to create worktree', getErrorMessage(err))
+      setError(getErrorMessage(err))
       setCreating(false)
     }
   }, [creating, projectId, branchName, selectedAgent, createWorktreeWorkspace, createSessionInWorkspace, persistSessions, onClose])
@@ -103,6 +106,9 @@ export function WorktreeCreateDialog({ projectId, isOpen, onClose }: WorktreeCre
             placeholder="e.g. add-auth"
             className="w-full px-2 py-1.5 text-[11px] bg-[var(--t-bg-base)] border border-[var(--t-border-input)] text-zinc-200 placeholder-zinc-600 outline-none focus:border-[var(--t-accent)]/50"
           />
+          {error && (
+            <p className="mt-2 text-[10px] text-red-400 leading-tight">{error}</p>
+          )}
         </div>
 
         {/* Spawn agent selector */}

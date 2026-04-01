@@ -94,13 +94,24 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const ws = workspaces.get(id)
     if (!ws || ws.type !== 'worktree' || !ws.worktreePath) return
 
-    await trpc.git.worktree.remove.mutate({ repoPath: ws.projectId, worktreePath: ws.worktreePath })
-
+    // Mark as tearing down so the UI can show a non-interactive state
     set((state) => {
       const next = new Map(state.workspaces)
-      next.delete(id)
-      return { workspaces: next, workspaceOrder: state.workspaceOrder.filter((wid) => wid !== id) }
+      const updated = { ...ws, status: 'tearing_down' as const }
+      next.set(id, updated)
+      return { workspaces: next }
     })
+
+    try {
+      await trpc.git.worktree.remove.mutate({ repoPath: ws.projectId, worktreePath: ws.worktreePath, branch: ws.branch })
+    } finally {
+      // Remove from store whether removal succeeded or failed
+      set((state) => {
+        const next = new Map(state.workspaces)
+        next.delete(id)
+        return { workspaces: next, workspaceOrder: state.workspaceOrder.filter((wid) => wid !== id) }
+      })
+    }
   },
 
   reorderWorkspaces: (fromIndex, toIndex, projectId) => {
