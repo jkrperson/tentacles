@@ -81,7 +81,7 @@ export function WorktreeCreateDialog({ projectId, isOpen, onClose }: WorktreeCre
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div ref={dialogRef} className="w-80 bg-[var(--t-bg-elevated)] border border-[var(--t-border)] rounded-lg shadow-2xl">
+      <div ref={dialogRef} className="w-80 bg-[var(--t-bg-elevated)] border border-[var(--t-border)] shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--t-border)]">
           <h3 className="text-[12px] font-semibold text-zinc-200">New Worktree</h3>
@@ -101,7 +101,7 @@ export function WorktreeCreateDialog({ projectId, isOpen, onClose }: WorktreeCre
             onChange={(e) => setBranchName(sanitize(e.target.value))}
             onKeyDown={(e) => { if (e.key === 'Enter') handleCreate() }}
             placeholder="e.g. add-auth"
-            className="w-full px-2 py-1.5 text-[11px] bg-[var(--t-bg-base)] border border-[var(--t-border-input)] rounded text-zinc-200 placeholder-zinc-600 outline-none focus:border-[var(--t-accent)]/50"
+            className="w-full px-2 py-1.5 text-[11px] bg-[var(--t-bg-base)] border border-[var(--t-border-input)] text-zinc-200 placeholder-zinc-600 outline-none focus:border-[var(--t-accent)]/50"
           />
         </div>
 
@@ -139,7 +139,7 @@ export function WorktreeCreateDialog({ projectId, isOpen, onClose }: WorktreeCre
           <button
             onClick={handleCreate}
             disabled={creating}
-            className="px-3 py-1.5 text-[11px] font-medium bg-[var(--t-accent)] hover:bg-[var(--t-accent-hover)] disabled:opacity-40 text-white rounded transition-colors"
+            className="px-3 py-1.5 text-[11px] font-medium bg-[var(--t-accent)] hover:bg-[var(--t-accent-hover)] disabled:opacity-40 text-white transition-colors"
           >
             {creating ? 'Creating...' : 'Create'}
           </button>
