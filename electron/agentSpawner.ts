@@ -133,5 +133,10 @@ export function createAgentSpawner(deps: SpawnerDeps) {
     cachedDaemonSessionIds = ids
   }
 
-  return { spawn, reattach, setCachedDaemonSessionIds }
+  /** Clear the cached daemon IDs so subsequent reattach calls query the daemon directly. */
+  function clearCachedDaemonSessionIds() {
+    cachedDaemonSessionIds = null
+  }
+
+  return { spawn, reattach, setCachedDaemonSessionIds, clearCachedDaemonSessionIds }
 }

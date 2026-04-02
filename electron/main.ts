@@ -325,6 +325,11 @@ app.whenReady().then(async () => {
 
   await reconcileSessions()
 
+  // Clear the cached daemon session IDs after a short delay so that any
+  // subsequent reattach calls (e.g. macOS window close/reopen) query the
+  // daemon directly instead of relying on a stale startup snapshot.
+  setTimeout(() => spawner.clearCachedDaemonSessionIds(), 15_000)
+
   // Prune ghost worktree entries left by crashes or manual cleanup
   gitManager.pruneAllWorktrees().catch((err: unknown) => {
     console.warn('[tentacles] Failed to prune worktrees on startup:', err)

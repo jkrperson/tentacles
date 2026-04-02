@@ -415,7 +415,20 @@ export const useSessionStore = create<SessionState>((set, get) => {
               idMap.set(s.id, restored.id)
               continue
             }
-          } catch { /* reattach failed — daemon session not found */ }
+          } catch { /* reattach failed */ }
+
+          // Daemon session no longer exists (agent exited while app was closed).
+          // Restore the session in a completed state so the user can still see it
+          // and its scrollback history.
+          const completed: Session = {
+            ...s,
+            status: 'completed' as SessionStatus,
+            exitCode: s.exitCode ?? 0,
+            hasUnread: false,
+          }
+          sessions.set(completed.id, completed)
+          sessionOrder.push(completed.id)
+          idMap.set(s.id, completed.id)
         }
 
         // Restore tabOrder, remapping old IDs and filtering out discarded sessions
