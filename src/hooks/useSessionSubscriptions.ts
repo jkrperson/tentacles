@@ -3,6 +3,8 @@ import { trpc } from '../trpc'
 import { useSessionStore } from '../stores/sessionStore'
 import { useTerminalStore } from '../stores/terminalStore'
 import { useProjectStore } from '../stores/projectStore'
+import { useUIStore } from '../stores/uiStore'
+import { useWorkspaceStore } from '../stores/workspaceStore'
 
 export function useSessionSubscriptions() {
   const activeSessionId = useSessionStore((s) => s.activeSessionId)
@@ -101,15 +103,49 @@ export function useSessionSubscriptions() {
     return () => sub.unsubscribe()
   }, [updateStatus, setHasUnread])
 
-  // Switch active terminal when project changes
+  // Switch active terminal when workspace changes
+  const sessionWorkspaceId = useSessionStore((s) => {
+    const aid = s.activeSessionId
+    if (!aid) return null
+    return s.sessions.get(aid)?.workspaceId ?? null
+  })
+  const explicitWorkspaceId = useUIStore((s) => s.activeWorkspaceId)
+  const activeWorkspaceId = sessionWorkspaceId ?? explicitWorkspaceId
+
   useEffect(() => {
     const { terminals, terminalOrder: tOrder, activeTerminalId } = useTerminalStore.getState()
-    if (activeTerminalId && terminals.get(activeTerminalId)?.cwd === activeProjectId) return
-    const match = activeProjectId
-      ? tOrder.find((id) => terminals.get(id)?.cwd === activeProjectId) ?? null
-      : tOrder[0] ?? null
-    setActiveTerminal(match)
-  }, [activeProjectId, setActiveTerminal])
+    // If current terminal already belongs to this workspace, keep it
+    if (activeTerminalId && activeWorkspaceId && terminals.get(activeTerminalId)?.workspaceId === activeWorkspaceId) return
+    if (activeWorkspaceId) {
+      const match = tOrder.find((id) => terminals.get(id)?.workspaceId === activeWorkspaceId) ?? null
+      setActiveTerminal(match)
+    } else if (activeProjectId) {
+      // Fallback to project-level matching
+      const workspaces = useWorkspaceStore.getState().workspaces
+      const match = tOrder.find((id) => {
+        const t = terminals.get(id)
+        if (!t) return false
+        const ws = workspaces.get(t.workspaceId)
+        return ws?.projectId === activeProjectId
+      }) ?? null
+      setActiveTerminal(match)
+    }
+  }, [activeWorkspaceId, activeProjectId, setActiveTerminal])
+
+  // Listen for shell terminal title changes (process name, cwd, etc.)
+  const renameTerminal = useTerminalStore((s) => s.renameTerminal)
+  useEffect(() => {
+    const sub = trpc.terminal.onTitle.subscribe(undefined, {
+      onData: ({ id, title }) => {
+        const terminal = useTerminalStore.getState().terminals.get(id)
+        if (!terminal) return
+        if (title && title !== terminal.name) {
+          renameTerminal(id, title)
+        }
+      },
+    })
+    return () => sub.unsubscribe()
+  }, [renameTerminal])
 
   // Listen for shell terminal exits
   useEffect(() => {

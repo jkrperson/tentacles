@@ -9,6 +9,7 @@ export interface EventMap {
   'session:agentStatus': { id: string; status: 'running' | 'needs_input' | 'completed' | 'idle' }
   'terminal:data': { id: string; data: string }
   'terminal:exit': { id: string; exitCode: number }
+  'terminal:title': { id: string; title: string }
   'file:changed': FileChangeEvent
   'updater:status': UpdaterStatus
   'auth:changed': { user: GitHubUser | null }

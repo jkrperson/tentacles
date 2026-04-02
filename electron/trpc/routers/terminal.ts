@@ -35,5 +35,6 @@ export function createTerminalRouter(deps: TerminalDeps) {
 
     onData: createSubscription('terminal:data'),
     onExit: createSubscription('terminal:exit'),
+    onTitle: createSubscription('terminal:title'),
   })
 }
