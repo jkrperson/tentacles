@@ -61,9 +61,9 @@ export function DictationSection({ draft, onUpdate }: DictationSectionProps) {
 
     try {
       const constraints: MediaTrackConstraints = {
-        deviceId: draft.dictation.micDeviceId ? { exact: draft.dictation.micDeviceId } : undefined,
-        noiseSuppression: draft.dictation.noiseSuppression >= 5,
-        echoCancellation: draft.dictation.noiseSuppression >= 5,
+        deviceId: draft.dictation.micDeviceId ? { ideal: draft.dictation.micDeviceId } : undefined,
+        noiseSuppression: draft.dictation.noiseSuppression,
+        echoCancellation: draft.dictation.noiseSuppression,
         autoGainControl: true,
       }
 
@@ -152,24 +152,23 @@ export function DictationSection({ draft, onUpdate }: DictationSectionProps) {
       </div>
 
       {/* Noise Suppression */}
-      <div>
-        <label className="block text-[13px] text-zinc-300 mb-2">Noise Suppression</label>
-        <div className="flex items-center gap-3">
-          <span className="text-[11px] text-zinc-500 w-6">Off</span>
-          <input
-            type="range"
-            min={1}
-            max={10}
-            value={draft.dictation.noiseSuppression}
-            onChange={(e) => updateDictation({ noiseSuppression: parseInt(e.target.value) || 5 })}
-            className="flex-1 accent-[var(--t-accent)]"
-          />
-          <span className="text-[11px] text-zinc-500 w-7">Max</span>
-          <span className="text-[13px] text-zinc-300 w-5 text-right">{draft.dictation.noiseSuppression}</span>
+      <div className="flex items-center justify-between py-2">
+        <div>
+          <span className="text-[13px] text-zinc-300">Noise Suppression</span>
+          <p className="text-[11px] text-zinc-500 mt-0.5">Enable browser-level noise suppression and echo cancellation.</p>
         </div>
-        <p className="text-[11px] text-zinc-500 mt-1">
-          Enables browser-level noise suppression and echo cancellation at level 5 and above.
-        </p>
+        <button
+          onClick={() => updateDictation({ noiseSuppression: !draft.dictation.noiseSuppression })}
+          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+            draft.dictation.noiseSuppression ? 'bg-[var(--t-accent)]' : 'bg-[var(--t-border-input)]'
+          }`}
+        >
+          <span
+            className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
+              draft.dictation.noiseSuppression ? 'translate-x-[18px]' : 'translate-x-[3px]'
+            }`}
+          />
+        </button>
       </div>
 
       {/* Mic Test / Playback */}

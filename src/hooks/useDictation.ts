@@ -162,18 +162,33 @@ export function useDictation() {
     // micSensitivity 1–10: higher = more sensitive (lower threshold)
     // At 5 (default), threshold = BASE (0.01). At 10, threshold = 0.002. At 1, threshold = 0.05.
     const silenceThreshold = BASE_SILENCE_THRESHOLD * Math.pow(0.5, (micSensitivity - 5) / 2.5)
-    // noiseSuppression 1–10: controls browser-level noise suppression
-    const useNoiseSuppression = noiseSuppression >= 5
-
     const audioConstraints: MediaTrackConstraints = {
-      deviceId: micDeviceId ? { exact: micDeviceId } : undefined,
-      noiseSuppression: useNoiseSuppression,
-      echoCancellation: useNoiseSuppression,
+      deviceId: micDeviceId ? { ideal: micDeviceId } : undefined,
+      noiseSuppression: noiseSuppression,
+      echoCancellation: noiseSuppression,
       autoGainControl: true,
     }
 
-    navigator.mediaDevices
-      .getUserMedia({ audio: audioConstraints })
+    const acquireMic = async (): Promise<MediaStream> => {
+      try {
+        return await navigator.mediaDevices.getUserMedia({ audio: audioConstraints })
+      } catch (err) {
+        // If the preferred device is unavailable, fall back to default mic
+        if (micDeviceId && err instanceof OverconstrainedError) {
+          console.warn('[dictation] preferred mic unavailable, falling back to default')
+          return navigator.mediaDevices.getUserMedia({
+            audio: {
+              noiseSuppression: audioConstraints.noiseSuppression,
+              echoCancellation: audioConstraints.echoCancellation,
+              autoGainControl: audioConstraints.autoGainControl,
+            },
+          })
+        }
+        throw err
+      }
+    }
+
+    acquireMic()
       .then((stream) => {
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop())

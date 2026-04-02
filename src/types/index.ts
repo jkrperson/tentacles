@@ -189,7 +189,7 @@ export interface DictationSettings {
   autoInsert: boolean
   micDeviceId: string           // '' = system default
   micSensitivity: number        // 1–10, maps to silence threshold
-  noiseSuppression: number      // 1–10, maps to cleanup aggressiveness
+  noiseSuppression: boolean
 }
 
 export interface DictationUsage {

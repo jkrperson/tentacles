@@ -30,7 +30,7 @@ const defaultSettings: AppSettings = {
     autoInsert: true,
     micDeviceId: '',
     micSensitivity: 5,
-    noiseSuppression: 5,
+    noiseSuppression: true,
   },
   telemetryEnabled: true,
 }
@@ -57,6 +57,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         ...defaultSettings,
         ...saved,
         dictation: { ...defaultSettings.dictation, ...(saved.dictation ?? {}) },
+      }
+
+      // Migration: convert old noiseSuppression number (1–10) to boolean
+      if (typeof merged.dictation.noiseSuppression === 'number') {
+        merged.dictation.noiseSuppression = (merged.dictation.noiseSuppression as unknown as number) >= 5
       }
 
       // Migration: convert old *CliPath fields to agents[] if not yet migrated
