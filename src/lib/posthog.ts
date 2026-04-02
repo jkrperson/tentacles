@@ -6,6 +6,7 @@ let initialized = false
 
 export function initPostHog() {
   const key = import.meta.env.VITE_POSTHOG_KEY as string | undefined
+    ?? 'phc_wMLdQhjP3k24nyMw4ZWTkEbRCFogvMK9bYCWKyKueHrm'
   if (!key) return
 
   posthog.init(key, {
