@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import { trpc } from '../trpc'
 import { useProjectStore } from './projectStore'
 import { useWorkspaceStore } from './workspaceStore'
+import { useSessionStore } from './sessionStore'
+import { useUIStore } from './uiStore'
 import { getErrorMessage } from '../utils/errors'
 import type { ShellTerminal } from '../types'
 
@@ -83,17 +85,32 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     }
 
     if (!cwd) {
-      // Fall back to active project's main workspace
-      let projectId = activeProjectId
-      if (!projectId) {
-        const dir = await trpc.dialog.selectDirectory.query()
-        if (!dir) return
-        addProject(dir)
-        projectId = dir
+      // Resolve active workspace from session context or explicit UI selection
+      const activeSession = useSessionStore.getState()
+      const activeSessionWsId = activeSession.activeSessionId
+        ? activeSession.sessions.get(activeSession.activeSessionId)?.workspaceId ?? null
+        : null
+      const explicitWsId = useUIStore.getState().activeWorkspaceId
+      const inferredWsId = activeSessionWsId ?? explicitWsId
+
+      if (inferredWsId) {
+        resolvedWsId = inferredWsId
+        cwd = wsStore.getWorkspaceCwd(inferredWsId)
       }
-      const mainWs = wsStore.ensureMainWorkspace(projectId)
-      resolvedWsId = mainWs.id
-      cwd = projectId
+
+      if (!cwd) {
+        // Fall back to active project's main workspace
+        let projectId = activeProjectId
+        if (!projectId) {
+          const dir = await trpc.dialog.selectDirectory.query()
+          if (!dir) return
+          addProject(dir)
+          projectId = dir
+        }
+        const mainWs = wsStore.ensureMainWorkspace(projectId)
+        resolvedWsId = mainWs.id
+        cwd = projectId
+      }
     }
 
     set({ bottomPanelExpanded: true })

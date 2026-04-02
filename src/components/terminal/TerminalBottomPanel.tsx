@@ -2,8 +2,10 @@ import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { ShellTerminalPanel } from './ShellTerminalPanel'
 import { useTerminalStore } from '../../stores/terminalStore'
+import { useSessionStore } from '../../stores/sessionStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
+import { useUIStore } from '../../stores/uiStore'
 import { trpc } from '../../trpc'
 
 interface TerminalBottomPanelProps {
@@ -21,6 +23,15 @@ export function TerminalBottomPanel({ onNewTerminal, expanded, onToggleExpanded 
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
   const workspaces = useWorkspaceStore((s) => s.workspaces)
   const getProjectWorkspaces = useWorkspaceStore((s) => s.getProjectWorkspaces)
+
+  // Derive active workspace from the active session or explicit UI selection
+  const sessionWorkspaceId = useSessionStore((s) => {
+    const aid = s.activeSessionId
+    if (!aid) return null
+    return s.sessions.get(aid)?.workspaceId ?? null
+  })
+  const explicitWorkspaceId = useUIStore((s) => s.activeWorkspaceId)
+  const activeWorkspaceId = sessionWorkspaceId ?? explicitWorkspaceId
 
   const [wsDropdownOpen, setWsDropdownOpen] = useState(false)
   const chevronRef = useRef<HTMLButtonElement>(null)
@@ -68,17 +79,36 @@ export function TerminalBottomPanel({ onNewTerminal, expanded, onToggleExpanded 
     useTerminalStore.getState().createTerminal(workspaceId)
   }, [])
 
-  const projectTerminals = useMemo(
-    () => activeProjectId
-      ? terminalOrder.filter((id) => {
+  // Filter terminals by active workspace, falling back to project
+  const workspaceTerminals = useMemo(
+    () => {
+      if (activeWorkspaceId) {
+        return terminalOrder.filter((id) => {
           const t = terminals.get(id)
-          if (!t) return false
-          const ws = workspaces.get(t.workspaceId)
-          return ws?.projectId === activeProjectId
+          return t?.workspaceId === activeWorkspaceId
         })
-      : terminalOrder,
-    [terminalOrder, terminals, activeProjectId, workspaces],
+      }
+      // Fallback: filter by project
+      return activeProjectId
+        ? terminalOrder.filter((id) => {
+            const t = terminals.get(id)
+            if (!t) return false
+            const ws = workspaces.get(t.workspaceId)
+            return ws?.projectId === activeProjectId
+          })
+        : terminalOrder
+    },
+    [terminalOrder, terminals, activeWorkspaceId, activeProjectId, workspaces],
   )
+
+  const handleCloseAllTerminals = useCallback(() => {
+    const store = useTerminalStore.getState()
+    for (const id of workspaceTerminals) {
+      const t = store.terminals.get(id)
+      if (t?.status === 'running') trpc.terminal.kill.mutate({ id })
+      store.removeTerminal(id)
+    }
+  }, [workspaceTerminals])
 
   const newTerminalButtons = (
     <>
@@ -151,12 +181,14 @@ export function TerminalBottomPanel({ onNewTerminal, expanded, onToggleExpanded 
           <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" className={`transition-transform ${expanded ? '' : '-rotate-90'}`}>
             <path d="M3.2 5.74a.75.75 0 0 1 1.06-.04L8 9.23l3.74-3.53a.75.75 0 1 1 1.02 1.1l-4.25 4a.75.75 0 0 1-1.02 0l-4.25-4a.75.75 0 0 1-.04-1.06z"/>
           </svg>
-          TERMINAL
+          TERMINAL{workspaceTerminals.length > 0 && (
+            <span className="ml-1 text-zinc-600">({workspaceTerminals.length})</span>
+          )}
         </button>
 
         {/* Tabs + new terminal buttons (always visible, left-aligned) */}
         <div className="flex items-center h-full overflow-x-auto flex-1 min-w-0">
-          {projectTerminals.map((id) => {
+          {workspaceTerminals.map((id) => {
             const terminal = terminals.get(id)
             if (!terminal) return null
             const isActive = id === activeTerminalId
@@ -179,7 +211,7 @@ export function TerminalBottomPanel({ onNewTerminal, expanded, onToggleExpanded 
                   <path d="M4 12l4-4-4-4" />
                 </svg>
                 <span className="truncate max-w-28">{terminal.name}</span>
-                {wsLabel && (
+                {!activeWorkspaceId && wsLabel && (
                   <span className="text-[9px] text-zinc-600 truncate max-w-16">[{wsLabel}]</span>
                 )}
                 {terminal.status === 'exited' && (
@@ -205,6 +237,19 @@ export function TerminalBottomPanel({ onNewTerminal, expanded, onToggleExpanded 
           {/* + and dropdown right after the last tab */}
           {newTerminalButtons}
         </div>
+
+        {/* Close all terminals — right-aligned */}
+        {workspaceTerminals.length > 1 && (
+          <button
+            onClick={handleCloseAllTerminals}
+            className="flex items-center justify-center px-2 h-full text-zinc-600 hover:text-zinc-300 hover:bg-[var(--t-bg-hover)] transition-colors flex-shrink-0 ml-auto"
+            title="Close all terminals"
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854z"/>
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Dropdown portal — rendered outside overflow-hidden ancestors */}
@@ -215,7 +260,7 @@ export function TerminalBottomPanel({ onNewTerminal, expanded, onToggleExpanded 
         className="flex-1 min-h-0 relative"
         style={{ display: expanded ? undefined : 'none' }}
       >
-        {projectTerminals.length === 0 && (
+        {workspaceTerminals.length === 0 && (
           <div className="flex items-center justify-center h-full">
             <button
               onClick={onNewTerminal}

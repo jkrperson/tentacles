@@ -126,12 +126,19 @@ export function WorkspaceItem({
     )
   }, [wsSessions])
 
-  const hasRunningTerminals = useMemo(() => {
-    return terminalOrder.some((id) => {
+  const wsTerminalIds = useMemo(() => {
+    return terminalOrder.filter((id) => {
       const t = terminals.get(id)
-      return t?.workspaceId === workspace.id && t.status === 'running'
+      return t?.workspaceId === workspace.id
     })
   }, [terminalOrder, terminals, workspace.id])
+
+  const hasRunningTerminals = useMemo(() => {
+    return wsTerminalIds.some((id) => {
+      const t = terminals.get(id)
+      return t?.status === 'running'
+    })
+  }, [wsTerminalIds, terminals])
 
   const canDelete = !isMain && !hasAliveSessions && !hasRunningTerminals
 
@@ -215,6 +222,26 @@ export function WorkspaceItem({
   const hasDiff = diffStats && (diffStats.insertions > 0 || diffStats.deletions > 0)
 
   const [agentsCollapsed, setAgentsCollapsed] = useState(false)
+  const [terminalsCollapsed, setTerminalsCollapsed] = useState(true)
+
+  const activeTerminalId = useTerminalStore((s) => s.activeTerminalId)
+  const setActiveTerminal = useTerminalStore((s) => s.setActiveTerminal)
+  const removeTerminal = useTerminalStore((s) => s.removeTerminal)
+  const setBottomPanelExpanded = useTerminalStore((s) => s.setBottomPanelExpanded)
+
+  const handleTerminalClick = useCallback((terminalId: string) => {
+    setActiveTerminal(terminalId)
+    setBottomPanelExpanded(true)
+    setActiveProject(workspace.projectId)
+    setActiveWorkspaceId(workspace.id)
+    openTerminalView()
+  }, [setActiveTerminal, setBottomPanelExpanded, setActiveProject, setActiveWorkspaceId, workspace.projectId, workspace.id, openTerminalView])
+
+  const handleCloseTerminal = useCallback((terminalId: string) => {
+    const t = terminals.get(terminalId)
+    if (t?.status === 'running') trpc.terminal.kill.mutate({ id: terminalId })
+    removeTerminal(terminalId)
+  }, [terminals, removeTerminal])
 
   // Inline agent name input
   const [newAgentName, setNewAgentName] = useState('')
@@ -347,6 +374,69 @@ export function WorkspaceItem({
                       onClose={handleCloseAgent}
                     />
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Terminal list — collapsible */}
+          {wsTerminalIds.length > 0 && (
+            <div className="pb-1.5">
+              <button
+                onClick={(e) => { e.stopPropagation(); setTerminalsCollapsed(!terminalsCollapsed) }}
+                className="flex items-center gap-1 px-0.5 mb-0.5 text-[9px] text-zinc-600 hover:text-zinc-400 transition-colors"
+              >
+                <svg
+                  width="7" height="7" viewBox="0 0 16 16" fill="currentColor"
+                  className={`transition-transform duration-150 ${terminalsCollapsed ? '' : 'rotate-90'}`}
+                >
+                  <path d="M6.3 3.3a1 1 0 0 1 1.4 0l4 4a1 1 0 0 1 0 1.4l-4 4a1 1 0 0 1-1.4-1.4L9.58 8 6.3 4.7a1 1 0 0 1 0-1.4z"/>
+                </svg>
+                {wsTerminalIds.length} terminal{wsTerminalIds.length !== 1 ? 's' : ''}
+              </button>
+              {!terminalsCollapsed && (
+                <div className="-mx-0.5">
+                  {wsTerminalIds.map((id) => {
+                    const t = terminals.get(id)
+                    if (!t) return null
+                    const isActive = id === activeTerminalId
+                    return (
+                      <div
+                        key={id}
+                        onClick={(e) => { e.stopPropagation(); handleTerminalClick(id) }}
+                        className={`group/terminal flex items-center gap-1.5 w-full px-2 py-[3px] text-left transition-colors cursor-pointer ${
+                          isActive
+                            ? 'bg-white/[0.04]'
+                            : 'hover:bg-white/[0.03]'
+                        }`}
+                      >
+                        {/* Terminal prompt icon */}
+                        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"
+                          className={`flex-shrink-0 ${t.status === 'running' ? 'text-zinc-400' : 'text-zinc-600'}`}
+                        >
+                          <path d="M4 12l4-4-4-4" />
+                        </svg>
+                        {/* Name */}
+                        <span className={`text-[10px] truncate flex-1 ${isActive ? 'text-zinc-200' : 'text-zinc-500'}`}>
+                          {t.name}
+                        </span>
+                        {/* Exited indicator */}
+                        {t.status === 'exited' && (
+                          <span className="w-1 h-1 rounded-full bg-zinc-600 flex-shrink-0 group-hover/terminal:hidden" />
+                        )}
+                        {/* Close button — hover reveal */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleCloseTerminal(id) }}
+                          className="opacity-0 group-hover/terminal:opacity-100 p-0.5 text-zinc-600 hover:text-zinc-300 transition-opacity flex-shrink-0"
+                          title="Close terminal"
+                        >
+                          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+                          </svg>
+                        </button>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>

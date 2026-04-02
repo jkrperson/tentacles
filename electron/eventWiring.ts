@@ -132,6 +132,10 @@ export function wireEvents({ ptyManager, fileWatcher, hookManager, loadSettings 
     ee.emit('terminal:data', { id, data })
   })
 
+  ptyManager.onShellTitle((id, title) => {
+    ee.emit('terminal:title', { id, title })
+  })
+
   ptyManager.onShellExit((id, exitCode) => {
     ee.emit('terminal:exit', { id, exitCode })
   })

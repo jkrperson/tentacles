@@ -59,6 +59,7 @@ export class PtyManager {
   private onTitleCb: DataCallback | null = null
   private onShellDataCb: DataCallback | null = null
   private onShellExitCb: ExitCallback | null = null
+  private onShellTitleCb: DataCallback | null = null
   private lastTitles = new Map<string, string>()
 
   // Data coalescing for local PTYs
@@ -116,6 +117,10 @@ export class PtyManager {
 
   onShellExit(cb: ExitCallback) {
     this.onShellExitCb = cb
+  }
+
+  onShellTitle(cb: DataCallback) {
+    this.onShellTitleCb = cb
   }
 
   /** Create an agent session via the daemon. */
@@ -193,6 +198,15 @@ export class PtyManager {
     ptyProcess.onData((data: string) => {
       if (kind === 'shell') {
         this.emitData(id, data, this.onShellDataCb)
+        // Parse OSC title sequences from shell output (process name, cwd, etc.)
+        const match = data.match(OSC_TITLE_RE)
+        if (match) {
+          const title = match[1]
+          if (title && title !== this.lastTitles.get(id)) {
+            this.lastTitles.set(id, title)
+            this.onShellTitleCb?.(id, title)
+          }
+        }
       } else {
         this.emitData(id, data, this.onDataCb)
         // Parse OSC title sequences from agent output (per-chunk for responsiveness)

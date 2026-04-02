@@ -228,20 +228,27 @@ export function useKeyboardShortcuts() {
         return
       }
 
-      // Next / previous terminal
+      // Next / previous terminal (within active workspace)
       if (m('terminal.next') || m('terminal.prev')) {
         e.preventDefault()
-        const { terminalOrder, activeTerminalId, setActiveTerminal, bottomPanelExpanded, setBottomPanelExpanded } = useTerminalStore.getState()
-        if (terminalOrder.length < 2) return
-        const currentIdx = activeTerminalId ? terminalOrder.indexOf(activeTerminalId) : -1
+        const { terminalOrder, terminals, activeTerminalId, setActiveTerminal, bottomPanelExpanded, setBottomPanelExpanded } = useTerminalStore.getState()
+        // Derive active workspace
+        const { activeSessionId: aid, sessions: sess } = useSessionStore.getState()
+        const activeWsId = (aid ? sess.get(aid)?.workspaceId : null) ?? useUIStore.getState().activeWorkspaceId
+        // Filter to workspace terminals
+        const wsTerminals = activeWsId
+          ? terminalOrder.filter((id) => terminals.get(id)?.workspaceId === activeWsId)
+          : terminalOrder
+        if (wsTerminals.length < 2) return
+        const currentIdx = activeTerminalId ? wsTerminals.indexOf(activeTerminalId) : -1
         const forward = m('terminal.next')
         let nextIdx: number
         if (forward) {
-          nextIdx = currentIdx < terminalOrder.length - 1 ? currentIdx + 1 : 0
+          nextIdx = currentIdx < wsTerminals.length - 1 ? currentIdx + 1 : 0
         } else {
-          nextIdx = currentIdx > 0 ? currentIdx - 1 : terminalOrder.length - 1
+          nextIdx = currentIdx > 0 ? currentIdx - 1 : wsTerminals.length - 1
         }
-        setActiveTerminal(terminalOrder[nextIdx])
+        setActiveTerminal(wsTerminals[nextIdx])
         if (!bottomPanelExpanded) setBottomPanelExpanded(true)
         return
       }
