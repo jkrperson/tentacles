@@ -13,6 +13,7 @@ import { createAuthRouter } from './routers/auth'
 import { createProjectConfigRouter } from './routers/projectConfig'
 import { createDictationRouter } from './routers/dictation'
 import { createTodoRouter } from './routers/todo'
+import { createAgentChatRouter } from './routers/agentChat'
 import type { PtyManager } from '../ptyManager'
 import type { FileWatcher } from '../fileWatcher'
 import type { GitManager } from '../gitManager'
@@ -21,6 +22,7 @@ import type { DaemonClient } from '../daemon/client'
 import type { AgentType } from '../agents/types'
 import type { SessionStatus } from '../../src/types'
 import type { AuthManager } from '../authManager'
+import type { AgentChatKeyManager } from '../agentChat/keyManager'
 
 export interface RouterDeps {
   ptyManager: PtyManager
@@ -38,6 +40,7 @@ export interface RouterDeps {
   reattachAgent: (sessionId: string, hookId: string, name: string, cwd: string, agentType?: AgentType) => Promise<{ id: string; scrollbackAvailable: boolean; initialStatus?: SessionStatus; initialStatusDetail?: string | null; recoveredClaudeSessionId?: string } | null>
   daemonClient: DaemonClient
   authManager: AuthManager
+  agentChatKeyManager: AgentChatKeyManager
 }
 
 export function createRouter(deps: RouterDeps) {
@@ -93,6 +96,13 @@ export function createRouter(deps: RouterDeps) {
           return defaultUrl
         }
       },
+    }),
+    agentChat: createAgentChatRouter({
+      keyManager: deps.agentChatKeyManager,
+      settingsPath: deps.settingsPath,
+      sessionsPath: deps.sessionsPath,
+      ptyManager: deps.ptyManager,
+      spawnAgent: deps.spawnAgent,
     }),
   })
 }

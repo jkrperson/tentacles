@@ -18,6 +18,9 @@ const ProjectSettingsPage = lazy(() =>
 const TodoBoard = lazy(() =>
   import('./todos/TodoBoard').then((m) => ({ default: m.TodoBoard }))
 )
+const AgentChatView = lazy(() =>
+  import('./agentChat/AgentChatView').then((m) => ({ default: m.AgentChatView }))
+)
 
 export function Layout() {
   useFileWatcher()
@@ -108,6 +111,13 @@ export function Layout() {
         <div className="absolute inset-0" style={{ display: centerView === 'todos' ? undefined : 'none' }}>
           <Suspense fallback={null}>
             <TodoBoard />
+          </Suspense>
+        </div>
+
+        {/* Agent chat view */}
+        <div className="absolute inset-0" style={{ display: centerView === 'agentChat' ? undefined : 'none' }}>
+          <Suspense fallback={null}>
+            <AgentChatView />
           </Suspense>
         </div>
       </div>

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { GitPanelViewMode } from '../types'
 import { useSettingsStore } from './settingsStore'
 
-export type CenterView = 'terminal' | 'workspace' | 'projectSettings' | 'todos'
+export type CenterView = 'terminal' | 'workspace' | 'projectSettings' | 'todos' | 'agentChat'
 export type MainPanelMode = 'session' | 'editor'
 
 interface UIState {
@@ -15,6 +15,11 @@ interface UIState {
   openTerminalView: () => void
   openProjectSettingsPage: (projectId: string) => void
   openTodosPage: () => void
+
+  // Agent chat
+  previousCenterView: CenterView
+  openAgentChat: () => void
+  toggleAgentChat: () => void
 
   // Main panel mode (within terminal center view)
   mainPanelMode: MainPanelMode
@@ -74,6 +79,21 @@ export const useUIStore = create<UIState>((set) => ({
     set({ centerView: 'projectSettings', activeProjectSettingsId: projectId }),
   openTodosPage: () =>
     set({ centerView: 'todos' }),
+
+  // Agent chat
+  previousCenterView: 'terminal',
+  openAgentChat: () =>
+    set((s) => ({
+      previousCenterView: s.centerView !== 'agentChat' ? s.centerView : s.previousCenterView,
+      centerView: 'agentChat',
+    })),
+  toggleAgentChat: () =>
+    set((s) => {
+      if (s.centerView === 'agentChat') {
+        return { centerView: s.previousCenterView }
+      }
+      return { previousCenterView: s.centerView, centerView: 'agentChat' }
+    }),
 
   // Main panel mode
   mainPanelMode: 'session',
