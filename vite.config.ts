@@ -43,7 +43,7 @@ export default defineConfig({
             lib: false as never,
             rollupOptions: {
               input: 'electron/main.ts',
-              external: ['node-pty', 'ws', 'electron-trpc', 'express'],
+              external: ['node-pty', 'ws', 'electron-trpc', 'express', 'better-sqlite3'],
               output: {
                 format: 'cjs',
                 entryFileNames: '[name].cjs',

@@ -12,6 +12,7 @@ import { createAppRouter } from './routers/app'
 import { createAuthRouter } from './routers/auth'
 import { createProjectConfigRouter } from './routers/projectConfig'
 import { createDictationRouter } from './routers/dictation'
+import { createTodoRouter } from './routers/todo'
 import type { PtyManager } from '../ptyManager'
 import type { FileWatcher } from '../fileWatcher'
 import type { GitManager } from '../gitManager'
@@ -78,6 +79,7 @@ export function createRouter(deps: RouterDeps) {
     projectConfig: createProjectConfigRouter({
       projectsConfigDir: deps.projectsConfigDir,
     }),
+    todo: createTodoRouter(),
     dictation: createDictationRouter({
       authManager: deps.authManager,
       getServerUrl: () => {

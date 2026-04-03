@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { GitPanelViewMode } from '../types'
 import { useSettingsStore } from './settingsStore'
 
-export type CenterView = 'terminal' | 'workspace' | 'projectSettings'
+export type CenterView = 'terminal' | 'workspace' | 'projectSettings' | 'todos'
 export type MainPanelMode = 'session' | 'editor'
 
 interface UIState {
@@ -14,6 +14,7 @@ interface UIState {
   openWorkspacePage: (workspaceId: string) => void
   openTerminalView: () => void
   openProjectSettingsPage: (projectId: string) => void
+  openTodosPage: () => void
 
   // Main panel mode (within terminal center view)
   mainPanelMode: MainPanelMode
@@ -71,6 +72,8 @@ export const useUIStore = create<UIState>((set) => ({
     set({ centerView: 'terminal' }),
   openProjectSettingsPage: (projectId) =>
     set({ centerView: 'projectSettings', activeProjectSettingsId: projectId }),
+  openTodosPage: () =>
+    set({ centerView: 'todos' }),
 
   // Main panel mode
   mainPanelMode: 'session',
