@@ -25,10 +25,13 @@ export interface TodoProject {
   created_at: string
 }
 
+export type TodoViewMode = 'board' | 'list'
+
 interface TodoState {
   todos: Todo[]
   projects: TodoProject[]
   selectedTodoId: string | null
+  viewMode: TodoViewMode
   loading: boolean
 
   load: () => Promise<void>
@@ -43,6 +46,7 @@ interface TodoState {
   deleteProject: (id: string) => Promise<void>
 
   setSelectedTodoId: (id: string | null) => void
+  setViewMode: (mode: TodoViewMode) => void
 }
 
 function generateId(): string {
@@ -53,6 +57,7 @@ export const useTodoStore = create<TodoState>((set) => ({
   todos: [],
   projects: [],
   selectedTodoId: null,
+  viewMode: 'board',
   loading: false,
 
   load: async () => {
@@ -128,4 +133,5 @@ export const useTodoStore = create<TodoState>((set) => ({
   },
 
   setSelectedTodoId: (id) => set({ selectedTodoId: id }),
+  setViewMode: (mode) => set({ viewMode: mode }),
 }))

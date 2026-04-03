@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useTodoStore } from '../../stores/todoStore'
 import { TodoCard } from './TodoCard'
 import { TodoDetail } from './TodoDetail'
+import { TodoList } from './TodoList'
 import type { TodoStatus, Todo } from '../../stores/todoStore'
 
 const COLUMNS: { status: TodoStatus; label: string; color: string }[] = [
@@ -19,6 +20,8 @@ export function TodoBoard() {
   const updateTodo = useTodoStore((s) => s.updateTodo)
   const selectedTodoId = useTodoStore((s) => s.selectedTodoId)
   const setSelectedTodoId = useTodoStore((s) => s.setSelectedTodoId)
+  const viewMode = useTodoStore((s) => s.viewMode)
+  const setViewMode = useTodoStore((s) => s.setViewMode)
 
   useEffect(() => {
     load()
@@ -50,24 +53,40 @@ export function TodoBoard() {
           <h1 className="text-[13px] font-semibold text-zinc-200">Todos</h1>
           <span className="text-[11px] text-zinc-600">{topLevelTodos.length} items</span>
         </div>
+        <div className="flex items-center gap-0.5 bg-[var(--t-bg-surface)] rounded p-0.5 border border-[var(--t-border)]">
+          <ViewToggleButton active={viewMode === 'board'} onClick={() => setViewMode('board')} title="Board view">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3z"/>
+            </svg>
+          </ViewToggleButton>
+          <ViewToggleButton active={viewMode === 'list'} onClick={() => setViewMode('list')} title="List view">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path fillRule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/>
+            </svg>
+          </ViewToggleButton>
+        </div>
       </div>
 
-      {/* Board */}
-      <div className="flex-1 min-h-0 flex gap-3 p-4 overflow-x-auto">
-        {COLUMNS.map((col) => (
-          <TodoColumn
-            key={col.status}
-            status={col.status}
-            label={col.label}
-            color={col.color}
-            todos={todosByStatus[col.status]}
-            onCreateTodo={createTodo}
-            onDrop={handleDrop}
-            selectedTodoId={selectedTodoId}
-            onSelectTodo={setSelectedTodoId}
-          />
-        ))}
-      </div>
+      {/* Board or List */}
+      {viewMode === 'board' ? (
+        <div className="flex-1 min-h-0 flex gap-3 p-4 overflow-x-auto">
+          {COLUMNS.map((col) => (
+            <TodoColumn
+              key={col.status}
+              status={col.status}
+              label={col.label}
+              color={col.color}
+              todos={todosByStatus[col.status]}
+              onCreateTodo={createTodo}
+              onDrop={handleDrop}
+              selectedTodoId={selectedTodoId}
+              onSelectTodo={setSelectedTodoId}
+            />
+          ))}
+        </div>
+      ) : (
+        <TodoList />
+      )}
 
       {/* Detail panel */}
       {selectedTodo && (
@@ -178,5 +197,19 @@ function TodoColumn({
         )}
       </div>
     </div>
+  )
+}
+
+function ViewToggleButton({ active, onClick, title, children }: { active: boolean; onClick: () => void; title: string; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={`p-1 rounded transition-colors ${
+        active ? 'bg-[var(--t-bg-hover)] text-zinc-200' : 'text-zinc-600 hover:text-zinc-400'
+      }`}
+    >
+      {children}
+    </button>
   )
 }
