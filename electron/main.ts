@@ -77,6 +77,10 @@ const SUPABASE_URL = process.env.SUPABASE_URL ?? 'https://zpzudtqcmxneuoisqhln.s
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY ?? 'sb_publishable_i4AnTvh73PiM---gfayXOQ_obe_VkKp'
 const authManager = new AuthManager(SUPABASE_URL, SUPABASE_ANON_KEY, app.getPath('userData'))
 
+// Agent chat key manager
+import { AgentChatKeyManager } from './agentChat/keyManager'
+const agentChatKeyManager = new AgentChatKeyManager(app.getPath('userData'))
+
 
 function loadSettings() {
   try {
@@ -119,6 +123,7 @@ const appRouter = createRouter({
   daemonClient,
   authManager,
   projectsConfigDir,
+  agentChatKeyManager,
 })
 
 let ipcHandler: ReturnType<typeof createIPCHandler> | null = null

@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events'
 import type { FileChangeEvent, GitHubUser, SetupLogEntry, UpdaterStatus } from '../../src/types'
+import type { ToolCallStatus, AgentChatToolName } from '../../src/types/agentChat'
 
 export interface EventMap {
   'session:data': { id: string; data: string }
@@ -15,6 +16,9 @@ export interface EventMap {
   'auth:changed': { user: GitHubUser | null }
   'setup:output': { workspaceId: string; scriptIndex: number; data: string }
   'setup:complete': { workspaceId: string; log: SetupLogEntry }
+  'agentChat:chunk': { messageId: string; delta: string; done: boolean }
+  'agentChat:toolCall': { messageId: string; toolCallId: string; name: AgentChatToolName; arguments: Record<string, unknown>; status: ToolCallStatus }
+  'agentChat:toolCallUpdate': { toolCallId: string; status: ToolCallStatus; result?: unknown; error?: string }
 }
 
 class TypedEventEmitter extends EventEmitter {
