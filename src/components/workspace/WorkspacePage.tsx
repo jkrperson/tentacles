@@ -350,7 +350,7 @@ export function WorkspacePage({ workspaceId }: WorkspacePageProps) {
             </div>
             <button
               onClick={handleSpawnAgent}
-              className="px-4 py-2 bg-[var(--t-accent)] hover:bg-[var(--t-accent-hover)] text-white text-[13px] font-medium rounded-lg transition-colors"
+              className="px-5 py-2 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-white text-[13px] font-medium rounded-none transition-colors"
             >
               Spawn Agent
             </button>
