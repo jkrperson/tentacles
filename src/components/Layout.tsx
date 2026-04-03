@@ -15,6 +15,9 @@ import { useFileWatcher } from '../hooks/useFileWatcher'
 const ProjectSettingsPage = lazy(() =>
   import('./projectSettings/ProjectSettingsPage').then((m) => ({ default: m.ProjectSettingsPage }))
 )
+const TodoBoard = lazy(() =>
+  import('./todos/TodoBoard').then((m) => ({ default: m.TodoBoard }))
+)
 
 export function Layout() {
   useFileWatcher()
@@ -100,6 +103,13 @@ export function Layout() {
             </Suspense>
           </div>
         )}
+
+        {/* Todos / Kanban board */}
+        <div className="absolute inset-0" style={{ display: centerView === 'todos' ? undefined : 'none' }}>
+          <Suspense fallback={null}>
+            <TodoBoard />
+          </Suspense>
+        </div>
       </div>
 
       {rightVisible && (

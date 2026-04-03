@@ -27,8 +27,9 @@ function App() {
   const isSettingsOpen = useSettingsStore((s) => s.isSettingsOpen)
   const loadProjects = useProjectStore((s) => s.loadProjects)
   const loadSavedSessions = useSessionStore((s) => s.loadSessions)
-  const viewMode = useUIStore((s) => s.sidebarViewMode)
-  const toggleViewMode = useUIStore((s) => s.toggleSidebarViewMode)
+  const centerView = useUIStore((s) => s.centerView)
+  const openTodosPage = useUIStore((s) => s.openTodosPage)
+  const openTerminalView = useUIStore((s) => s.openTerminalView)
 
   const user = useAuthStore((s) => s.user)
   const authInitialized = useAuthStore((s) => s.initialized)
@@ -105,34 +106,37 @@ function App() {
         >
           Tentacles
         </span>
+        {/* Center tabs */}
         <div
-          className="ml-2 flex items-center bg-zinc-800/50 rounded-md p-0.5 border border-zinc-700/50 cursor-pointer hidden"
+          className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-          onClick={toggleViewMode}
-          title={`Sessions: ${viewMode === 'flat' ? 'flat view' : 'tree view'}`}
         >
-          <div
-            className={`p-1 rounded transition-all ${
-              viewMode === 'flat'
-                ? 'bg-zinc-700 text-zinc-200 shadow-sm'
-                : 'text-zinc-600'
+          <button
+            onClick={openTerminalView}
+            className={`flex items-center gap-1.5 text-[11px] font-medium select-none px-2.5 py-1 rounded transition-colors ${
+              centerView !== 'todos'
+                ? 'text-zinc-200 bg-zinc-700/60'
+                : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'
             }`}
           >
             <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/>
+              <path d="M2 3.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .354.146L7.707 5H13.5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-9z"/>
             </svg>
-          </div>
-          <div
-            className={`p-1 rounded transition-all ${
-              viewMode === 'grouped'
-                ? 'bg-zinc-700 text-zinc-200 shadow-sm'
-                : 'text-zinc-600'
+            Projects
+          </button>
+          <button
+            onClick={openTodosPage}
+            className={`flex items-center gap-1.5 text-[11px] font-medium select-none px-2.5 py-1 rounded transition-colors ${
+              centerView === 'todos'
+                ? 'text-zinc-200 bg-zinc-700/60'
+                : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'
             }`}
           >
             <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M2 2a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3A.5.5 0 0 1 2 2zm2 4a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 4 6zm0 4a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 4 10zm-2 4a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3A.5.5 0 0 1 2 14z"/>
+              <path d="M4 1.5A1.5 1.5 0 0 0 2.5 3v10A1.5 1.5 0 0 0 4 14.5h8a1.5 1.5 0 0 0 1.5-1.5V3A1.5 1.5 0 0 0 12 1.5H4zM5 5h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1 0-1zm0 2.5h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1 0-1zM5 10h3a.5.5 0 0 1 0 1H5a.5.5 0 0 1 0-1z"/>
             </svg>
-          </div>
+            Tasks
+          </button>
         </div>
         <div className="flex-1" />
         <div className="pr-3">
