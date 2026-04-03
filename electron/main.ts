@@ -303,6 +303,10 @@ app.on('will-quit', async () => {
   daemonClient.disconnect()
   authManager.cleanup()
   hookManager.cleanupAllHookFiles(daemonHookIds)
+
+  // Close todo database
+  const { closeDb } = await import('./db/todoDb')
+  closeDb()
 })
 
 app.whenReady().then(async () => {
