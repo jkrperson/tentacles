@@ -1,7 +1,7 @@
 {
   "name": "tentacles",
   "version": "0.0.7",
-  "description": "An IDE for orchestrating multiple Claude Code agents across your projects",
+  "description": "Modern IDE for agentic engineering. Orchestrate and plan AI agents across projects and workspaces.",
   "license": "Elastic-2.0",
   "repository": {
     "type": "git",
