@@ -2,9 +2,10 @@ import { useState } from 'react'
 
 interface AgentChatApiKeySetupProps {
   onSave: (key: string) => Promise<void>
+  isReset?: boolean
 }
 
-export function AgentChatApiKeySetup({ onSave }: AgentChatApiKeySetupProps) {
+export function AgentChatApiKeySetup({ onSave, isReset }: AgentChatApiKeySetupProps) {
   const [key, setKey] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -26,8 +27,13 @@ export function AgentChatApiKeySetup({ onSave }: AgentChatApiKeySetupProps) {
     <div className="flex items-center justify-center h-full">
       <div className="max-w-md w-full p-6">
         <h2 className="text-lg font-medium text-[var(--t-text-primary)] mb-2">
-          Set up Agent Chat
+          {isReset ? 'Update API Key' : 'Set up Agent Chat'}
         </h2>
+        {isReset && (
+          <div className="text-sm text-red-400 bg-red-500/10 rounded-lg px-3 py-2 mb-3">
+            Your API key is invalid or expired. Please enter a new one.
+          </div>
+        )}
         <p className="text-sm text-zinc-500 mb-4">
           Enter your OpenAI API key to enable the agent chat. Your key is encrypted and stored locally.
         </p>

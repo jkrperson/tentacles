@@ -140,10 +140,18 @@ export const useAgentChatStore = create<AgentChatState>((set, get) => ({
         }))
       }
     } catch (err) {
+      const rawMsg = err instanceof Error ? err.message : 'Failed to send message'
+      const isInvalidKey = rawMsg.includes('INVALID_API_KEY')
       set({
         isStreaming: false,
-        error: err instanceof Error ? err.message : 'Failed to send message',
+        error: isInvalidKey ? 'INVALID_API_KEY' : rawMsg,
+        // Reset key state so user can re-enter
+        ...(isInvalidKey ? { hasApiKey: false } : {}),
       })
+      if (isInvalidKey) {
+        // Delete the invalid key
+        try { await trpc.agentChat.deleteApiKey.mutate() } catch { /* ignore */ }
+      }
     }
   },
 

@@ -156,6 +156,15 @@ function readSessionsFile(sessionsPath: string): Record<string, unknown> {
   }
 }
 
+function isAuthError(err: unknown): boolean {
+  if (err && typeof err === 'object') {
+    // OpenAI SDK throws AuthenticationError with status 401
+    if ('status' in err && (err as { status: number }).status === 401) return true
+    if ('code' in err && (err as { code: string }).code === 'invalid_api_key') return true
+  }
+  return false
+}
+
 export function createAgentChatRouter(deps: AgentChatDeps) {
   return t.router({
     hasApiKey: t.procedure.query(() => {
@@ -200,6 +209,12 @@ export function createAgentChatRouter(deps: AgentChatDeps) {
 
         try {
           await streamCompletion(client, deps, input.conversationId, messages, messageId, abortController)
+        } catch (err) {
+          // Detect OpenAI auth errors and provide a clear message
+          if (isAuthError(err)) {
+            throw new Error('INVALID_API_KEY')
+          }
+          throw err
         } finally {
           activeStreams.delete(input.conversationId)
         }
