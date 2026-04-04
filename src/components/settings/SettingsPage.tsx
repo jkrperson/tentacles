@@ -57,6 +57,13 @@ export function SettingsPage() {
     setHasChanges(JSON.stringify(draft) !== JSON.stringify(currentSettings))
   }, [draft, currentSettings])
 
+  // Instantly apply theme changes (no need to hit Save)
+  useEffect(() => {
+    if (draft.theme !== currentSettings.theme) {
+      saveSettings({ theme: draft.theme })
+    }
+  }, [draft.theme, currentSettings.theme, saveSettings])
+
   const handleUpdate = useCallback((updater: (d: AppSettings) => AppSettings) => {
     setDraft(updater)
   }, [])
