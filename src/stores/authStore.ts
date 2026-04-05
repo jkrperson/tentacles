@@ -6,10 +6,13 @@ interface AuthState {
   user: GitHubUser | null
   loading: boolean
   initialized: boolean
+  loginDialogOpen: boolean
 
   checkAuth: () => Promise<void>
   login: () => Promise<void>
   logout: () => Promise<void>
+  showLoginDialog: () => void
+  dismissLoginDialog: () => void
   subscribeToAuthChanges: () => () => void
 }
 
@@ -17,6 +20,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   loading: true,
   initialized: false,
+  loginDialogOpen: true,
 
   checkAuth: async () => {
     try {
@@ -32,11 +36,14 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       set({ loading: true })
       const user = await trpc.auth.login.mutate()
-      set({ user, loading: false })
+      set({ user, loading: false, loginDialogOpen: false })
     } catch {
       set({ loading: false })
     }
   },
+
+  showLoginDialog: () => set({ loginDialogOpen: true }),
+  dismissLoginDialog: () => set({ loginDialogOpen: false }),
 
   logout: async () => {
     await trpc.auth.logout.mutate()
@@ -46,7 +53,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   subscribeToAuthChanges: () => {
     const sub = trpc.auth.onAuthChange.subscribe(undefined, {
       onData: ({ user }) => {
-        set({ user, loading: false, initialized: true })
+        set({ user, loading: false, initialized: true, ...(user ? { loginDialogOpen: false } : {}) })
       },
     })
     return () => sub.unsubscribe()
