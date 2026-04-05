@@ -35,6 +35,7 @@ function App() {
 
   const user = useAuthStore((s) => s.user)
   const authInitialized = useAuthStore((s) => s.initialized)
+  const loginDialogOpen = useAuthStore((s) => s.loginDialogOpen)
   const checkAuth = useAuthStore((s) => s.checkAuth)
   const subscribeToAuthChanges = useAuthStore((s) => s.subscribeToAuthChanges)
 
@@ -96,7 +97,7 @@ function App() {
       <ShortcutOverlay />
       <DictationOverlay />
       {/* Login modal overlay */}
-      {authInitialized && !user && <LoginScreen />}
+      {authInitialized && !user && loginDialogOpen && <LoginScreen />}
       {/* macOS traffic light area */}
       <div
         className="h-10 flex-shrink-0 flex items-center border-b border-[var(--t-border)]"
