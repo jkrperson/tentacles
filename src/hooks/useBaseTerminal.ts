@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
+import { WebglAddon } from '@xterm/addon-webgl'
 import '@xterm/xterm/css/xterm.css'
 import { trpc } from '../trpc'
 import { useSettingsStore } from '../stores/settingsStore'
@@ -89,6 +90,16 @@ export function useBaseTerminal({ id, isActive, write, resize, getScrollback, fo
     })
 
     terminal.open(el)
+
+    // GPU-accelerated rendering — fall back to default canvas renderer if WebGL unavailable
+    try {
+      const webglAddon = new WebglAddon()
+      webglAddon.onContextLoss(() => { webglAddon.dispose() })
+      terminal.loadAddon(webglAddon)
+    } catch {
+      // WebGL not available — canvas renderer remains active
+    }
+
     termRef.current = { terminal, fitAddon }
 
     // Replay scrollback from daemon (for sessions that survived an app restart),
