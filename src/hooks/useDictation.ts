@@ -15,6 +15,12 @@ const MAX_CHUNK_DURATION_MS = 10000
 const VAD_CHECK_INTERVAL_MS = 50
 /** Max concurrent transcription calls */
 const MAX_CONCURRENT_SENDS = 3
+/** Max wait for an in-progress VAD flush/restart to complete during finalize (ms) */
+const FLUSH_WAIT_TIMEOUT_MS = 2000
+/** Max wait for the final recorder.stop() → onstop cycle during finalize (ms) */
+const RECORDER_STOP_TIMEOUT_MS = 5000
+/** Max wait for in-flight transcription calls to drain during finalize (ms) */
+const DRAIN_TIMEOUT_MS = 15000
 
 export function useDictation() {
   const phase = useDictationStore((s) => s.phase)
@@ -34,6 +40,9 @@ export function useDictation() {
   const activeSendsRef = useRef(0)
   const mimeTypeRef = useRef('audio/webm')
   const isStoppingRef = useRef(false)
+  /** Bumped each time a new recording session starts — late transcriptions
+   *  from a prior session are dropped by comparing against this. */
+  const sessionIdRef = useRef(0)
 
   /**
    * Stop the recorder to finalize the WebM container (flush + close),
@@ -85,8 +94,11 @@ export function useDictation() {
     recorder.stop()
   }
 
-  const transcribeBlob = async (blob: Blob) => {
+  const transcribeBlob = async (blob: Blob): Promise<boolean> => {
     activeSendsRef.current++
+    // Capture the session at call time so late results from a prior
+    // session (e.g. after cancel → restart) don't pollute the new transcript.
+    const mySession = sessionIdRef.current
 
     try {
       const buffer = await blob.arrayBuffer()
@@ -97,20 +109,42 @@ export function useDictation() {
         binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK_SIZE) as unknown as number[])
       }
       const base64 = btoa(binary)
-      if (!base64) return
+      if (!base64) return false
 
       const result = await trpc.dictation.transcribe.mutate({
         audio: base64,
         mimeType: mimeTypeRef.current,
       })
+      if (sessionIdRef.current !== mySession) {
+        console.log('[dictation] dropping stale transcription from prior session')
+        return false
+      }
       if (result.text) {
         appendTranscript(result.text)
       }
+      return true
     } catch (err) {
       console.error('[dictation] transcription error:', err)
+      return false
     } finally {
       activeSendsRef.current--
     }
+  }
+
+  /** Poll until predicate returns true or timeout/cancel. Returns true if satisfied in time. */
+  const waitUntil = async (
+    predicate: () => boolean,
+    timeoutMs: number,
+    pollMs: number,
+    isCancelled: () => boolean,
+  ): Promise<boolean> => {
+    const start = Date.now()
+    while (!predicate()) {
+      if (isCancelled()) return false
+      if (Date.now() - start > timeoutMs) return false
+      await new Promise((r) => setTimeout(r, pollMs))
+    }
+    return true
   }
 
   const getRMSLevel = (): number => {
@@ -127,36 +161,117 @@ export function useDictation() {
 
   useEffect(() => {
     if (phase !== 'recording') {
-      // Stop recorder and send any remaining audio — user explicitly pressed Stop,
-      // so always send regardless of VAD state
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      const teardown = () => {
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach((t) => t.stop())
+          streamRef.current = null
+        }
+        if (vadIntervalRef.current) {
+          clearInterval(vadIntervalRef.current)
+          vadIntervalRef.current = null
+        }
+        if (audioContextRef.current) {
+          audioContextRef.current.close()
+          audioContextRef.current = null
+        }
+        analyserRef.current = null
+      }
+
+      if (phase === 'idle') {
+        // Cancelled — discard in-flight audio and tear down immediately
         const recorder = mediaRecorderRef.current
-        recorder.onstop = () => {
-          if (chunksRef.current.length > 0) {
-            const blob = new Blob(chunksRef.current, { type: mimeTypeRef.current })
-            chunksRef.current = []
-            if (blob.size > 0) transcribeBlob(blob)
+        if (recorder && recorder.state !== 'inactive') {
+          recorder.onstop = null
+          try { recorder.stop() } catch { /* ignore */ }
+        }
+        chunksRef.current = []
+        teardown()
+        return
+      }
+
+      // phase === 'processing' — user pressed Finish.
+      // Wait for any in-progress VAD flush, then stop the current recorder,
+      // await the final transcription, drain any other in-flight sends,
+      // then trigger cleanup. Every wait has a timeout so the UI can't
+      // get stuck in 'processing' forever.
+      let cancelledFinalize = false
+      const isCancelled = () => cancelledFinalize
+      const finalize = async () => {
+        // 1. Wait for any in-progress VAD-triggered flush/restart to complete
+        const flushOk = await waitUntil(
+          () => !isStoppingRef.current,
+          FLUSH_WAIT_TIMEOUT_MS,
+          20,
+          isCancelled,
+        )
+        if (cancelledFinalize) return
+        if (!flushOk) {
+          console.warn('[dictation] finalize: VAD flush wait timed out — proceeding anyway')
+        }
+
+        // 2. Stop the current recorder and await the final transcription
+        const recorder = mediaRecorderRef.current
+        if (recorder && recorder.state !== 'inactive') {
+          console.log('[dictation] finalize: stopping recorder for final blob')
+          const stopResult = await Promise.race<'stopped' | 'timeout'>([
+            new Promise<'stopped'>((resolve) => {
+              recorder.onstop = async () => {
+                if (chunksRef.current.length > 0) {
+                  const blob = new Blob(chunksRef.current, { type: mimeTypeRef.current })
+                  chunksRef.current = []
+                  if (blob.size > 0) {
+                    console.log('[dictation] finalize: transcribing final blob:', blob.size, 'bytes')
+                    const ok = await transcribeBlob(blob)
+                    if (!ok) {
+                      useDictationStore.setState({ error: 'Failed to transcribe final audio chunk' })
+                    }
+                  }
+                }
+                resolve('stopped')
+              }
+              try { recorder.stop() } catch { resolve('stopped') }
+            }),
+            new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), RECORDER_STOP_TIMEOUT_MS)),
+          ])
+          if (stopResult === 'timeout') {
+            console.warn('[dictation] finalize: recorder stop timed out — proceeding with partial transcript')
+            useDictationStore.setState({ error: 'Recording finalize timed out' })
           }
         }
-        recorder.stop()
+        if (cancelledFinalize) return
+
+        // 3. Drain any other in-flight transcription calls from earlier VAD flushes
+        const drainOk = await waitUntil(
+          () => activeSendsRef.current === 0,
+          DRAIN_TIMEOUT_MS,
+          50,
+          isCancelled,
+        )
+        if (cancelledFinalize) return
+        if (!drainOk) {
+          console.warn('[dictation] finalize: drain timed out with', activeSendsRef.current, 'still in flight')
+          useDictationStore.setState({ error: 'Some audio chunks failed to transcribe in time' })
+        }
+
+        teardown()
+
+        // Only run cleanup if we're still in the processing phase
+        // (user may have cancelled during finalize)
+        if (useDictationStore.getState().phase === 'processing') {
+          useDictationStore.getState().finalizeAfterRecording()
+        }
       }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop())
-        streamRef.current = null
+
+      finalize()
+      return () => {
+        cancelledFinalize = true
       }
-      if (vadIntervalRef.current) {
-        clearInterval(vadIntervalRef.current)
-        vadIntervalRef.current = null
-      }
-      if (audioContextRef.current) {
-        audioContextRef.current.close()
-        audioContextRef.current = null
-      }
-      analyserRef.current = null
-      return
     }
 
     let cancelled = false
+    // New recording session — bump so any lingering late transcriptions
+    // from a previous session get dropped.
+    sessionIdRef.current++
 
     const { micDeviceId, micSensitivity, noiseSuppression } = useSettingsStore.getState().settings.dictation
     // micSensitivity 1–10: higher = more sensitive (lower threshold)

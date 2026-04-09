@@ -17,6 +17,7 @@ interface DictationState {
   toggle: () => void
   startRecording: () => void
   stopRecording: () => void
+  finalizeAfterRecording: () => void
   appendTranscript: (text: string) => void
   runCleanup: () => Promise<void>
   insertIntoAgent: (text: string) => void
@@ -50,14 +51,23 @@ export const useDictationStore = create<DictationState>((set, get) => ({
   },
 
   stopRecording: () => {
+    const { phase } = get()
+    console.log('[dictation-store] stopRecording, phase:', phase)
+    if (phase !== 'recording') return
+    // Move to 'processing' so the useDictation hook finalizes the in-flight
+    // audio chunk (stop recorder → transcribe final blob → appendTranscript),
+    // then the hook calls finalizeAfterRecording() below to run cleanup.
+    set({ phase: 'processing' })
+  },
+
+  finalizeAfterRecording: () => {
     const { rawTranscript, runCleanup } = get()
-    console.log('[dictation-store] stopRecording, rawTranscript length:', rawTranscript.length)
+    console.log('[dictation-store] finalizeAfterRecording, transcript length:', rawTranscript.length)
     if (!rawTranscript.trim()) {
-      console.log('[dictation-store] empty transcript, going idle')
+      console.log('[dictation-store] empty transcript after finalize, going idle')
       set({ phase: 'idle' })
       return
     }
-    set({ phase: 'processing' })
     runCleanup()
   },
 
