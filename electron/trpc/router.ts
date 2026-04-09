@@ -86,8 +86,11 @@ export function createRouter(deps: RouterDeps) {
     dictation: createDictationRouter({
       authManager: deps.authManager,
       getServerUrl: () => {
-        const isDev = !!process.env['VITE_DEV_SERVER_URL']
-        const defaultUrl = isDev ? 'http://localhost:3001' : 'https://stt.tentacles.sh'
+        // Both dev and prod hit the deployed STT service. Running it locally
+        // requires Bun + ffmpeg installed and isn't worth the friction for
+        // most contributors — set settings.dictation.serverUrl explicitly if
+        // you want to point at http://localhost:3001 during local server dev.
+        const defaultUrl = 'https://stt.tentacles.sh'
         try {
           const raw = fs.readFileSync(deps.settingsPath, 'utf-8')
           const settings = JSON.parse(raw)
