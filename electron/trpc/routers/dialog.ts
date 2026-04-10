@@ -12,7 +12,7 @@ export function createDialogRouter(deps: DialogDeps) {
         const win = deps.getWindow()
         if (!win) return null
         const result = await dialog.showOpenDialog(win, {
-          properties: ['openDirectory'],
+          properties: ['openDirectory', 'createDirectory'],
         })
         return result.canceled ? null : result.filePaths[0]
       }),
