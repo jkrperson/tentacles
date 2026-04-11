@@ -3,6 +3,7 @@ import { trpc } from '../trpc'
 import { useSettingsStore } from './settingsStore'
 import { useProjectStore } from './projectStore'
 import { useWorkspaceStore, sessionBelongsToProject } from './workspaceStore'
+import { useUIStore } from './uiStore'
 import { getErrorMessage } from '../utils/errors'
 import { generateRandomName } from '../utils/randomName'
 import { capture } from '../lib/posthog'
@@ -109,7 +110,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
 
     persistSessions: persist,
 
-    addSession: (session) =>
+    addSession: (session) => {
       set((state) => {
         const sessions = new Map(state.sessions)
         sessions.set(session.id, session)
@@ -121,7 +122,10 @@ export const useSessionStore = create<SessionState>((set, get) => {
         }
         persist()
         return next
-      }),
+      })
+      // Keep activeWorkspaceId in sync so file tree/git panels update
+      useUIStore.getState().setActiveWorkspaceId(session.workspaceId)
+    },
 
     removeSession: (id) =>
       set((state) => {
