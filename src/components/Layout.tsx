@@ -5,6 +5,7 @@ import { MediaPanel } from './sidebar/MediaPanel'
 import { TerminalView } from './terminal/TerminalView'
 import { TerminalBottomPanel } from './terminal/TerminalBottomPanel'
 import { AgentSidebar } from './sessions/AgentSidebar'
+import { ProjectRail } from './sessions/ProjectRail'
 import { WorkspacePage } from './workspace/WorkspacePage'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useTerminalStore } from '../stores/terminalStore'
@@ -26,7 +27,7 @@ export function Layout() {
   useFileWatcher()
   const enableMediaPanel = useSettingsStore((s) => s.settings.enableMediaPanel)
 
-  const leftDrag = useDrag({ axis: 'x', initial: 240, min: 180, max: 400 })
+  const leftDrag = useDrag({ axis: 'x', initial: 290, min: 230, max: 450 })
   const rightDrag = useDrag({ axis: 'x', initial: 260, min: 180, max: 450, invert: true })
   const bottomDrag = useDrag({ axis: 'y', initial: 220, min: 100, max: 600, invert: true })
   const mediaDrag = useDrag({ axis: 'y', initial: 250, min: 100, max: 500, invert: true })
@@ -51,9 +52,14 @@ export function Layout() {
 
   return (
     <div className="flex h-full">
-      {/* Left: Agent Sidebar */}
-      <div className="flex-shrink-0 overflow-hidden" style={{ width: leftDrag.value }}>
-        <AgentSidebar />
+      {/* Left: Project Rail + Agent Sidebar */}
+      <div className="flex-shrink-0 overflow-hidden flex" style={{ width: leftDrag.value }}>
+        <div className="flex-shrink-0 w-[52px] border-r border-[var(--t-border)] overflow-hidden">
+          <ProjectRail />
+        </div>
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <AgentSidebar />
+        </div>
       </div>
 
       <div className="group relative w-1 flex-shrink-0 cursor-col-resize"

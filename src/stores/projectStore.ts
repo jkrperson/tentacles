@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { trpc } from '../trpc'
 import type { Project, ProjectFileTreeState, FileNode, GitFileStatus, GitStatusDetailResult, DiffViewState, FileDiffStat } from '../types'
+import { PROJECT_COLORS } from '../types'
 import { useSettingsStore } from './settingsStore'
 import { useUIStore } from './uiStore'
 import { useWorkspaceStore } from './workspaceStore'
@@ -13,6 +14,8 @@ interface ProjectState {
 
   addProject: (path: string) => void
   removeProject: (path: string) => void
+  setProjectColor: (path: string, color: string) => void
+  setProjectIcon: (path: string, icon: string) => void
   reorderProjects: (fromIndex: number, toIndex: number) => void
   setActiveProject: (path: string | null) => void
   loadProjects: () => void
@@ -80,6 +83,26 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   projectOrder: [],
   fileTreeCache: new Map(),
 
+  setProjectColor: (path: string, color: string) => {
+    const state = get()
+    const project = state.projects.get(path)
+    if (!project) return
+    const projects = new Map(state.projects)
+    projects.set(path, { ...project, color })
+    set({ projects })
+    get().persistProjects()
+  },
+
+  setProjectIcon: (path: string, icon: string) => {
+    const state = get()
+    const project = state.projects.get(path)
+    if (!project) return
+    const projects = new Map(state.projects)
+    projects.set(path, { ...project, icon: icon || undefined })
+    set({ projects })
+    get().persistProjects()
+  },
+
   addProject: (path) => {
     const state = get()
     if (state.projects.has(path)) {
@@ -87,12 +110,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       set({ activeProjectId: path })
       return
     }
+    const colorIndex = state.projects.size % PROJECT_COLORS.length
     const projects = new Map(state.projects)
     projects.set(path, {
       id: path,
       path,
       name: basename(path),
       addedAt: Date.now(),
+      color: PROJECT_COLORS[colorIndex],
     })
     const fileTreeCache = new Map(state.fileTreeCache)
     fileTreeCache.set(path, emptyFileTreeState())
@@ -148,8 +173,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const fileTreeCache = new Map<string, ProjectFileTreeState>()
     const projectOrder: string[] = []
 
-    for (const p of paths) {
-      projects.set(p, { id: p, path: p, name: basename(p), addedAt: Date.now() })
+    for (let i = 0; i < paths.length; i++) {
+      const p = paths[i]
+      projects.set(p, {
+        id: p,
+        path: p,
+        name: basename(p),
+        addedAt: Date.now(),
+        color: PROJECT_COLORS[i % PROJECT_COLORS.length],
+      })
       fileTreeCache.set(p, emptyFileTreeState())
       projectOrder.push(p)
     }

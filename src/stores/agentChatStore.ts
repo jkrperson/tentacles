@@ -3,7 +3,6 @@ import { trpc } from '../trpc'
 import type { AgentChatMessage, AgentChatToolCall, ToolCallStatus } from '../types/agentChat'
 import { useSessionStore } from './sessionStore'
 import { useWorkspaceStore } from './workspaceStore'
-import { useProjectStore } from './projectStore'
 import { useUIStore } from './uiStore'
 
 interface AgentChatState {
@@ -64,8 +63,7 @@ async function executeRendererAction(action: Record<string, unknown>): Promise<u
 
     case 'open_project': {
       const projectPath = action.projectPath as string
-      useProjectStore.getState().setActiveProject(projectPath)
-      useUIStore.getState().openTerminalView()
+      useUIStore.getState().switchProject(projectPath)
       return { opened: projectPath, message: 'Project opened' }
     }
 

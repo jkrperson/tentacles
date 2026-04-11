@@ -1,6 +1,10 @@
 import { create } from 'zustand'
 import type { GitPanelViewMode } from '../types'
 import { useSettingsStore } from './settingsStore'
+import { useProjectStore } from './projectStore'
+import { useSessionStore } from './sessionStore'
+import { useWorkspaceStore } from './workspaceStore'
+import { useTerminalStore } from './terminalStore'
 
 export type CenterView = 'terminal' | 'workspace' | 'projectSettings' | 'todos' | 'agentChat'
 export type MainPanelMode = 'session' | 'editor'
@@ -15,6 +19,16 @@ interface UIState {
   openTerminalView: () => void
   openProjectSettingsPage: (projectId: string) => void
   openTodosPage: () => void
+
+  // --- Centralized navigation ---
+  /** Switch to a project: clears session + workspace context, shows terminal */
+  switchProject: (projectId: string) => void
+  /** Switch to a workspace (empty, no session): sets project + workspace, shows terminal */
+  switchWorkspace: (workspaceId: string) => void
+  /** Switch to a session: derives project + workspace, shows terminal */
+  switchSession: (sessionId: string) => void
+  /** Switch to a terminal: sets project + workspace context, expands bottom panel */
+  switchTerminal: (terminalId: string, workspaceId: string) => void
 
   // Agent chat
   previousCenterView: CenterView
@@ -79,6 +93,41 @@ export const useUIStore = create<UIState>((set) => ({
     set({ centerView: 'projectSettings', activeProjectSettingsId: projectId }),
   openTodosPage: () =>
     set({ centerView: 'todos' }),
+
+  // --- Centralized navigation ---
+  switchProject: (projectId) => {
+    useProjectStore.getState().setActiveProject(projectId)
+    useSessionStore.getState().setActiveSession(null)
+    set({ activeWorkspaceId: null, centerView: 'terminal' })
+  },
+
+  switchWorkspace: (workspaceId) => {
+    const workspace = useWorkspaceStore.getState().workspaces.get(workspaceId)
+    if (!workspace) return
+    useProjectStore.getState().setActiveProject(workspace.projectId)
+    useSessionStore.getState().setActiveSession(null)
+    set({ activeWorkspaceId: workspaceId, centerView: 'terminal' })
+  },
+
+  switchSession: (sessionId) => {
+    const session = useSessionStore.getState().sessions.get(sessionId)
+    if (!session) return
+    const workspace = useWorkspaceStore.getState().workspaces.get(session.workspaceId)
+    useSessionStore.getState().setActiveSession(sessionId)
+    if (workspace) {
+      useProjectStore.getState().setActiveProject(workspace.projectId)
+    }
+    set({ activeWorkspaceId: session.workspaceId, centerView: 'terminal' })
+  },
+
+  switchTerminal: (terminalId, workspaceId) => {
+    const workspace = useWorkspaceStore.getState().workspaces.get(workspaceId)
+    if (!workspace) return
+    useTerminalStore.getState().setActiveTerminal(terminalId)
+    useTerminalStore.getState().setBottomPanelExpanded(true)
+    useProjectStore.getState().setActiveProject(workspace.projectId)
+    set({ activeWorkspaceId: workspaceId, centerView: 'terminal' })
+  },
 
   // Agent chat
   previousCenterView: 'terminal',

@@ -87,7 +87,7 @@ export function WorkspacePage({ workspaceId }: WorkspacePageProps) {
   const workspace = useWorkspaceStore((s) => s.workspaces.get(workspaceId))
   const sessions = useSessionStore((s) => s.sessions)
   const sessionOrder = useSessionStore((s) => s.sessionOrder)
-  const setActiveSession = useSessionStore((s) => s.setActiveSession)
+  const switchSession = useUIStore((s) => s.switchSession)
   const terminals = useTerminalStore((s) => s.terminals)
   const terminalOrder = useTerminalStore((s) => s.terminalOrder)
   const openTerminalView = useUIStore((s) => s.openTerminalView)
@@ -131,8 +131,7 @@ export function WorkspacePage({ workspaceId }: WorkspacePageProps) {
   }, [workspaceId, loadSetupLog])
 
   const handleOpenSession = (sessionId: string) => {
-    setActiveSession(sessionId)
-    openTerminalView()
+    switchSession(sessionId)
   }
 
   const handleSpawnAgent = () => {

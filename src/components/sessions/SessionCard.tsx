@@ -1,6 +1,5 @@
 import { memo, useState, useRef, useEffect } from 'react'
 import { useSessionStore } from '../../stores/sessionStore'
-import { useProjectStore } from '../../stores/projectStore'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useConfirmStore } from '../../stores/confirmStore'
@@ -45,16 +44,14 @@ interface SessionCardProps {
 export const SessionCard = memo(function SessionCard({
   session, isActive, draggable, isDragging, dropPosition, onDragStart, onDragOver, onDragEnd, onDrop,
 }: SessionCardProps) {
-  const setActive = useSessionStore((s) => s.setActiveSession)
   const removeSession = useSessionStore((s) => s.removeSession)
   const renameSession = useSessionStore((s) => s.renameSession)
-  const setActiveProject = useProjectStore((s) => s.setActiveProject)
   const workspaces = useWorkspaceStore((s) => s.workspaces)
   const agents = useSettingsStore((s) => s.settings.agents)
   const showConfirm = useConfirmStore((s) => s.show)
   const renamingSessionId = useUIStore((s) => s.renamingSessionId)
   const setRenamingSessionId = useUIStore((s) => s.setRenamingSessionId)
-  const openTerminalView = useUIStore((s) => s.openTerminalView)
+  const switchSession = useUIStore((s) => s.switchSession)
   const config = STATUS_CONFIG[session.status] ?? STATUS_CONFIG.completed
 
   const agentConfig = agents.find((a) => a.id === session.agentType)
@@ -80,17 +77,11 @@ export const SessionCard = memo(function SessionCard({
     setRenamingSessionId(null)
   }
 
-  // Derive project from workspace
   const workspace = workspaces.get(session.workspaceId)
-  const projectId = workspace?.projectId ?? session.cwd
 
   return (
     <div
-      onClick={() => {
-        setActive(session.id)
-        setActiveProject(projectId)
-        openTerminalView()
-      }}
+      onClick={() => switchSession(session.id)}
       draggable={draggable}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
