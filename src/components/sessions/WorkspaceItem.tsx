@@ -3,7 +3,6 @@ import { useSessionStore } from '../../stores/sessionStore'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useTerminalStore } from '../../stores/terminalStore'
 import { useConfirmStore } from '../../stores/confirmStore'
-import { useProjectStore } from '../../stores/projectStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useUIStore } from '../../stores/uiStore'
 import { trpc } from '../../trpc'
@@ -92,11 +91,10 @@ export function WorkspaceItem({
   const sessions = useSessionStore((s) => s.sessions)
   const sessionOrder = useSessionStore((s) => s.sessionOrder)
   const activeSessionId = useSessionStore((s) => s.activeSessionId)
-  const setActiveSession = useSessionStore((s) => s.setActiveSession)
   const removeSession = useSessionStore((s) => s.removeSession)
-  const setActiveProject = useProjectStore((s) => s.setActiveProject)
-  const openTerminalView = useUIStore((s) => s.openTerminalView)
-  const setActiveWorkspaceId = useUIStore((s) => s.setActiveWorkspaceId)
+  const switchSession = useUIStore((s) => s.switchSession)
+  const switchWorkspace = useUIStore((s) => s.switchWorkspace)
+  const switchTerminal = useUIStore((s) => s.switchTerminal)
   const terminals = useTerminalStore((s) => s.terminals)
   const terminalOrder = useTerminalStore((s) => s.terminalOrder)
   const deleteWorktreeWorkspace = useWorkspaceStore((s) => s.deleteWorktreeWorkspace)
@@ -180,11 +178,8 @@ export function WorkspaceItem({
   }, [hasAliveSessions, hasRunningTerminals, workspace, showConfirm, deleteWorktreeWorkspace])
 
   const handleAgentClick = useCallback((sessionId: string) => {
-    setActiveSession(sessionId)
-    setActiveProject(workspace.projectId)
-    setActiveWorkspaceId(workspace.id)
-    openTerminalView()
-  }, [setActiveSession, setActiveProject, setActiveWorkspaceId, workspace.projectId, workspace.id, openTerminalView])
+    switchSession(sessionId)
+  }, [switchSession])
 
   const handleCloseAgent = useCallback((sessionId: string) => {
     const session = sessions.get(sessionId)
@@ -210,14 +205,10 @@ export function WorkspaceItem({
     if (wsSessionIds.length > 0) {
       handleAgentClick(wsSessionIds[0])
     } else {
-      // Empty workspace — clear active session so tabs show empty,
-      // but set this workspace as active context for file tree/git panel
-      setActiveSession(null)
-      setActiveProject(workspace.projectId)
-      setActiveWorkspaceId(workspace.id)
-      openTerminalView()
+      // Empty workspace — set workspace as active context for file tree/git panel
+      switchWorkspace(workspace.id)
     }
-  }, [wsSessionIds, handleAgentClick, setActiveSession, setActiveProject, setActiveWorkspaceId, workspace.projectId, workspace.id, openTerminalView])
+  }, [wsSessionIds, handleAgentClick, switchWorkspace, workspace.id])
 
   const hasDiff = diffStats && (diffStats.insertions > 0 || diffStats.deletions > 0)
 
@@ -225,17 +216,11 @@ export function WorkspaceItem({
   const [terminalsCollapsed, setTerminalsCollapsed] = useState(true)
 
   const activeTerminalId = useTerminalStore((s) => s.activeTerminalId)
-  const setActiveTerminal = useTerminalStore((s) => s.setActiveTerminal)
   const removeTerminal = useTerminalStore((s) => s.removeTerminal)
-  const setBottomPanelExpanded = useTerminalStore((s) => s.setBottomPanelExpanded)
 
   const handleTerminalClick = useCallback((terminalId: string) => {
-    setActiveTerminal(terminalId)
-    setBottomPanelExpanded(true)
-    setActiveProject(workspace.projectId)
-    setActiveWorkspaceId(workspace.id)
-    openTerminalView()
-  }, [setActiveTerminal, setBottomPanelExpanded, setActiveProject, setActiveWorkspaceId, workspace.projectId, workspace.id, openTerminalView])
+    switchTerminal(terminalId, workspace.id)
+  }, [switchTerminal, workspace.id])
 
   const handleCloseTerminal = useCallback((terminalId: string) => {
     const t = terminals.get(terminalId)
