@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useProjectStore } from '../../stores/projectStore'
 import { useProjectConfigStore } from '../../stores/projectConfigStore'
 import { useUIStore } from '../../stores/uiStore'
 import type { SetupScript } from '../../types'
+import { PROJECT_COLORS } from '../../types'
 
 interface ProjectSettingsPageProps {
   projectId: string
@@ -10,6 +11,8 @@ interface ProjectSettingsPageProps {
 
 export function ProjectSettingsPage({ projectId }: ProjectSettingsPageProps) {
   const project = useProjectStore((s) => s.projects.get(projectId))
+  const setProjectColor = useProjectStore((s) => s.setProjectColor)
+  const setProjectIcon = useProjectStore((s) => s.setProjectIcon)
   const config = useProjectConfigStore((s) => s.configs.get(projectId))
   const loadConfig = useProjectConfigStore((s) => s.loadConfig)
   const saveConfig = useProjectConfigStore((s) => s.saveConfig)
@@ -119,6 +122,13 @@ export function ProjectSettingsPage({ projectId }: ProjectSettingsPageProps) {
             </div>
           </div>
         </div>
+
+        {/* Project Icon Customization */}
+        <ProjectIconSection
+          project={project}
+          onColorChange={(color) => setProjectColor(projectId, color)}
+          onIconChange={(icon) => setProjectIcon(projectId, icon)}
+        />
 
         {/* Setup Scripts */}
         <section>
@@ -231,5 +241,147 @@ export function ProjectSettingsPage({ projectId }: ProjectSettingsPageProps) {
         </section>
       </div>
     </div>
+  )
+}
+
+// --- Icon customization section ---
+
+function getContrastColor(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return luminance > 0.6 ? '#1a1a1a' : '#ffffff'
+}
+
+interface ProjectIconSectionProps {
+  project: { name: string; color: string; icon?: string }
+  onColorChange: (color: string) => void
+  onIconChange: (icon: string) => void
+}
+
+function ProjectIconSection({ project, onColorChange, onIconChange }: ProjectIconSectionProps) {
+  const [iconDraft, setIconDraft] = useState(project.icon ?? '')
+  const [customColor, setCustomColor] = useState(project.color)
+  const colorInputRef = useRef<HTMLInputElement>(null)
+
+  // Sync when project changes externally
+  useEffect(() => {
+    setIconDraft(project.icon ?? '')
+    setCustomColor(project.color)
+  }, [project.icon, project.color])
+
+  const displayIcon = iconDraft || project.name[0]?.toUpperCase() || '?'
+
+  return (
+    <section className="mb-8">
+      <h2 className="text-[12px] font-semibold text-zinc-400 uppercase tracking-wider mb-4">
+        Project Icon
+      </h2>
+
+      <div className="flex items-start gap-6">
+        {/* Large preview */}
+        <div className="flex flex-col items-center gap-2">
+          <div
+            className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold transition-all duration-200 shadow-lg"
+            style={{
+              backgroundColor: project.color,
+              color: getContrastColor(project.color),
+            }}
+          >
+            {displayIcon}
+          </div>
+          <span className="text-[10px] text-zinc-600">Preview</span>
+        </div>
+
+        {/* Controls */}
+        <div className="flex-1 space-y-4">
+          {/* Icon character */}
+          <div>
+            <label className="block text-[11px] text-zinc-400 mb-1.5">
+              Icon letter or emoji
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={iconDraft}
+                onChange={(e) => {
+                  // Allow 1-2 characters (for emoji which can be 2 chars)
+                  const val = [...e.target.value].slice(0, 2).join('')
+                  setIconDraft(val)
+                }}
+                onBlur={() => onIconChange(iconDraft)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') onIconChange(iconDraft)
+                }}
+                placeholder={project.name[0]?.toUpperCase() ?? '?'}
+                className="w-16 px-2 py-1.5 text-center text-[14px] font-semibold bg-[var(--t-bg-surface)] border border-[var(--t-border)] text-[var(--t-text-primary)] placeholder-[var(--t-text-faint)] rounded-md outline-none focus:border-[var(--t-accent)]/50 transition-colors"
+              />
+              {iconDraft && (
+                <button
+                  onClick={() => { setIconDraft(''); onIconChange('') }}
+                  className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Color picker */}
+          <div>
+            <label className="block text-[11px] text-zinc-400 mb-1.5">
+              Color
+            </label>
+            <div className="flex items-center gap-2 flex-wrap">
+              {PROJECT_COLORS.map((color) => (
+                <button
+                  key={color}
+                  onClick={() => onColorChange(color)}
+                  className={`w-7 h-7 rounded-full transition-all duration-150 hover:scale-110 ${
+                    project.color === color
+                      ? 'ring-2 ring-white ring-offset-2 ring-offset-[var(--t-bg-base)]'
+                      : ''
+                  }`}
+                  style={{ backgroundColor: color }}
+                  title={color}
+                />
+              ))}
+              {/* Custom color via native picker */}
+              <button
+                onClick={() => colorInputRef.current?.click()}
+                className={`w-7 h-7 rounded-full border-2 border-dashed border-zinc-600 hover:border-zinc-400 flex items-center justify-center transition-colors ${
+                  !PROJECT_COLORS.includes(project.color as typeof PROJECT_COLORS[number])
+                    ? 'ring-2 ring-white ring-offset-2 ring-offset-[var(--t-bg-base)]'
+                    : ''
+                }`}
+                style={
+                  !PROJECT_COLORS.includes(project.color as typeof PROJECT_COLORS[number])
+                    ? { backgroundColor: project.color, borderStyle: 'solid', borderColor: project.color }
+                    : undefined
+                }
+                title="Custom color"
+              >
+                {PROJECT_COLORS.includes(project.color as typeof PROJECT_COLORS[number]) && (
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" className="text-zinc-500">
+                    <path d="M12.433 3.1a1 1 0 0 1-.2 1.4L7.15 8.593l-.95 3.306a.5.5 0 0 1-.838.218L2.14 8.885a.5.5 0 0 1 .148-.862l3.233-1.164L9.633 2.3a1 1 0 0 1 1.4-.2l1.4 1z"/>
+                  </svg>
+                )}
+              </button>
+              <input
+                ref={colorInputRef}
+                type="color"
+                value={customColor}
+                onChange={(e) => {
+                  setCustomColor(e.target.value)
+                  onColorChange(e.target.value)
+                }}
+                className="sr-only"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   )
 }
