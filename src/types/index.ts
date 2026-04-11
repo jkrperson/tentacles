@@ -92,7 +92,23 @@ export interface Project {
   path: string
   name: string      // basename of path
   addedAt: number
+  color: string     // hex color for the project icon (Discord-style)
+  icon?: string     // custom 1-2 char icon (letter, emoji, etc.) — defaults to first letter of name
 }
+
+/** Palette of distinct colors for project icons */
+export const PROJECT_COLORS = [
+  '#5865F2', // blurple (Discord-like)
+  '#57F287', // green
+  '#FEE75C', // yellow
+  '#EB459E', // fuchsia
+  '#ED4245', // red
+  '#F47B67', // salmon
+  '#E78AF3', // lavender
+  '#45DDC0', // teal
+  '#F0B232', // amber
+  '#5CC8FF', // sky
+] as const
 
 export type GitFileStatus = 'modified' | 'untracked' | 'added' | 'deleted' | 'renamed' | 'conflicted'
 export type GitIndexStatus = 'added' | 'modified' | 'deleted' | 'renamed' | 'none'
