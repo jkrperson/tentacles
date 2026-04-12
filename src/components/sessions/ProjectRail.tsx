@@ -97,6 +97,15 @@ export function ProjectRail() {
     }).length
   }, [sessionOrder, sessions, workspaces])
 
+  const getHasUnread = useCallback((projectPath: string) => {
+    return sessionOrder.some((id) => {
+      const s = sessions.get(id)
+      if (!s) return false
+      if (!sessionBelongsToProject(s.workspaceId, projectPath, workspaces)) return false
+      return s.hasUnread
+    })
+  }, [sessionOrder, sessions, workspaces])
+
   return (
     <div className="flex flex-col items-center h-full bg-[var(--t-bg-base)] py-2 gap-1.5">
       {/* Project icons */}
@@ -106,6 +115,7 @@ export function ProjectRail() {
           if (!project) return null
           const isActive = activeProjectId === path
           const runningCount = getRunningCount(path)
+          const hasUnread = !isActive && getHasUnread(path)
           const letter = project.icon || project.name[0]?.toUpperCase() || '?'
 
           return (
@@ -116,6 +126,7 @@ export function ProjectRail() {
               color={project.color}
               name={project.name}
               isActive={isActive}
+              hasUnread={hasUnread}
               runningCount={runningCount}
               isDragging={dragIdx === index}
               hovered={hoveredId === path}
@@ -270,6 +281,7 @@ interface ProjectIconProps {
   color: string
   name: string
   isActive: boolean
+  hasUnread: boolean
   runningCount: number
   isDragging: boolean
   hovered: boolean
@@ -284,7 +296,7 @@ interface ProjectIconProps {
 }
 
 function ProjectIcon({
-  letter, color, name, isActive, runningCount, isDragging, hovered, onHover,
+  letter, color, name, isActive, hasUnread, runningCount, isDragging, hovered, onHover,
   onClick, onContextMenu, onDragStart, onDragOver, onDrop, onDragEnd, dropPosition,
 }: ProjectIconProps) {
   const btnRef = useRef<HTMLButtonElement>(null)
@@ -306,11 +318,13 @@ function ProjectIcon({
         <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-[var(--t-accent)] rounded-full" />
       )}
 
-      {/* Active indicator pill */}
+      {/* Active / unread indicator pill */}
       <div className={`absolute left-0 w-1 rounded-r-full transition-all duration-200 ${
         isActive
           ? 'h-8 bg-white'
-          : 'h-0 group-hover:h-4 bg-white/60'
+          : hasUnread
+            ? 'h-2 bg-white group-hover:h-4'
+            : 'h-0 group-hover:h-4 bg-white/60'
       }`} />
 
       {/* Icon button */}
