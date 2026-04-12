@@ -30,6 +30,15 @@ html, body, #root {
   animation: fade-out 0.2s ease-in forwards;
 }
 
+@keyframes onboarding-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-onboarding-fade-in {
+  animation: onboarding-fade-in 0.25s ease-out;
+}
+
 /* xterm */
 .xterm { padding: 4px; background: var(--t-bg-base) !important; }
 .xterm .xterm-viewport { background-color: var(--t-bg-base) !important; }

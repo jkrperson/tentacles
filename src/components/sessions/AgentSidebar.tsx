@@ -208,7 +208,7 @@ export function AgentSidebar() {
       )}
 
       {/* Workspace list for active project */}
-      <div className="flex-1 overflow-y-auto px-1 pb-2">
+      <div data-tour="worktrees" className="flex-1 overflow-y-auto px-1 pb-2">
         {activeProject ? (
           <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
             {projectWorkspaces.map((ws) => {

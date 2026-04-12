@@ -20,6 +20,9 @@ import { useUIStore } from './stores/uiStore'
 import { UpdateBanner } from './components/UpdateBanner'
 import { DictationOverlay } from './components/DictationOverlay'
 import { useAgentChatSubscriptions } from './hooks/useAgentChatSubscriptions'
+import { OnboardingWizard } from './components/onboarding/OnboardingWizard'
+import { OnboardingTour } from './components/onboarding/OnboardingTour'
+import { useOnboardingStore } from './stores/onboardingStore'
 
 function App() {
   const loadSettings = useSettingsStore((s) => s.loadSettings)
@@ -32,6 +35,7 @@ function App() {
   const openTodosPage = useUIStore((s) => s.openTodosPage)
   const openTerminalView = useUIStore((s) => s.openTerminalView)
   const toggleAgentChat = useUIStore((s) => s.toggleAgentChat)
+  const onboardingPhase = useOnboardingStore((s) => s.phase)
 
   const user = useAuthStore((s) => s.user)
   const authInitialized = useAuthStore((s) => s.initialized)
@@ -86,6 +90,10 @@ function App() {
     // Restore persisted sidebar view mode
     const saved = useSettingsStore.getState().settings.sidebarViewMode
     if (saved) useUIStore.getState().setSidebarViewMode(saved)
+    // Trigger onboarding for first-time users
+    if (!useSettingsStore.getState().settings.hasCompletedOnboarding) {
+      useOnboardingStore.getState().startOnboarding()
+    }
   }, [settingsLoaded, loadProjects])
 
   // Initialize the single-listener data router for all terminal panels.
@@ -103,8 +111,10 @@ function App() {
       <ConfirmModal />
       <ShortcutOverlay />
       <DictationOverlay />
-      {/* Login modal overlay */}
-      {authInitialized && !user && loginDialogOpen && <LoginScreen />}
+      {onboardingPhase === 'wizard' && <OnboardingWizard />}
+      {onboardingPhase === 'tour' && <OnboardingTour />}
+      {/* Login modal overlay — hidden during onboarding so they don't compete */}
+      {authInitialized && !user && loginDialogOpen && onboardingPhase !== 'wizard' && onboardingPhase !== 'tour' && <LoginScreen />}
       {/* macOS traffic light area */}
       <div
         className="h-10 flex-shrink-0 flex items-center border-b border-[var(--t-border)]"
@@ -136,6 +146,7 @@ function App() {
             Projects
           </button>
           <button
+            data-tour="agent-chat"
             onClick={toggleAgentChat}
             className={`flex items-center gap-1.5 text-[11px] font-medium select-none px-2.5 py-1 rounded transition-colors ${
               centerView === 'agentChat'
@@ -149,6 +160,7 @@ function App() {
             Agent
           </button>
           <button
+            data-tour="tasks"
             onClick={openTodosPage}
             className={`flex items-center gap-1.5 text-[11px] font-medium select-none px-2.5 py-1 rounded transition-colors ${
               centerView === 'todos'
