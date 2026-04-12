@@ -6,7 +6,7 @@ import { SettingsPage } from './components/settings/SettingsPage'
 import { LoginScreen } from './components/auth/LoginScreen'
 import { UserAvatar } from './components/auth/UserAvatar'
 import { useAuthStore } from './stores/authStore'
-import { useSessionStore } from './stores/sessionStore'
+import { useSessionStore, flushPersist } from './stores/sessionStore'
 import { useSettingsStore } from './stores/settingsStore'
 import { useProjectStore } from './stores/projectStore'
 import { applyThemeToDOM } from './themes'
@@ -58,6 +58,13 @@ function App() {
       resetUser()
     }
   }, [user, authInitialized])
+
+  // Flush pending session persist on window close to avoid data loss
+  useEffect(() => {
+    const handler = () => flushPersist()
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [])
 
   useEffect(() => {
     loadSettings()
