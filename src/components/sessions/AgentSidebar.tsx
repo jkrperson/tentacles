@@ -278,23 +278,25 @@ export function AgentSidebar() {
         )}
       </div>
 
-      {/* Spawn dialog */}
-      {spawnDialogOpen && spawnProjectId && (
+      {/* Spawn dialog — portalled to body to escape overflow-hidden parents */}
+      {spawnDialogOpen && spawnProjectId && createPortal(
         <AgentSpawnDialog
           projectId={spawnProjectId}
           isOpen={spawnDialogOpen}
           onClose={closeSpawnDialog}
           preselectedWorkspaceId={spawnPreselectedWsId}
-        />
+        />,
+        document.body,
       )}
 
-      {/* Worktree-only dialog */}
-      {worktreeDialogOpen && worktreeProjectId && (
+      {/* Worktree-only dialog — portalled to body to escape overflow-hidden parents */}
+      {worktreeDialogOpen && worktreeProjectId && createPortal(
         <WorktreeCreateDialog
           projectId={worktreeProjectId}
           isOpen={worktreeDialogOpen}
           onClose={closeWorktreeDialog}
-        />
+        />,
+        document.body,
       )}
     </div>
   )
