@@ -20,7 +20,7 @@ export function AgentSpawnDialog({ projectId, isOpen, onClose, preselectedWorksp
   const createSessionInWorkspace = useSessionStore((s) => s.createSessionInWorkspace)
   const createWorktreeWorkspace = useWorkspaceStore((s) => s.createWorktreeWorkspace)
   const getProjectWorkspaces = useWorkspaceStore((s) => s.getProjectWorkspaces)
-  const persistSessions = useSessionStore((s) => s.persistSessions)
+
 
   const workspaces = getProjectWorkspaces(projectId)
 
@@ -84,13 +84,12 @@ export function AgentSpawnDialog({ projectId, isOpen, onClose, preselectedWorksp
         wsId = ws.id
       }
       await createSessionInWorkspace(wsId, agentName.trim() || undefined, agentType)
-      persistSessions()
       onClose()
     } catch (err: unknown) {
       setError(getErrorMessage(err))
       setCreating(false)
     }
-  }, [creating, selectedWorkspaceId, newWorktree, projectId, worktreeName, agentName, agentType, createSessionInWorkspace, createWorktreeWorkspace, persistSessions, onClose])
+  }, [creating, selectedWorkspaceId, newWorktree, projectId, worktreeName, agentName, agentType, createSessionInWorkspace, createWorktreeWorkspace, onClose])
 
   if (!isOpen) return null
 

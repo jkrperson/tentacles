@@ -15,7 +15,6 @@ interface WorktreeCreateDialogProps {
 export function WorktreeCreateDialog({ projectId, isOpen, onClose }: WorktreeCreateDialogProps) {
   const createWorktreeWorkspace = useWorkspaceStore((s) => s.createWorktreeWorkspace)
   const createSessionInWorkspace = useSessionStore((s) => s.createSessionInWorkspace)
-  const persistSessions = useSessionStore((s) => s.persistSessions)
   const defaultAgent = useSettingsStore((s) => s.settings.defaultAgent)
   const agents = useSettingsStore((s) => s.settings.agents)
   const enabledAgents = agents.filter((a) => a.enabled)
@@ -71,14 +70,13 @@ export function WorktreeCreateDialog({ projectId, isOpen, onClose }: WorktreeCre
       const ws = await createWorktreeWorkspace(projectId, branchName.replace(/-+$/, '').trim() || undefined)
       if (selectedAgent) {
         await createSessionInWorkspace(ws.id, undefined, selectedAgent)
-        persistSessions()
       }
       onClose()
     } catch (err: unknown) {
       setError(getErrorMessage(err))
       setCreating(false)
     }
-  }, [creating, projectId, branchName, selectedAgent, createWorktreeWorkspace, createSessionInWorkspace, persistSessions, onClose])
+  }, [creating, projectId, branchName, selectedAgent, createWorktreeWorkspace, createSessionInWorkspace, onClose])
 
   if (!isOpen) return null
 
