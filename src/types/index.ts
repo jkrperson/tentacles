@@ -241,6 +241,7 @@ export interface AppSettings {
   sidebarViewMode?: 'flat' | 'grouped'
   dictation: DictationSettings
   telemetryEnabled: boolean
+  hasCompletedOnboarding: boolean
 }
 
 export interface LspServerStatus {

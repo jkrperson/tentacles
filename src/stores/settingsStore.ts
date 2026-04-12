@@ -33,6 +33,7 @@ const defaultSettings: AppSettings = {
     noiseSuppression: true,
   },
   telemetryEnabled: true,
+  hasCompletedOnboarding: false,
 }
 
 interface SettingsState {
