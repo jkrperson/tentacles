@@ -54,10 +54,10 @@ export function Layout() {
     <div className="flex h-full">
       {/* Left: Project Rail + Agent Sidebar */}
       <div className="flex-shrink-0 overflow-hidden flex" style={{ width: leftDrag.value }}>
-        <div className="flex-shrink-0 w-[52px] border-r border-[var(--t-border)] overflow-hidden">
+        <div data-tour="projects" className="flex-shrink-0 w-[52px] border-r border-[var(--t-border)] overflow-hidden">
           <ProjectRail />
         </div>
-        <div className="flex-1 min-w-0 overflow-hidden">
+        <div data-tour="sessions" className="flex-1 min-w-0 overflow-hidden">
           <AgentSidebar />
         </div>
       </div>
@@ -73,7 +73,7 @@ export function Layout() {
         {/* Terminal + agent view (always mounted, hidden when other views active) */}
         <div className="absolute inset-0 flex flex-col" style={{ display: centerView === 'terminal' ? undefined : 'none' }}>
           {/* Terminal view */}
-          <div className="flex-1 min-h-0 overflow-hidden">
+          <div data-tour="terminal" className="flex-1 min-h-0 overflow-hidden">
             <TerminalView />
           </div>
 
@@ -88,7 +88,7 @@ export function Layout() {
             </div>
           )}
 
-          <div className="flex-shrink-0 overflow-hidden" style={{ height: bottomExpanded ? bottomDrag.value : undefined }}>
+          <div data-tour="shell-terminal" className="flex-shrink-0 overflow-hidden" style={{ height: bottomExpanded ? bottomDrag.value : undefined }}>
             <TerminalBottomPanel
               onNewTerminal={handleNewTerminal}
               expanded={bottomExpanded}
@@ -137,7 +137,7 @@ export function Layout() {
           </div>
 
           {/* Right: Tabbed Sidebar */}
-          <div className="flex-shrink-0 overflow-hidden flex flex-col" style={{ width: rightDrag.value }}>
+          <div data-tour="file-tree" className="flex-shrink-0 overflow-hidden flex flex-col" style={{ width: rightDrag.value }}>
             {/* Tab bar */}
             <div className="flex items-center border-b border-[var(--t-border)] flex-shrink-0 bg-[var(--t-bg-surface)]">
               <button
