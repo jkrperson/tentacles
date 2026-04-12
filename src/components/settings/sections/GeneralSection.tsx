@@ -2,6 +2,8 @@ import type { AppSettings } from '../../../types'
 import { trpc } from '../../../trpc'
 import { useCallback } from 'react'
 import { AgentIcon } from '../../icons/AgentIcons'
+import { useOnboardingStore } from '../../../stores/onboardingStore'
+import { useSettingsStore } from '../../../stores/settingsStore'
 
 interface GeneralSectionProps {
   draft: AppSettings
@@ -60,6 +62,23 @@ export function GeneralSection({ draft, onUpdate }: GeneralSectionProps) {
             Browse
           </button>
         </div>
+      </div>
+
+      <div className="flex items-center justify-between py-2">
+        <div>
+          <span className="text-[13px] text-zinc-300">Onboarding Tour</span>
+          <p className="text-[11px] text-zinc-500 mt-0.5">Restart the guided tour of the app</p>
+        </div>
+        <button
+          onClick={() => {
+            useSettingsStore.getState().saveSettings({ hasCompletedOnboarding: false })
+            useSettingsStore.getState().toggleSettings()
+            useOnboardingStore.getState().startOnboarding()
+          }}
+          className="px-3 py-1.5 text-[11px] font-medium text-zinc-400 hover:text-zinc-200 bg-[var(--t-bg-base)] border border-[var(--t-border-input)] hover:border-[var(--t-border-input-hover)] rounded-md transition-colors"
+        >
+          Restart Tour
+        </button>
       </div>
 
       <div className="flex items-center justify-between py-2">
