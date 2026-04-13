@@ -18,8 +18,10 @@ import { startRendererServer } from './rendererServer'
 import { HookManager } from './hookManager'
 import { createAgentSpawner } from './agentSpawner'
 import { wireEvents } from './eventWiring'
+import { ee } from './trpc/events'
 import { AuthManager } from './authManager'
 import { createRouter } from './trpc/router'
+import type { SessionStatus } from '../src/types'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -127,6 +129,87 @@ const appRouter = createRouter({
 })
 
 let ipcHandler: ReturnType<typeof createIPCHandler> | null = null
+let deferredDaemonMigrationTimer: ReturnType<typeof setInterval> | null = null
+let deferredDaemonMigrationInFlight = false
+const daemonSessionStatus = new Map<string, SessionStatus>()
+
+function isIdleForMigration(status: SessionStatus | undefined): boolean {
+  return status === 'idle' || status === 'completed' || status === 'errored'
+}
+
+async function maybeRunDeferredDaemonMigration() {
+  if (deferredDaemonMigrationInFlight) return
+  if (!daemonClient.hasPendingCompatibilityRestart()) {
+    if (deferredDaemonMigrationTimer) {
+      clearInterval(deferredDaemonMigrationTimer)
+      deferredDaemonMigrationTimer = null
+    }
+    return
+  }
+  if (!daemonClient.isConnected()) return
+
+  deferredDaemonMigrationInFlight = true
+  try {
+    const daemonSessions = await daemonClient.list()
+    if (daemonSessions.length === 0) {
+      const migrated = await daemonClient.migrateToCompatibleDaemon()
+      if (migrated) {
+        console.log('[daemon] Deferred compatibility migration completed (no active sessions)')
+      }
+      return
+    }
+
+    const allIdle = daemonSessions.every((s) => isIdleForMigration(daemonSessionStatus.get(s.id)))
+    if (!allIdle) return
+
+    console.log(`[daemon] All ${daemonSessions.length} active sessions are idle; migrating daemon in background`)
+    for (const s of daemonSessions) {
+      try {
+        await daemonClient.kill(s.id)
+      } catch {
+        // best effort; migration still proceeds
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200))
+
+    const migrated = await daemonClient.migrateToCompatibleDaemon()
+    if (migrated) {
+      console.log('[daemon] Deferred compatibility migration completed')
+    }
+  } catch {
+    // daemon temporarily unavailable; keep watcher running
+  } finally {
+    deferredDaemonMigrationInFlight = false
+  }
+}
+
+function startDeferredDaemonMigrationWatcher() {
+  if (!daemonClient.hasPendingCompatibilityRestart()) return
+  if (deferredDaemonMigrationTimer) return
+
+  deferredDaemonMigrationTimer = setInterval(() => {
+    void maybeRunDeferredDaemonMigration()
+  }, 5000)
+  void maybeRunDeferredDaemonMigration()
+}
+
+ee.on('session:agentStatus', ({ id, status }) => {
+  daemonSessionStatus.set(id, status)
+  if (daemonClient.hasPendingCompatibilityRestart()) {
+    void maybeRunDeferredDaemonMigration()
+  }
+})
+
+ee.on('session:exit', ({ id, exitCode }) => {
+  daemonSessionStatus.set(id, exitCode === 0 ? 'completed' : 'errored')
+  if (daemonClient.hasPendingCompatibilityRestart()) {
+    void maybeRunDeferredDaemonMigration()
+  }
+})
+
+daemonClient.on('compatibilityDeferred', () => {
+  startDeferredDaemonMigrationWatcher()
+})
 
 function createWindow() {
   const settings = loadSettings()
@@ -297,6 +380,10 @@ app.on('activate', () => {
 
 app.on('will-quit', async () => {
   const daemonHookIds = hookManager.getDaemonHookIds()
+  if (deferredDaemonMigrationTimer) {
+    clearInterval(deferredDaemonMigrationTimer)
+    deferredDaemonMigrationTimer = null
+  }
 
   ptyManager.killAll()
   lspManager.stopAll()
@@ -333,6 +420,7 @@ app.whenReady().then(async () => {
   }
 
   await reconcileSessions()
+  startDeferredDaemonMigrationWatcher()
 
   // Clear the cached daemon session IDs after a short delay so that any
   // subsequent reattach calls (e.g. macOS window close/reopen) query the
