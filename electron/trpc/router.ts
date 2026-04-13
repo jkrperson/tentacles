@@ -14,6 +14,7 @@ import { createProjectConfigRouter } from './routers/projectConfig'
 import { createDictationRouter } from './routers/dictation'
 import { createTodoRouter } from './routers/todo'
 import { createAgentChatRouter } from './routers/agentChat'
+import { createVoiceCommandRouter } from './routers/voiceCommand'
 import type { PtyManager } from '../ptyManager'
 import type { FileWatcher } from '../fileWatcher'
 import type { GitManager } from '../gitManager'
@@ -101,6 +102,13 @@ export function createRouter(deps: RouterDeps) {
       },
     }),
     agentChat: createAgentChatRouter({
+      keyManager: deps.agentChatKeyManager,
+      settingsPath: deps.settingsPath,
+      sessionsPath: deps.sessionsPath,
+      ptyManager: deps.ptyManager,
+      spawnAgent: deps.spawnAgent,
+    }),
+    voiceCommand: createVoiceCommandRouter({
       keyManager: deps.agentChatKeyManager,
       settingsPath: deps.settingsPath,
       sessionsPath: deps.sessionsPath,
