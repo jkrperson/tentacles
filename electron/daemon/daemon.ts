@@ -8,6 +8,10 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { createRequire } from 'node:module'
 import { ScrollbackWriter, readScrollback } from './scrollback'
+import {
+  DAEMON_PROTOCOL_VERSION,
+  DAEMON_REQUIRED_CAPABILITIES,
+} from './protocol'
 import type { TaggedRequest, DaemonResponse, DaemonEvent } from './protocol'
 
 const require = createRequire(import.meta.url)
@@ -202,7 +206,13 @@ function handleRequest(client: net.Socket, tagged: TaggedRequest) {
     }
 
     case 'ping': {
-      sendTo(client, { ok: true, reqId, uptime: Date.now() - startTime })
+      sendTo(client, {
+        ok: true,
+        reqId,
+        uptime: Date.now() - startTime,
+        protocolVersion: DAEMON_PROTOCOL_VERSION,
+        capabilities: [...DAEMON_REQUIRED_CAPABILITIES],
+      })
       break
     }
 

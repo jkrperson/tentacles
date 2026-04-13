@@ -1,6 +1,20 @@
 // Shared message types for main ↔ daemon communication over Unix socket.
 // Each message is a newline-delimited JSON object.
 
+export const DAEMON_PROTOCOL_VERSION = '1.0.0'
+export const DAEMON_REQUIRED_CAPABILITIES = [
+  'spawn',
+  'write',
+  'resize',
+  'kill',
+  'list',
+  'getScrollback',
+  'ping',
+  'event:data',
+  'event:exit',
+] as const
+export type DaemonCapability = typeof DAEMON_REQUIRED_CAPABILITIES[number]
+
 export interface SpawnRequest {
   method: 'spawn'
   id: string
@@ -98,6 +112,8 @@ export interface PingResponse {
   ok: true
   reqId: string
   uptime: number
+  protocolVersion?: string
+  capabilities?: string[]
 }
 
 export interface ErrorResponse {
