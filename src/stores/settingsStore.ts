@@ -31,6 +31,7 @@ const defaultSettings: AppSettings = {
     micDeviceId: '',
     micSensitivity: 5,
     noiseSuppression: true,
+    voiceCommandEnabled: false,
   },
   telemetryEnabled: true,
   hasCompletedOnboarding: false,

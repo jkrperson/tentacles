@@ -20,6 +20,8 @@ import { useUIStore } from './stores/uiStore'
 import { UpdateBanner } from './components/UpdateBanner'
 import { DictationOverlay } from './components/DictationOverlay'
 import { useAgentChatSubscriptions } from './hooks/useAgentChatSubscriptions'
+import { useVoiceCommandSubscriptions } from './hooks/useVoiceCommandSubscriptions'
+import { VoiceCommandOverlay } from './components/voiceCommand/VoiceCommandOverlay'
 import { OnboardingWizard } from './components/onboarding/OnboardingWizard'
 import { OnboardingTour } from './components/onboarding/OnboardingTour'
 import { useOnboardingStore } from './stores/onboardingStore'
@@ -105,12 +107,14 @@ function App() {
   useKeyboardShortcuts()
   useSoundPlayer()
   useAgentChatSubscriptions()
+  useVoiceCommandSubscriptions()
 
   return (
     <div className="h-full flex flex-col bg-[var(--t-bg-base)]">
       <ConfirmModal />
       <ShortcutOverlay />
       <DictationOverlay />
+      <VoiceCommandOverlay />
       {onboardingPhase === 'wizard' && <OnboardingWizard />}
       {onboardingPhase === 'tour' && <OnboardingTour />}
       {/* Login modal overlay — hidden during onboarding so they don't compete */}

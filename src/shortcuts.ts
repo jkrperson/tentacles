@@ -60,6 +60,9 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   // Dictation
   { id: 'dictation.toggle',      label: 'Toggle dictation',          category: 'Dictation', defaultKeys: 'meta+shift+d' },
 
+  // Voice Command
+  { id: 'voiceCommand.toggle',   label: 'Voice command',             category: 'General', defaultKeys: 'meta+k' },
+
   // General
   { id: 'app.settings',          label: 'Open settings',             category: 'General', defaultKeys: 'meta+,' },
   { id: 'app.shortcuts',         label: 'Show keyboard shortcuts',   category: 'General', defaultKeys: 'meta+/' },

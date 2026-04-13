@@ -206,6 +206,7 @@ export interface DictationSettings {
   micDeviceId: string           // '' = system default
   micSensitivity: number        // 1–10, maps to silence threshold
   noiseSuppression: boolean
+  voiceCommandEnabled: boolean  // Beta: voice command via Cmd+K
 }
 
 export interface DictationUsage {

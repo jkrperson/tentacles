@@ -110,6 +110,36 @@ export function DictationSection({ draft, onUpdate }: DictationSectionProps) {
 
   return (
     <div className="space-y-6">
+      {/* Voice Command (Beta) */}
+      <div className="flex items-center justify-between py-2">
+        <div>
+          <span className="text-[13px] text-zinc-300 inline-flex items-center gap-2">
+            Voice Command
+            <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">
+              Beta
+            </span>
+          </span>
+          <p className="text-[11px] text-zinc-500 mt-0.5">
+            Use your voice to navigate projects, manage sessions, and control workspaces.
+            Press <kbd className="px-1 py-0.5 rounded text-[10px] bg-zinc-800 border border-zinc-700">⌘K</kbd> to activate.
+          </p>
+        </div>
+        <button
+          onClick={() => updateDictation({ voiceCommandEnabled: !draft.dictation.voiceCommandEnabled })}
+          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+            draft.dictation.voiceCommandEnabled ? 'bg-[var(--t-accent)]' : 'bg-[var(--t-border-input)]'
+          }`}
+        >
+          <span
+            className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
+              draft.dictation.voiceCommandEnabled ? 'translate-x-[18px]' : 'translate-x-[3px]'
+            }`}
+          />
+        </button>
+      </div>
+
+      <div className="border-t border-[var(--t-border)]" />
+
       {/* Microphone Selection */}
       <div>
         <label className="block text-[13px] text-zinc-300 mb-2">Microphone</label>

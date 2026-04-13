@@ -19,6 +19,9 @@ export interface EventMap {
   'agentChat:chunk': { messageId: string; delta: string; done: boolean }
   'agentChat:toolCall': { messageId: string; toolCallId: string; name: AgentChatToolName; arguments: Record<string, unknown>; status: ToolCallStatus }
   'agentChat:toolCallUpdate': { toolCallId: string; status: ToolCallStatus; result?: unknown; error?: string }
+  'voiceCommand:chunk': { messageId: string; delta: string; done: boolean }
+  'voiceCommand:toolCall': { messageId: string; toolCallId: string; name: AgentChatToolName; arguments: Record<string, unknown>; status: ToolCallStatus }
+  'voiceCommand:toolCallUpdate': { toolCallId: string; status: ToolCallStatus; result?: unknown; error?: string }
 }
 
 class TypedEventEmitter extends EventEmitter {

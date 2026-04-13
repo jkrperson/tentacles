@@ -3,13 +3,13 @@ import OpenAI from 'openai'
 import { t } from '../trpc'
 import { createSubscription } from '../helpers'
 import { ee } from '../events'
-import { READ_ONLY_TOOLS } from '../../../src/types/agentChat'
 import type { AgentChatToolName } from '../../../src/types/agentChat'
+import { VOICE_AUTO_EXECUTE_TOOLS } from '../../../src/types/voiceCommand'
 import { TOOL_DEFINITIONS, executeTool, type AgentToolDeps } from './shared/agentTools'
 
-type AgentChatDeps = AgentToolDeps
+type VoiceCommandDeps = AgentToolDeps
 
-// In-memory conversation state (OpenAI format) keyed by conversationId
+// In-memory conversation state keyed by conversationId
 const conversations = new Map<string, OpenAI.Chat.Completions.ChatCompletionMessageParam[]>()
 
 // Pending tool calls waiting for confirmation
@@ -23,47 +23,44 @@ const pendingToolCalls = new Map<string, {
 // Active streams for cancellation
 const activeStreams = new Map<string, AbortController>()
 
-const SYSTEM_PROMPT = `You are the Tentacles platform assistant. You help users manage their projects, workspaces, and coding sessions through natural language.
+const MAX_CONVERSATION_MESSAGES = 12 // system + last 6 exchanges
 
-You have access to the following tools:
-- list_projects: List all known projects in the platform
-- open_project: Switch to a specific project by path
-- list_workspaces: List all workspaces (main + worktrees) for a project
-- create_workspace: Create a new git worktree workspace in a project
-- create_session: Create a new agent coding session in a workspace
-- list_sessions: List all active agent sessions
-- close_session: Close/terminate an agent session by ID
+const SYSTEM_PROMPT = `You are the Tentacles voice command assistant. You parse spoken commands into actions.
 
-Important: Sessions must be created inside a workspace. Every project has a "main" workspace by default. Use list_workspaces to find the right workspace, then create_session with that workspaceId.
+Rules:
+- Be extremely brief. One short sentence max.
+- Prefer tool calls over text explanations.
+- If the user says "open [name]", match it to the closest project name.
+- For ambiguous navigation requests (open, switch, list), pick the most likely interpretation and act.
 
-Be concise and helpful. When the user asks you to do something, use the appropriate tool. Explain what you're about to do briefly before calling a tool.`
+Session creation rules:
+- Sessions MUST be created inside a workspace, not directly under a project.
+- Every project has workspaces (at minimum a "main" workspace).
+- When the user says "create a session in [project]" WITHOUT specifying a workspace, first call list_workspaces to see what's available, then ask which workspace they want. Do NOT assume the main workspace.
+- If the user specifies both project and workspace (e.g., "create a session in the main workspace of tentacles"), proceed directly.
+- When there is only one workspace, use it without asking.
 
+Available tools: list_projects, open_project, list_workspaces, create_workspace, create_session, list_sessions, close_session.`
 
 function isAuthError(err: unknown): boolean {
   if (err && typeof err === 'object') {
-    // OpenAI SDK throws AuthenticationError with status 401
     if ('status' in err && (err as { status: number }).status === 401) return true
     if ('code' in err && (err as { code: string }).code === 'invalid_api_key') return true
   }
   return false
 }
 
-export function createAgentChatRouter(deps: AgentChatDeps) {
+function trimConversation(messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) {
+  // Keep system message + last N messages
+  if (messages.length <= MAX_CONVERSATION_MESSAGES) return
+  const system = messages[0]
+  const recent = messages.slice(-(MAX_CONVERSATION_MESSAGES - 1))
+  messages.length = 0
+  messages.push(system, ...recent)
+}
+
+export function createVoiceCommandRouter(deps: VoiceCommandDeps) {
   return t.router({
-    hasApiKey: t.procedure.query(() => {
-      return deps.keyManager.hasKey()
-    }),
-
-    setApiKey: t.procedure
-      .input(z.object({ key: z.string().min(1) }))
-      .mutation(({ input }) => {
-        deps.keyManager.setKey(input.key)
-      }),
-
-    deleteApiKey: t.procedure.mutation(() => {
-      deps.keyManager.deleteKey()
-    }),
-
     sendMessage: t.procedure
       .input(z.object({
         conversationId: z.string(),
@@ -74,29 +71,24 @@ export function createAgentChatRouter(deps: AgentChatDeps) {
         if (!apiKey) throw new Error('OpenAI API key not configured')
 
         const client = new OpenAI({ apiKey })
-        const messageId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+        const messageId = `vc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
-        // Get or create conversation
         let messages = conversations.get(input.conversationId)
         if (!messages) {
           messages = [{ role: 'system', content: SYSTEM_PROMPT }]
           conversations.set(input.conversationId, messages)
         }
 
-        // Add user message
         messages.push({ role: 'user', content: input.content })
+        trimConversation(messages)
 
-        // Set up abort controller
         const abortController = new AbortController()
         activeStreams.set(input.conversationId, abortController)
 
         try {
           await streamCompletion(client, deps, input.conversationId, messages, messageId, abortController)
         } catch (err) {
-          // Detect OpenAI auth errors and provide a clear message
-          if (isAuthError(err)) {
-            throw new Error('INVALID_API_KEY')
-          }
+          if (isAuthError(err)) throw new Error('INVALID_API_KEY')
           throw err
         } finally {
           activeStreams.delete(input.conversationId)
@@ -117,12 +109,11 @@ export function createAgentChatRouter(deps: AgentChatDeps) {
         pendingToolCalls.delete(input.toolCallId)
 
         if (!input.approved) {
-          ee.emit('agentChat:toolCallUpdate', {
+          ee.emit('voiceCommand:toolCallUpdate', {
             toolCallId: input.toolCallId,
             status: 'error',
             error: 'Action denied by user',
           })
-          // Add denial to conversation so the model knows
           const messages = conversations.get(pending.conversationId)
           if (messages) {
             messages.push({
@@ -134,31 +125,25 @@ export function createAgentChatRouter(deps: AgentChatDeps) {
           return { success: false, reason: 'denied' }
         }
 
-        // Execute the tool
-        ee.emit('agentChat:toolCallUpdate', {
+        ee.emit('voiceCommand:toolCallUpdate', {
           toolCallId: input.toolCallId,
           status: 'executing',
         })
 
         try {
           const result = await executeTool(deps, pending.name, pending.arguments)
-
-          // Check if this is a renderer-side action
           const isRendererAction = result && typeof result === 'object' && '_rendererAction' in result
 
-          ee.emit('agentChat:toolCallUpdate', {
+          ee.emit('voiceCommand:toolCallUpdate', {
             toolCallId: input.toolCallId,
             status: 'complete',
             result,
           })
 
           if (isRendererAction) {
-            // Renderer will execute the action and call reportToolResult
-            // Do NOT push tool result or trigger follow-up here
             return { success: true, result, rendererAction: true }
           }
 
-          // For main-process-only tools, push result and trigger follow-up
           const messages = conversations.get(pending.conversationId)
           if (messages) {
             messages.push({
@@ -170,10 +155,9 @@ export function createAgentChatRouter(deps: AgentChatDeps) {
             const apiKey = deps.keyManager.getKey()
             if (apiKey) {
               const client = new OpenAI({ apiKey })
-              const followUpId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+              const followUpId = `vc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
               const abortController = new AbortController()
               activeStreams.set(pending.conversationId, abortController)
-
               try {
                 await streamCompletion(client, deps, pending.conversationId, messages, followUpId, abortController)
               } finally {
@@ -185,13 +169,11 @@ export function createAgentChatRouter(deps: AgentChatDeps) {
           return { success: true, result }
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : 'Unknown error'
-          ee.emit('agentChat:toolCallUpdate', {
+          ee.emit('voiceCommand:toolCallUpdate', {
             toolCallId: input.toolCallId,
             status: 'error',
             error: errorMsg,
           })
-
-          // Add error to conversation
           const messages = conversations.get(pending.conversationId)
           if (messages) {
             messages.push({
@@ -200,17 +182,15 @@ export function createAgentChatRouter(deps: AgentChatDeps) {
               content: `Error: ${errorMsg}`,
             })
           }
-
           return { success: false, reason: errorMsg }
         }
       }),
 
-    // Called by renderer after executing a _rendererAction tool result
     reportToolResult: t.procedure
       .input(z.object({
         conversationId: z.string(),
         toolCallId: z.string(),
-        result: z.string(), // JSON-stringified result
+        result: z.string(),
       }))
       .mutation(async ({ input }) => {
         const messages = conversations.get(input.conversationId)
@@ -222,14 +202,12 @@ export function createAgentChatRouter(deps: AgentChatDeps) {
           content: input.result,
         })
 
-        // Get follow-up response from the model
         const apiKey = deps.keyManager.getKey()
         if (apiKey) {
           const client = new OpenAI({ apiKey })
-          const followUpId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+          const followUpId = `vc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
           const abortController = new AbortController()
           activeStreams.set(input.conversationId, abortController)
-
           try {
             await streamCompletion(client, deps, input.conversationId, messages, followUpId, abortController)
           } finally {
@@ -248,15 +226,21 @@ export function createAgentChatRouter(deps: AgentChatDeps) {
         }
       }),
 
-    onChunk: createSubscription('agentChat:chunk'),
-    onToolCall: createSubscription('agentChat:toolCall'),
-    onToolCallUpdate: createSubscription('agentChat:toolCallUpdate'),
+    clearConversation: t.procedure
+      .input(z.object({ conversationId: z.string() }))
+      .mutation(({ input }) => {
+        conversations.delete(input.conversationId)
+      }),
+
+    onChunk: createSubscription('voiceCommand:chunk'),
+    onToolCall: createSubscription('voiceCommand:toolCall'),
+    onToolCallUpdate: createSubscription('voiceCommand:toolCallUpdate'),
   })
 }
 
 async function streamCompletion(
   client: OpenAI,
-  deps: AgentChatDeps,
+  deps: VoiceCommandDeps,
   conversationId: string,
   messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
   messageId: string,
@@ -264,7 +248,7 @@ async function streamCompletion(
 ) {
   const stream = client.chat.completions.stream(
     {
-      model: 'gpt-4.1',
+      model: 'gpt-4.1-mini',
       messages,
       tools: TOOL_DEFINITIONS,
     },
@@ -280,17 +264,15 @@ async function streamCompletion(
 
     const delta = choice.delta
 
-    // Stream text content
     if (delta?.content) {
       fullContent += delta.content
-      ee.emit('agentChat:chunk', {
+      ee.emit('voiceCommand:chunk', {
         messageId,
         delta: delta.content,
         done: false,
       })
     }
 
-    // Accumulate tool calls
     if (delta?.tool_calls) {
       for (const tc of delta.tool_calls) {
         const existing = toolCalls.get(tc.index)
@@ -308,16 +290,13 @@ async function streamCompletion(
       }
     }
 
-    // Check if done
     if (choice.finish_reason === 'stop' || choice.finish_reason === 'tool_calls') {
       break
     }
   }
 
-  // Signal text streaming done
-  ee.emit('agentChat:chunk', { messageId, delta: '', done: true })
+  ee.emit('voiceCommand:chunk', { messageId, delta: '', done: true })
 
-  // Process tool calls if any
   if (toolCalls.size > 0) {
     const assistantToolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] = []
     const autoApproveQueue: { id: string; name: AgentChatToolName; arguments: Record<string, unknown> }[] = []
@@ -335,11 +314,10 @@ async function streamCompletion(
       } catch { /* use empty */ }
 
       const toolName = tc.name as AgentChatToolName
-      const isReadOnly = READ_ONLY_TOOLS.includes(toolName)
+      const isAutoExecute = VOICE_AUTO_EXECUTE_TOOLS.includes(toolName)
 
-      if (isReadOnly) {
-        // Auto-approve read-only tools — emit as executing, run, emit result
-        ee.emit('agentChat:toolCall', {
+      if (isAutoExecute) {
+        ee.emit('voiceCommand:toolCall', {
           messageId,
           toolCallId: tc.id,
           name: toolName,
@@ -348,7 +326,6 @@ async function streamCompletion(
         })
         autoApproveQueue.push({ id: tc.id, name: toolName, arguments: parsedArgs })
       } else {
-        // Store as pending and emit to renderer for confirmation
         pendingToolCalls.set(tc.id, {
           conversationId,
           messageId,
@@ -356,7 +333,7 @@ async function streamCompletion(
           arguments: parsedArgs,
         })
 
-        ee.emit('agentChat:toolCall', {
+        ee.emit('voiceCommand:toolCall', {
           messageId,
           toolCallId: tc.id,
           name: toolName,
@@ -366,30 +343,36 @@ async function streamCompletion(
       }
     }
 
-    // Add assistant message with tool calls to conversation
     messages.push({
       role: 'assistant',
       content: fullContent || null,
       tool_calls: assistantToolCalls,
     })
 
-    // Auto-execute read-only tools
     for (const autoTool of autoApproveQueue) {
       try {
         const result = await executeTool(deps, autoTool.name, autoTool.arguments)
-        ee.emit('agentChat:toolCallUpdate', {
+
+        // For renderer actions that are auto-approved (e.g., open_project),
+        // emit as complete so the renderer can execute the action
+        ee.emit('voiceCommand:toolCallUpdate', {
           toolCallId: autoTool.id,
           status: 'complete',
           result,
         })
-        messages.push({
-          role: 'tool',
-          tool_call_id: autoTool.id,
-          content: JSON.stringify(result),
-        })
+
+        // For non-renderer results, add to conversation immediately
+        const isRendererAction = result && typeof result === 'object' && '_rendererAction' in result
+        if (!isRendererAction) {
+          messages.push({
+            role: 'tool',
+            tool_call_id: autoTool.id,
+            content: JSON.stringify(result),
+          })
+        }
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Unknown error'
-        ee.emit('agentChat:toolCallUpdate', {
+        ee.emit('voiceCommand:toolCallUpdate', {
           toolCallId: autoTool.id,
           status: 'error',
           error: errorMsg,
@@ -402,18 +385,16 @@ async function streamCompletion(
       }
     }
 
-    // If all tool calls were auto-approved (no pending confirmations), get follow-up
+    // If all tool calls were auto-approved and none are renderer actions, get follow-up
     const hasPending = toolCalls.size > autoApproveQueue.length
     if (!hasPending && autoApproveQueue.length > 0) {
-      const followUpId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      const followUpId = `vc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
       await streamCompletion(client, deps, conversationId, messages, followUpId, abortController)
     }
   } else {
-    // Plain text response
     messages.push({
       role: 'assistant',
       content: fullContent,
     })
   }
 }
-
