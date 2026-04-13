@@ -7,6 +7,7 @@ import { useWorkspaceStore, sessionBelongsToProject } from '../stores/workspaceS
 import { useConfirmStore } from '../stores/confirmStore'
 import { useUIStore } from '../stores/uiStore'
 import { useDictationStore } from '../stores/dictationStore'
+import { useVoiceCommandStore } from '../stores/voiceCommandStore'
 import { resolveKeys, parseKeys, matchesEvent } from '../shortcuts'
 import { trpc } from '../trpc'
 
@@ -82,6 +83,15 @@ export function useKeyboardShortcuts() {
       if (m('dictation.toggle')) {
         e.preventDefault()
         useDictationStore.getState().toggle()
+        return
+      }
+
+      // Voice command toggle (beta — must be enabled in settings)
+      if (m('voiceCommand.toggle')) {
+        if (useSettingsStore.getState().settings.dictation.voiceCommandEnabled) {
+          e.preventDefault()
+          useVoiceCommandStore.getState().toggle()
+        }
         return
       }
 
