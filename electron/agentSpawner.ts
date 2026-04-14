@@ -3,6 +3,7 @@ import * as fs from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { getAdapter } from './agents/registry'
 import { registerHookSession, getHookPort, getLastEvent } from './hookServer'
+import { ee } from './trpc/events'
 import type { PtyManager } from './ptyManager'
 import type { DaemonClient } from './daemon/client'
 import type { HookManager } from './hookManager'
@@ -119,6 +120,10 @@ export function createAgentSpawner(deps: SpawnerDeps) {
         const hookStatus = adapter.parseStatus?.(lastHookEvent) ?? null
         if (hookStatus) initialStatus = hookStatus
       }
+    }
+
+    if (initialStatus && initialStatus !== 'errored') {
+      ee.emit('session:agentStatus', { id: sessionId, status: initialStatus })
     }
 
     return {

@@ -22,7 +22,7 @@ export function getScrollbackDir(): string {
 }
 
 /** Check if a daemon is already running, healthy, and ready to accept connections.
- *  This is a destructive check — it kills stale or mismatched daemons. */
+ *  This can be destructive (it may kill stale daemons in dev mode). */
 export function isDaemonRunning(): boolean {
   try {
     const pid = parseInt(fs.readFileSync(PID_FILE, 'utf-8').trim(), 10)
@@ -46,26 +46,29 @@ export function isDaemonRunning(): boolean {
       return false
     }
 
-    // Check origin BEFORE socket — a daemon from another worktree should be
-    // killed even if its socket exists. Checking origin first avoids the
-    // misleading "socket missing" log for stale cross-worktree daemons.
-    const currentScript = path.join(__launcherDir, 'daemon.mjs')
-    try {
-      const originScript = fs.readFileSync(ORIGIN_FILE, 'utf-8').trim()
-      if (originScript !== currentScript) {
-        console.log(`[daemon] Daemon origin mismatch: running="${originScript}", current="${currentScript}", restarting`)
+    // In dev, keep strict origin checks so switching worktrees/build outputs
+    // doesn't accidentally attach to an unrelated daemon. In production, do
+    // not force a restart on origin mismatch; preserving daemon lifetime across
+    // app updates keeps existing interactive sessions usable.
+    if (isDev) {
+      const currentScript = path.join(__launcherDir, 'daemon.mjs')
+      try {
+        const originScript = fs.readFileSync(ORIGIN_FILE, 'utf-8').trim()
+        if (originScript !== currentScript) {
+          console.log(`[daemon] Daemon origin mismatch: running="${originScript}", current="${currentScript}", restarting`)
+          try { process.kill(pid, 'SIGTERM') } catch { /* ignore */ }
+          try { fs.unlinkSync(PID_FILE) } catch { /* ignore */ }
+          try { fs.unlinkSync(getSocketPath()) } catch { /* ignore */ }
+          return false
+        }
+      } catch {
+        // No origin file — old daemon, restart to be safe in dev.
+        console.log('[daemon] No origin marker found in dev mode, restarting daemon')
         try { process.kill(pid, 'SIGTERM') } catch { /* ignore */ }
         try { fs.unlinkSync(PID_FILE) } catch { /* ignore */ }
         try { fs.unlinkSync(getSocketPath()) } catch { /* ignore */ }
         return false
       }
-    } catch {
-      // No origin file — old daemon, restart to be safe
-      console.log(`[daemon] No origin marker found, restarting daemon`)
-      try { process.kill(pid, 'SIGTERM') } catch { /* ignore */ }
-      try { fs.unlinkSync(PID_FILE) } catch { /* ignore */ }
-      try { fs.unlinkSync(getSocketPath()) } catch { /* ignore */ }
-      return false
     }
 
     // Verify the socket file exists — no socket means daemon can't accept connections.

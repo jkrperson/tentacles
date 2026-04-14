@@ -12,6 +12,10 @@ import type {
   TaggedRequest,
   ListSession,
 } from './protocol'
+import {
+  DAEMON_REQUIRED_CAPABILITIES as REQUIRED_CAPABILITIES,
+  DAEMON_PROTOCOL_VERSION as CLIENT_PROTOCOL_VERSION,
+} from './protocol'
 
 type PendingResolve = (response: DaemonResponse) => void
 
@@ -23,6 +27,7 @@ export class DaemonClient extends EventEmitter {
   private reconnecting = false
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private intentionalDisconnect = false
+  private pendingCompatibilityRestartReason: string | null = null
 
   /** Ensure the daemon is running and connect to it. */
   async ensureAndConnect(): Promise<void> {
@@ -33,28 +38,31 @@ export class DaemonClient extends EventEmitter {
     }
     await this.connect()
 
-    // Verify the daemon is healthy with a ping and a test spawn
+    // Verify the daemon is healthy with a ping, compatibility check, and a test spawn.
     let healthy = false
     try {
-      await this.ping()
-      // Verify spawning works — a stale daemon may respond to pings but fail to spawn
-      await this.spawnTest()
-      healthy = true
+      const ping = await this.ping()
+      const compatibility = this.checkCompatibility(ping)
+      if (!compatibility.ok) {
+        const deferred = await this.deferCompatibilityRestartIfSessionsAlive(compatibility.reason)
+        if (deferred) {
+          healthy = true
+        } else {
+          console.log(`[daemon] Connected but incompatible (${compatibility.reason}) - restarting daemon`)
+        }
+      } else {
+        // Verify spawning works - a stale daemon may respond to pings but fail to spawn.
+        await this.spawnTest()
+        this.pendingCompatibilityRestartReason = null
+        healthy = true
+      }
     } catch {
-      console.log('[daemon] Connected but health check failed — restarting daemon')
+      console.log('[daemon] Connected but health check failed - restarting daemon')
     }
 
     if (!healthy) {
-      this.disconnect()
-      this.intentionalDisconnect = false
-      // Force a fresh daemon
-      const pid = getDaemonPid()
-      if (pid) {
-        try { process.kill(pid, 'SIGTERM') } catch { /* ignore */ }
-      }
-      launchDaemon()
-      await this.waitForDaemon(5000)
-      await this.connect()
+      await this.restartDaemonProcess()
+      this.pendingCompatibilityRestartReason = null
     }
   }
 
@@ -187,10 +195,92 @@ export class DaemonClient extends EventEmitter {
     return (resp as { data: string }).data
   }
 
-  async ping(): Promise<{ uptime: number }> {
+  async ping(): Promise<{ uptime: number; protocolVersion?: string; capabilities?: string[] }> {
     const resp = await this.send({ method: 'ping' })
     if (!resp.ok) throw new Error((resp as { error: string }).error)
-    return { uptime: (resp as { uptime: number }).uptime }
+    const pingResp = resp as { uptime: number; protocolVersion?: string; capabilities?: string[] }
+    return {
+      uptime: pingResp.uptime,
+      protocolVersion: pingResp.protocolVersion,
+      capabilities: pingResp.capabilities,
+    }
+  }
+
+  hasPendingCompatibilityRestart(): boolean {
+    return this.pendingCompatibilityRestartReason !== null
+  }
+
+  async migrateToCompatibleDaemon(): Promise<boolean> {
+    if (!this.pendingCompatibilityRestartReason) return false
+
+    await this.restartDaemonProcess()
+    try {
+      const ping = await this.ping()
+      const compatibility = this.checkCompatibility(ping)
+      if (!compatibility.ok) {
+        this.pendingCompatibilityRestartReason = compatibility.reason
+        return false
+      }
+      await this.spawnTest()
+      this.pendingCompatibilityRestartReason = null
+      this.emit('compatibilityMigrated')
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  private checkCompatibility(
+    ping: { protocolVersion?: string; capabilities?: string[] },
+  ): { ok: true } | { ok: false; reason: string } {
+    // Legacy daemon with no advertised capabilities: assume compatible to avoid
+    // killing active sessions during upgrades.
+    if (!Array.isArray(ping.capabilities) || ping.capabilities.length === 0) {
+      return { ok: true }
+    }
+
+    const capabilities = ping.capabilities
+    const missing = REQUIRED_CAPABILITIES.filter((cap) => !capabilities.includes(cap))
+    if (missing.length > 0) {
+      return { ok: false, reason: `missing capabilities: ${missing.join(', ')}` }
+    }
+
+    // Informative only; capability checks are the compatibility gate.
+    if (ping.protocolVersion && ping.protocolVersion !== CLIENT_PROTOCOL_VERSION) {
+      console.log(
+        `[daemon] Protocol version differs (daemon=${ping.protocolVersion}, client=${CLIENT_PROTOCOL_VERSION}); continuing due to compatible capabilities`,
+      )
+    }
+
+    return { ok: true }
+  }
+
+  private async deferCompatibilityRestartIfSessionsAlive(reason: string): Promise<boolean> {
+    try {
+      const sessions = await this.list()
+      if (sessions.length === 0) return false
+
+      this.pendingCompatibilityRestartReason = reason
+      this.emit('compatibilityDeferred', { reason, sessionCount: sessions.length })
+      console.log(`[daemon] Incompatible daemon restart deferred (${sessions.length} active session${sessions.length === 1 ? '' : 's'})`)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  private async restartDaemonProcess(): Promise<void> {
+    this.disconnect()
+    this.intentionalDisconnect = false
+
+    const pid = getDaemonPid()
+    if (pid) {
+      try { process.kill(pid, 'SIGTERM') } catch { /* ignore */ }
+    }
+
+    launchDaemon()
+    await this.waitForDaemon(5000)
+    await this.connect()
   }
 
   /** Spawn a short-lived process to verify the daemon can actually create PTYs. */
