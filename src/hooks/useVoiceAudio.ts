@@ -50,7 +50,7 @@ export function useVoiceAudio() {
   // Set true once we have at least one transcript chunk
   const hasTranscriptRef = useRef(false)
 
-  const shouldRecord = isOpen && phase === 'listening' && inputMode === 'voice'
+  const shouldCaptureAudio = isOpen && inputMode === 'voice' && (phase === 'listening' || phase === 'processing_audio')
 
   const flushAndRestart = () => {
     const recorder = mediaRecorderRef.current
@@ -131,9 +131,9 @@ export function useVoiceAudio() {
     autoSubmitTimerRef.current = setTimeout(() => {
       autoSubmitTimerRef.current = null
       const store = useVoiceCommandStore.getState()
-      if (store.isOpen && store.phase === 'listening' && store.transcript.trim()) {
+      const hasPendingAudio = hadSpeechRef.current || chunksRef.current.length > 0 || activeSendsRef.current > 0
+      if (store.isOpen && store.phase === 'listening' && (store.transcript.trim() || hasPendingAudio)) {
         store.setPhase('processing_audio')
-        finalizeAndSubmit()
       }
     }, AUTO_SUBMIT_SILENCE_MS)
   }
@@ -143,6 +143,15 @@ export function useVoiceAudio() {
       clearTimeout(autoSubmitTimerRef.current)
       autoSubmitTimerRef.current = null
     }
+  }
+
+  const waitUntil = async (predicate: () => boolean, timeoutMs: number, pollMs: number): Promise<boolean> => {
+    const start = Date.now()
+    while (!predicate()) {
+      if (Date.now() - start > timeoutMs) return false
+      await new Promise((r) => setTimeout(r, pollMs))
+    }
+    return true
   }
 
   const finalizeAndSubmit = async () => {
@@ -175,17 +184,14 @@ export function useVoiceAudio() {
     // Submit the transcript
     const store = useVoiceCommandStore.getState()
     if (store.isOpen && store.transcript.trim()) {
-      store.submitTranscript()
+      await store.submitTranscript()
+      return
     }
-  }
 
-  const waitUntil = async (predicate: () => boolean, timeoutMs: number, pollMs: number): Promise<boolean> => {
-    const start = Date.now()
-    while (!predicate()) {
-      if (Date.now() - start > timeoutMs) return false
-      await new Promise((r) => setTimeout(r, pollMs))
+    // No usable transcript, return to listening mode.
+    if (store.isOpen && store.phase === 'processing_audio' && store.inputMode === 'voice') {
+      store.setPhase('listening')
     }
-    return true
   }
 
   const getRMSLevel = (): number => {
@@ -225,11 +231,25 @@ export function useVoiceAudio() {
     }
     mediaRecorderRef.current = null
     chunksRef.current = []
+    isStoppingRef.current = false
+    silenceStartRef.current = null
+    hadSpeechRef.current = false
+    setAudioLevel(0)
   }
 
   useEffect(() => {
-    if (!shouldRecord) {
+    if (!shouldCaptureAudio) {
       teardown()
+      return
+    }
+
+    // In processing mode we keep the current recorder alive long enough to
+    // finalize and submit, then transition out to resolving/listening.
+    if (phase === 'processing_audio') {
+      const runFinalize = async () => {
+        await finalizeAndSubmit()
+      }
+      runFinalize()
       return
     }
 
@@ -250,7 +270,8 @@ export function useVoiceAudio() {
       try {
         return await navigator.mediaDevices.getUserMedia({ audio: audioConstraints })
       } catch (err) {
-        if (micDeviceId && err instanceof OverconstrainedError) {
+        const isOverconstrained = err instanceof DOMException && err.name === 'OverconstrainedError'
+        if (micDeviceId && isOverconstrained) {
           return navigator.mediaDevices.getUserMedia({
             audio: {
               noiseSuppression: audioConstraints.noiseSuppression,
@@ -342,5 +363,5 @@ export function useVoiceAudio() {
     return () => {
       cancelled = true
     }
-  }, [shouldRecord]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [shouldCaptureAudio, phase]) // eslint-disable-line react-hooks/exhaustive-deps
 }
