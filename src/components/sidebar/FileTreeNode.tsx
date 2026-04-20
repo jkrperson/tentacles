@@ -53,23 +53,27 @@ export const FileTreeNode = memo(function FileTreeNode({ node, depth }: { node: 
     return cache?.gitStatuses?.get(node.path) ?? null
   })
 
-  const [children, setChildren] = useState<FileNode[]>(node.children ?? [])
-  const [loaded, setLoaded] = useState(false)
+  const [loadingChildren, setLoadingChildren] = useState(false)
 
   const handleClick = useCallback(async () => {
     if (!cacheKey) return
     if (node.type === 'directory') {
+      const willExpand = !isExpanded
       toggleFileTreeExpanded(cacheKey, node.path)
-      if (!loaded && !isExpanded) {
-        const nodes = await trpc.file.readDir.query({ dirPath: node.path })
-        setChildren(nodes)
-        updateFileTreeChildren(cacheKey, node.path, nodes)
-        setLoaded(true)
+      // Always re-read a directory when it gets expanded so the listing is fresh.
+      if (willExpand) {
+        setLoadingChildren(true)
+        try {
+          const nodes = await trpc.file.readDir.query({ dirPath: node.path })
+          updateFileTreeChildren(cacheKey, node.path, nodes)
+        } finally {
+          setLoadingChildren(false)
+        }
       }
     } else {
       openFile(cacheKey, node.path)
     }
-  }, [node, isExpanded, loaded, cacheKey, toggleFileTreeExpanded, openFile, updateFileTreeChildren])
+  }, [node, isExpanded, cacheKey, toggleFileTreeExpanded, openFile, updateFileTreeChildren])
 
   return (
     <div>
@@ -102,9 +106,14 @@ export const FileTreeNode = memo(function FileTreeNode({ node, depth }: { node: 
           style={!isSelected && gitStatus ? { color: GIT_STATUS_VARS[gitStatus] } : undefined}
         >{node.name}</span>
       </div>
-      {node.type === 'directory' && isExpanded && children.map((child) => (
+      {node.type === 'directory' && isExpanded && (node.children ?? []).map((child) => (
         <FileTreeNode key={child.path} node={child} depth={depth + 1} />
       ))}
+      {node.type === 'directory' && isExpanded && loadingChildren && (
+        <div className="text-[10px] text-zinc-600 py-1" style={{ paddingLeft: (depth + 1) * 16 + 8 }}>
+          Loading...
+        </div>
+      )}
     </div>
   )
 })
