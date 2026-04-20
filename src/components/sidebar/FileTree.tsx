@@ -2,11 +2,7 @@ import { useProjectStore } from '../../stores/projectStore'
 import { useActiveWorkspaceDir } from '../../hooks/useActiveWorkspaceDir'
 import { FileTreeNode } from './FileTreeNode'
 
-interface FileTreeProps {
-  onToggle: () => void
-}
-
-export function FileTree({ onToggle }: FileTreeProps) {
+export function FileTree() {
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
   const fileTreeCache = useProjectStore((s) => s.fileTreeCache)
   const { dir: workspaceDir, branch, isWorktree } = useActiveWorkspaceDir()
@@ -35,17 +31,6 @@ export function FileTree({ onToggle }: FileTreeProps) {
               </span>
             </>
           )}
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={onToggle}
-            className="text-zinc-500 hover:text-zinc-300 p-1 rounded hover:bg-[var(--t-border)] transition-colors"
-            title="Hide explorer"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M9.354 3.646a.5.5 0 0 1 0 .708L5.707 8l3.647 3.646a.5.5 0 0 1-.708.708l-4-4a.5.5 0 0 1 0-.708l4-4a.5.5 0 0 1 .708 0z" transform="scale(-1,1) translate(-16,0)"/>
-            </svg>
-          </button>
         </div>
       </div>
       <div className="flex-1 overflow-y-auto py-1">

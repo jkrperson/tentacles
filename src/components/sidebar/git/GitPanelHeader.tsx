@@ -19,12 +19,11 @@ interface GitPanelHeaderProps {
   onPull: () => void
   onStash: () => void
   onStashPop: () => void
-  onToggle: () => void
 }
 
 export function GitPanelHeader({
   gitBranch, gitAhead, gitBehind, loading,
-  onFetchBranches, onRefresh, onPush, onPull, onStash, onStashPop, onToggle,
+  onFetchBranches, onRefresh, onPush, onPull, onStash, onStashPop,
 }: GitPanelHeaderProps) {
   const viewMode = useUIStore((s) => s.gitPanelViewMode)
   const setViewMode = useUIStore((s) => s.setGitPanelViewMode)
@@ -87,16 +86,6 @@ export function GitPanelHeader({
         <IconButton onClick={onRefresh} label="Refresh">
           <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2v4h-4" />
         </IconButton>
-        <Tooltip label="Hide sidebar">
-          <button
-            onClick={onToggle}
-            className="text-zinc-500 hover:text-zinc-300 p-1 rounded hover:bg-[var(--t-border)] transition-colors"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M9.354 3.646a.5.5 0 0 1 0 .708L5.707 8l3.647 3.646a.5.5 0 0 1-.708.708l-4-4a.5.5 0 0 1 0-.708l4-4a.5.5 0 0 1 .708 0z" transform="scale(-1,1) translate(-16,0)"/>
-            </svg>
-          </button>
-        </Tooltip>
       </div>
     </div>
   )

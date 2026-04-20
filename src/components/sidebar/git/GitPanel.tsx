@@ -7,11 +7,7 @@ import { GitCommitArea } from './GitCommitArea'
 import { GitFileSection } from './GitFileSection'
 import type { GitFileDetail, GitStatusDetailResult, FileDiffStat } from '../../../types'
 
-interface GitPanelProps {
-  onToggle: () => void
-}
-
-export function GitPanel({ onToggle }: GitPanelProps) {
+export function GitPanel() {
   const activeProjectId = useProjectStore((s) => s.activeProjectId)
   const { dir: workspaceDir } = useActiveWorkspaceDir()
 
@@ -272,7 +268,6 @@ export function GitPanel({ onToggle }: GitPanelProps) {
         onPull={handlePull}
         onStash={handleStash}
         onStashPop={handleStashPop}
-        onToggle={onToggle}
       />
 
       {/* Branch dropdown */}
