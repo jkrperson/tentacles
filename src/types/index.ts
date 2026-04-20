@@ -98,16 +98,16 @@ export interface Project {
 
 /** Palette of distinct colors for project icons */
 export const PROJECT_COLORS = [
-  '#5865F2', // blurple (Discord-like)
-  '#57F287', // green
-  '#FEE75C', // yellow
-  '#EB459E', // fuchsia
-  '#ED4245', // red
-  '#F47B67', // salmon
-  '#E78AF3', // lavender
-  '#45DDC0', // teal
-  '#F0B232', // amber
-  '#5CC8FF', // sky
+  '#5B6B95', // indigo slate
+  '#5E8975', // muted green
+  '#8E8258', // olive brass
+  '#8B5F77', // muted plum
+  '#9A5E67', // dusty red
+  '#9B725E', // clay
+  '#7F6A99', // lavender slate
+  '#4E837E', // muted teal
+  '#98784F', // amber bronze
+  '#5D7F99', // steel blue
 ] as const
 
 export type GitFileStatus = 'modified' | 'untracked' | 'added' | 'deleted' | 'renamed' | 'conflicted'
