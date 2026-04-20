@@ -34,9 +34,9 @@ function CompactAgentRow({ session, isActive, onClick, onClose }: {
   return (
     <div
       onClick={(e) => { e.stopPropagation(); onClick() }}
-      className={`group/agent flex items-center gap-1.5 w-full px-2 py-[3px] text-left transition-colors cursor-pointer ${
+      className={`group/agent flex items-center gap-2 w-full px-3 py-1.5 text-left transition-colors cursor-pointer ${
         isActive
-          ? 'bg-white/[0.04]'
+          ? 'bg-white/[0.06]'
           : 'hover:bg-white/[0.03]'
       }`}
     >
@@ -45,23 +45,23 @@ function CompactAgentRow({ session, isActive, onClick, onClose }: {
         className={`flex-shrink-0 ${status.pulse ? 'animate-pulse' : ''}`}
         style={{ color: status.cssVar }}
       >
-        <AgentIcon icon={agentIcon} size={12} />
+        <AgentIcon icon={agentIcon} size={14} />
       </span>
       {/* Name */}
-      <span className={`text-[10px] truncate flex-1 ${isActive ? 'text-zinc-200' : 'text-zinc-500'}`}>
+      <span className={`text-[12px] truncate flex-1 ${isActive ? 'text-zinc-200' : 'text-zinc-500'}`}>
         {session.name}
       </span>
       {/* Unread indicator — hidden when close button shows */}
       {session.hasUnread && !isActive && (
-        <span className="w-1 h-1 rounded-full bg-[var(--t-accent)] flex-shrink-0 group-hover/agent:hidden" />
+        <span className="w-1.5 h-1.5 rounded-full bg-[var(--t-accent)] flex-shrink-0 group-hover/agent:hidden" />
       )}
       {/* Close button — hover reveal */}
       <button
         onClick={(e) => { e.stopPropagation(); onClose(session.id) }}
-        className="opacity-0 group-hover/agent:opacity-100 p-0.5 text-zinc-600 hover:text-zinc-300 transition-opacity flex-shrink-0"
+        className="opacity-60 group-hover/agent:opacity-100 p-1 text-zinc-600 hover:text-zinc-300 transition-opacity flex-shrink-0"
         title="Close agent"
       >
-        <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
           <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
         </svg>
       </button>
@@ -213,7 +213,7 @@ export function WorkspaceItem({
   const hasDiff = diffStats && (diffStats.insertions > 0 || diffStats.deletions > 0)
 
   const [agentsCollapsed, setAgentsCollapsed] = useState(false)
-  const [terminalsCollapsed, setTerminalsCollapsed] = useState(true)
+  const [terminalsCollapsed, setTerminalsCollapsed] = useState(false)
 
   const activeTerminalId = useTerminalStore((s) => s.activeTerminalId)
   const removeTerminal = useTerminalStore((s) => s.removeTerminal)
@@ -268,9 +268,9 @@ export function WorkspaceItem({
             : 'border-transparent hover:border-[var(--t-border)] hover:bg-[var(--t-bg-elevated)]'
         }`}
       >
-        <div className="px-2">
+        <div className="px-3">
           {/* Header row */}
-          <div className="flex items-center gap-1.5 py-2">
+          <div className="flex items-center gap-2 py-2.5">
             {/* Branch icon */}
             {isMain ? (
               <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" className="text-zinc-500 flex-shrink-0">
@@ -285,7 +285,7 @@ export function WorkspaceItem({
             {/* Name + metadata */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className={`text-[11px] font-semibold truncate ${
+                <span className={`text-[12px] font-semibold truncate ${
                   isTearingDown ? 'text-zinc-600' : isActiveWorkspace ? 'text-zinc-100' : 'text-zinc-300'
                 }`}>
                   {isMain ? 'main' : workspace.name}
@@ -307,13 +307,13 @@ export function WorkspaceItem({
             </div>
 
             {/* Actions — hover reveal */}
-            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-0.5 opacity-70 group-hover:opacity-100 transition-opacity">
               <button
                 onClick={(e) => { e.stopPropagation(); onRequestSpawnInput?.(workspace.id) }}
-                className="p-0.5 text-zinc-600 hover:text-zinc-300 transition-colors"
+                className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
                 title="Add agent"
               >
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
                   <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
                 </svg>
               </button>
@@ -325,7 +325,7 @@ export function WorkspaceItem({
                   }`}
                   title={canDelete ? 'Delete workspace' : 'Close agents/terminals first'}
                 >
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
                     <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
                   </svg>
                 </button>
@@ -338,10 +338,10 @@ export function WorkspaceItem({
             <div className="pb-1.5">
               <button
                 onClick={(e) => { e.stopPropagation(); setAgentsCollapsed(!agentsCollapsed) }}
-                className="flex items-center gap-1 px-0.5 mb-0.5 text-[9px] text-zinc-600 hover:text-zinc-400 transition-colors"
+                className="flex items-center gap-1 px-0.5 mb-0.5 text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors"
               >
                 <svg
-                  width="7" height="7" viewBox="0 0 16 16" fill="currentColor"
+                  width="8" height="8" viewBox="0 0 16 16" fill="currentColor"
                   className={`transition-transform duration-150 ${agentsCollapsed ? '' : 'rotate-90'}`}
                 >
                   <path d="M6.3 3.3a1 1 0 0 1 1.4 0l4 4a1 1 0 0 1 0 1.4l-4 4a1 1 0 0 1-1.4-1.4L9.58 8 6.3 4.7a1 1 0 0 1 0-1.4z"/>
@@ -369,10 +369,10 @@ export function WorkspaceItem({
             <div className="pb-1.5">
               <button
                 onClick={(e) => { e.stopPropagation(); setTerminalsCollapsed(!terminalsCollapsed) }}
-                className="flex items-center gap-1 px-0.5 mb-0.5 text-[9px] text-zinc-600 hover:text-zinc-400 transition-colors"
+                className="flex items-center gap-1 px-0.5 mb-0.5 text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors"
               >
                 <svg
-                  width="7" height="7" viewBox="0 0 16 16" fill="currentColor"
+                  width="8" height="8" viewBox="0 0 16 16" fill="currentColor"
                   className={`transition-transform duration-150 ${terminalsCollapsed ? '' : 'rotate-90'}`}
                 >
                   <path d="M6.3 3.3a1 1 0 0 1 1.4 0l4 4a1 1 0 0 1 0 1.4l-4 4a1 1 0 0 1-1.4-1.4L9.58 8 6.3 4.7a1 1 0 0 1 0-1.4z"/>
@@ -389,20 +389,20 @@ export function WorkspaceItem({
                       <div
                         key={id}
                         onClick={(e) => { e.stopPropagation(); handleTerminalClick(id) }}
-                        className={`group/terminal flex items-center gap-1.5 w-full px-2 py-[3px] text-left transition-colors cursor-pointer ${
+                        className={`group/terminal flex items-center gap-2 w-full px-3 py-1.5 text-left transition-colors cursor-pointer ${
                           isActive
-                            ? 'bg-white/[0.04]'
+                            ? 'bg-white/[0.06]'
                             : 'hover:bg-white/[0.03]'
                         }`}
                       >
                         {/* Terminal prompt icon */}
-                        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"
+                        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"
                           className={`flex-shrink-0 ${t.status === 'running' ? 'text-zinc-400' : 'text-zinc-600'}`}
                         >
                           <path d="M4 12l4-4-4-4" />
                         </svg>
                         {/* Name */}
-                        <span className={`text-[10px] truncate flex-1 ${isActive ? 'text-zinc-200' : 'text-zinc-500'}`}>
+                        <span className={`text-[12px] truncate flex-1 ${isActive ? 'text-zinc-200' : 'text-zinc-500'}`}>
                           {t.name}
                         </span>
                         {/* Exited indicator */}
@@ -412,10 +412,10 @@ export function WorkspaceItem({
                         {/* Close button — hover reveal */}
                         <button
                           onClick={(e) => { e.stopPropagation(); handleCloseTerminal(id) }}
-                          className="opacity-0 group-hover/terminal:opacity-100 p-0.5 text-zinc-600 hover:text-zinc-300 transition-opacity flex-shrink-0"
+                          className="opacity-60 group-hover/terminal:opacity-100 p-1 text-zinc-600 hover:text-zinc-300 transition-opacity flex-shrink-0"
                           title="Close terminal"
                         >
-                          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+                          <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
                             <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
                           </svg>
                         </button>
@@ -441,7 +441,7 @@ export function WorkspaceItem({
                 }}
                 onBlur={() => setTimeout(() => onCancelSpawn?.(), 150)}
                 placeholder="Agent name (enter to spawn)"
-                className="w-full px-2 py-1 text-[10px] bg-[var(--t-bg-base)] border border-[var(--t-border)] text-[var(--t-text-primary)] placeholder-[var(--t-text-faint)] outline-none focus:border-[var(--t-accent)]/50"
+                className="w-full px-2.5 py-1.5 text-[11px] bg-[var(--t-bg-base)] border border-[var(--t-border)] text-[var(--t-text-primary)] placeholder-[var(--t-text-faint)] outline-none focus:border-[var(--t-accent)]/50"
               />
             </div>
           )}
@@ -451,7 +451,7 @@ export function WorkspaceItem({
             <div className="pb-2">
               <button
                 onClick={(e) => { e.stopPropagation(); onRequestSpawnInput?.(workspace.id) }}
-                className="flex items-center gap-1 text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors"
+                className="flex items-center gap-1 text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors"
               >
                 <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
                   <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>

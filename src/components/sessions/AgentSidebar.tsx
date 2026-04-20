@@ -120,7 +120,7 @@ export function AgentSidebar() {
   return (
     <div className="flex flex-col h-full bg-[var(--t-bg-surface)]">
       {/* Top section — Agent spawn icons */}
-      <div className="px-2 pt-2.5 pb-1.5 flex-shrink-0 space-y-1">
+      <div className="px-2.5 pt-2.5 pb-1.5 flex-shrink-0 space-y-1.5">
         <div className="flex items-stretch gap-1">
           {pinnedAgents.map((agent) => (
             <AgentButton key={agent.id} agent={agent} onClick={() => spawnAgent(agent.id)} />
@@ -140,7 +140,7 @@ export function AgentSidebar() {
                 className="flex items-center justify-center text-[var(--t-text-muted)] hover:text-[var(--t-text-secondary)] bg-[var(--t-bg-elevated)] hover:bg-[var(--t-bg-hover)] border border-[var(--t-border)] px-2 py-1.5 transition-all active:scale-[0.95] h-full"
                 title="More agents"
               >
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                   <path d="M4.427 6.427a.75.75 0 0 1 1.06-.073L8 8.578l2.513-2.224a.75.75 0 1 1 .994 1.125l-3 2.654a.75.75 0 0 1-.994 0l-3-2.654a.75.75 0 0 1-.086-1.052z"/>
                 </svg>
               </button>
@@ -191,8 +191,8 @@ export function AgentSidebar() {
 
       {/* Active project header */}
       {activeProject && (
-        <div className="px-2 py-1.5 flex items-center gap-1.5 flex-shrink-0">
-          <span className="text-[11px] font-bold text-zinc-200 truncate flex-1" title={activeProject.path}>
+        <div className="px-2.5 py-2 flex items-center gap-1.5 flex-shrink-0">
+          <span className="text-[12px] font-bold text-zinc-200 truncate flex-1" title={activeProject.path}>
             {activeProject.name}
           </span>
           <button
@@ -208,7 +208,7 @@ export function AgentSidebar() {
       )}
 
       {/* Workspace list for active project */}
-      <div data-tour="worktrees" className="flex-1 overflow-y-auto px-1 pb-2">
+      <div data-tour="worktrees" className="flex-1 overflow-y-auto px-1.5 pb-2">
         {activeProject ? (
           <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
             {projectWorkspaces.map((ws) => {
@@ -260,9 +260,9 @@ export function AgentSidebar() {
             {/* New workspace button */}
             <button
               onClick={handleNewWorkspace}
-              className="flex items-center gap-1.5 w-full px-2 py-1.5 text-[10px] text-zinc-600 hover:text-zinc-400 hover:bg-[var(--t-bg-hover)] rounded transition-colors"
+              className="flex items-center gap-1.5 w-full px-2.5 py-2 text-[11px] text-zinc-600 hover:text-zinc-400 hover:bg-[var(--t-bg-hover)] rounded transition-colors"
             >
-              <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
               </svg>
               New workspace
@@ -306,10 +306,10 @@ function AgentButton({ agent, onClick }: { agent: AgentConfig; onClick: () => vo
   return (
     <button
       onClick={onClick}
-      className="flex-1 flex items-center justify-center text-[var(--t-text-secondary)] hover:text-[var(--t-text-primary)] bg-[var(--t-bg-elevated)] hover:bg-[var(--t-bg-hover)] border border-[var(--t-border)] px-2 py-1.5 transition-all active:scale-[0.97]"
+      className="flex-1 flex items-center justify-center text-[var(--t-text-secondary)] hover:text-[var(--t-text-primary)] bg-[var(--t-bg-elevated)] hover:bg-[var(--t-bg-hover)] border border-[var(--t-border)] px-2.5 py-2 transition-all active:scale-[0.97]"
       title={agent.name}
     >
-      <AgentIcon icon={agent.icon} size={15} />
+      <AgentIcon icon={agent.icon} size={16} />
     </button>
   )
 }
