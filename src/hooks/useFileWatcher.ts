@@ -18,6 +18,7 @@ export function useFileWatcher() {
   const setFileTreeNodes = useProjectStore((s) => s.setFileTreeNodes)
   const setGitStatuses = useProjectStore((s) => s.setGitStatuses)
   const ensureFileTreeCache = useProjectStore((s) => s.ensureFileTreeCache)
+  const updateFileTreeChildren = useProjectStore((s) => s.updateFileTreeChildren)
   const addFileTreeChangedPath = useProjectStore((s) => s.addFileTreeChangedPath)
   const removeFileTreeChangedPath = useProjectStore((s) => s.removeFileTreeChangedPath)
 
@@ -31,6 +32,40 @@ export function useFileWatcher() {
       setGitStatuses(dirPath, { branch: '', upstream: null, ahead: 0, behind: 0, files: [] })
     })
   }, [setGitStatuses])
+
+  const scheduleDirRefresh = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  const immediateGitTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  const trailingGitTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+
+  const queueDirectoryRefresh = useCallback((watchRoot: string, dirToRefresh: string) => {
+    const key = `${watchRoot}:${dirToRefresh}`
+    const existing = scheduleDirRefresh.current.get(key)
+    if (existing) clearTimeout(existing)
+
+    scheduleDirRefresh.current.set(key, setTimeout(() => {
+      scheduleDirRefresh.current.delete(key)
+      trpc.file.readDir.query({ dirPath: dirToRefresh }).then((nodes) => {
+        if (dirToRefresh === watchRoot) {
+          setFileTreeNodes(watchRoot, nodes)
+        } else {
+          updateFileTreeChildren(watchRoot, dirToRefresh, nodes)
+        }
+      }).catch(() => {})
+    }, 120))
+  }, [setFileTreeNodes, updateFileTreeChildren])
+
+  const queueGitStatusRefresh = useCallback((
+    dirPath: string,
+    delayMs: number,
+    timers: { current: Map<string, ReturnType<typeof setTimeout>> },
+  ) => {
+    const existing = timers.current.get(dirPath)
+    if (existing) clearTimeout(existing)
+    timers.current.set(dirPath, setTimeout(() => {
+      timers.current.delete(dirPath)
+      fetchGitStatus(dirPath)
+    }, delayMs))
+  }, [fetchGitStatus])
 
   // Start watching when active workspace dir changes.
   // Watchers stay alive across switches (watch is a no-op for
@@ -64,9 +99,11 @@ export function useFileWatcher() {
   }, [watchDir, fetchGitStatus])
 
   // Listen for file change events, route to correct directory via watchRoot
-  const immediateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const trailingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
+    const dirRefreshTimers = scheduleDirRefresh.current
+    const immediateTimers = immediateGitTimers.current
+    const trailingTimers = trailingGitTimers.current
+
     const sub = trpc.file.onChanged.subscribe(undefined, { onData: (event) => {
       const dirPath = event.watchRoot
       if (!dirPath) return
@@ -75,24 +112,38 @@ export function useFileWatcher() {
       setTimeout(() => removeFileTreeChangedPath(dirPath, event.path), 2000)
 
       if (
-        event.eventType === 'add' || event.eventType === 'unlink' ||
-        event.eventType === 'addDir' || event.eventType === 'unlinkDir'
+        event.eventType === 'add' ||
+        event.eventType === 'unlink' ||
+        event.eventType === 'addDir' ||
+        event.eventType === 'unlinkDir'
       ) {
-        trpc.file.readDir.query({ dirPath }).then((rootNodes) => {
-          setFileTreeNodes(dirPath, rootNodes)
-        })
+        const lastSlash = event.path.lastIndexOf('/')
+        const parentDir = lastSlash > 0 ? event.path.slice(0, lastSlash) : dirPath
+        const cache = useProjectStore.getState().fileTreeCache.get(dirPath)
+
+        if (parentDir === dirPath) {
+          queueDirectoryRefresh(dirPath, dirPath)
+        } else if (cache?.expandedPaths.has(parentDir)) {
+          queueDirectoryRefresh(dirPath, parentDir)
+        }
       }
 
-      // Debounced immediate git status refresh (500ms)
-      if (immediateTimerRef.current) clearTimeout(immediateTimerRef.current)
-      immediateTimerRef.current = setTimeout(() => fetchGitStatus(dirPath), 500)
+      // Fast git status refresh so Source Control feels immediate after writes.
+      queueGitStatusRefresh(dirPath, 150, immediateGitTimers)
 
       // Trailing git status refresh (2s) to catch transient states
       // from multi-step git operations (e.g., git checkout writes file
       // then restores it — the immediate fetch may see a transient state)
-      if (trailingTimerRef.current) clearTimeout(trailingTimerRef.current)
-      trailingTimerRef.current = setTimeout(() => fetchGitStatus(dirPath), 2000)
+      queueGitStatusRefresh(dirPath, 900, trailingGitTimers)
     } })
-    return () => sub.unsubscribe()
-  }, [addFileTreeChangedPath, removeFileTreeChangedPath, setFileTreeNodes, fetchGitStatus])
+    return () => {
+      sub.unsubscribe()
+      for (const timer of dirRefreshTimers.values()) clearTimeout(timer)
+      for (const timer of immediateTimers.values()) clearTimeout(timer)
+      for (const timer of trailingTimers.values()) clearTimeout(timer)
+      dirRefreshTimers.clear()
+      immediateTimers.clear()
+      trailingTimers.clear()
+    }
+  }, [addFileTreeChangedPath, removeFileTreeChangedPath, queueDirectoryRefresh, queueGitStatusRefresh])
 }

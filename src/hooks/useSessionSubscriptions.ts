@@ -59,16 +59,40 @@ export function useSessionSubscriptions() {
     const sub = trpc.session.onStatusDetail.subscribe(undefined, {
       onData: ({ id, detail }) => {
         setStatusDetail(id, detail)
+
+        // Fallback for agents (especially Codex) when a status event is missing:
+        // infer a coarse status from the detail text so UI state doesn't get stuck.
+        const session = useSessionStore.getState().sessions.get(id)
+        if (!session || session.exitCode != null || session.status === 'errored' || !detail) return
+        const normalized = detail.toLowerCase()
+        if (normalized.includes('needs permission') || normalized.includes('needs input')) {
+          if (session.status !== 'needs_input') updateStatus(id, 'needs_input')
+          return
+        }
+        if (
+          normalized.includes('working') ||
+          normalized.includes('running') ||
+          normalized.includes('editing') ||
+          normalized.includes('reading') ||
+          normalized.includes('writing') ||
+          normalized.includes('searching')
+        ) {
+          if (session.status !== 'running') updateStatus(id, 'running')
+        }
       },
     })
     return () => sub.unsubscribe()
-  }, [setStatusDetail])
+  }, [setStatusDetail, updateStatus])
 
   // Listen for agent status changes from hook events
   useEffect(() => {
     // Track sessions that have reported 'running' at least once from the hook,
     // so we can distinguish a real "finished" idle from the initial idle on spawn.
-    const hasBeenActive = new Set<string>()
+    const hasBeenActive = new Set(
+      Array.from(useSessionStore.getState().sessions.values())
+        .filter((s) => s.status === 'running' || s.status === 'needs_input' || s.status === 'completed')
+        .map((s) => s.id),
+    )
 
     const sub = trpc.session.onAgentStatus.subscribe(undefined, {
       onData: ({ id, status: rawStatus }) => {

@@ -3,6 +3,7 @@ import Editor, { useMonaco, type OnMount } from '@monaco-editor/react'
 import { useProjectStore } from '../../stores/projectStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useLspStore } from '../../stores/lspStore'
+import { useUIStore } from '../../stores/uiStore'
 import { useLspClient } from '../../hooks/useLspClient'
 import { useActiveWorkspaceDir } from '../../hooks/useActiveWorkspaceDir'
 import { trpc } from '../../trpc'
@@ -49,6 +50,9 @@ export function EditorPanel() {
   const closeDiff = useProjectStore((s) => s.closeDiff)
   const closeFile = useProjectStore((s) => s.closeFile)
   const openFile = useProjectStore((s) => s.openFile)
+  const setMainPanelMode = useUIStore((s) => s.setMainPanelMode)
+  const setRightSidebarVisible = useUIStore((s) => s.setRightSidebarVisible)
+  const setRightSidebarTab = useUIStore((s) => s.setRightSidebarTab)
   const themeSetting = useSettingsStore((s) => s.settings.theme)
   const enabledLspLanguages = useSettingsStore((s) => s.settings.enabledLspLanguages)
   const { customThemes } = useCustomThemes()
@@ -469,7 +473,35 @@ export function EditorPanel() {
     }
   }, [cacheKey, selectedDiffPath, closeDiff, setActiveDiff])
 
-  if (openFiles.length === 0 && openDiffs.length === 0 && !activeDiff) return null
+  if (openFiles.length === 0 && openDiffs.length === 0 && !activeDiff) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <div className="text-zinc-500 text-[14px] mb-2">No editor tabs open</div>
+          <div className="text-zinc-600 text-[12px] mb-3">
+            Open a file from the explorer or switch back to an agent tab.
+          </div>
+          <div className="flex items-center justify-center gap-2">
+            <button
+              onClick={() => {
+                setRightSidebarVisible(true)
+                setRightSidebarTab('explorer')
+              }}
+              className="px-3 py-1.5 text-[11px] border border-[var(--t-border)] text-zinc-300 hover:bg-[var(--t-bg-hover)] transition-colors"
+            >
+              Open Explorer
+            </button>
+            <button
+              onClick={() => setMainPanelMode('session')}
+              className="px-3 py-1.5 text-[11px] border border-[var(--t-border)] text-zinc-300 hover:bg-[var(--t-bg-hover)] transition-colors"
+            >
+              Show Agent Panel
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // Show DiffViewer when a diff tab is selected
   if (selectedDiffPath && activeDiff && cacheKey) {

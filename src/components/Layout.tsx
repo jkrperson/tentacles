@@ -1,4 +1,4 @@
-import { useCallback, useState, lazy, Suspense } from 'react'
+import { useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { FileTree } from './sidebar/FileTree'
 import { GitPanel } from './sidebar/git/GitPanel'
 import { MediaPanel } from './sidebar/MediaPanel'
@@ -27,8 +27,11 @@ export function Layout() {
   useFileWatcher()
   const enableMediaPanel = useSettingsStore((s) => s.settings.enableMediaPanel)
 
-  const leftDrag = useDrag({ axis: 'x', initial: 290, min: 230, max: 450 })
-  const rightDrag = useDrag({ axis: 'x', initial: 260, min: 180, max: 450, invert: true })
+  const RIGHT_SIDEBAR_MIN_WIDTH = 180
+  const RIGHT_SIDEBAR_COLLAPSE_THRESHOLD = RIGHT_SIDEBAR_MIN_WIDTH + 2
+
+  const leftDrag = useDrag({ axis: 'x', initial: 330, min: 260, max: 500 })
+  const rightDrag = useDrag({ axis: 'x', initial: 260, min: RIGHT_SIDEBAR_MIN_WIDTH, max: 450, invert: true })
   const bottomDrag = useDrag({ axis: 'y', initial: 220, min: 100, max: 600, invert: true })
   const mediaDrag = useDrag({ axis: 'y', initial: 250, min: 100, max: 500, invert: true })
 
@@ -45,6 +48,24 @@ export function Layout() {
   const activeProjectSettingsId = useUIStore((s) => s.activeProjectSettingsId)
 
   const [mediaPanelCollapsed, setMediaPanelCollapsed] = useState(false)
+  const wasRightDragging = useRef(false)
+
+  useEffect(() => {
+    if (rightDrag.isDragging) {
+      wasRightDragging.current = true
+      return
+    }
+
+    if (
+      wasRightDragging.current &&
+      rightVisible &&
+      rightDrag.value <= RIGHT_SIDEBAR_COLLAPSE_THRESHOLD
+    ) {
+      setRightVisible(false)
+    }
+
+    wasRightDragging.current = false
+  }, [rightDrag.isDragging, rightDrag.value, rightVisible, setRightVisible, RIGHT_SIDEBAR_COLLAPSE_THRESHOLD])
 
   const handleNewTerminal = useCallback(() => {
     useTerminalStore.getState().createTerminal()
@@ -175,9 +196,9 @@ export function Layout() {
             {/* Panel content */}
             <div className="flex-1 min-h-0 overflow-hidden">
               {rightTab === 'explorer' ? (
-                <FileTree onToggle={() => setRightVisible(false)} />
+                <FileTree />
               ) : (
-                <GitPanel onToggle={() => setRightVisible(false)} />
+                <GitPanel />
               )}
             </div>
 

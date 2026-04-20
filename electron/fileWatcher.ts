@@ -91,7 +91,7 @@ export class FileWatcher {
       }
 
       this.changeCb?.(eventType, fullPath, dirPath)
-    }, 300))
+    }, 120))
   }
 
   async unwatchDir(dirPath: string) {
