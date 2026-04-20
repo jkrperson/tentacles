@@ -210,6 +210,33 @@ interface CodexEvent {
   // Session log events (posted by our watcher)
   source?: 'session_log'
   msg_type?: string
+  payload?: { msg?: { type?: string } }
+}
+
+function getEventName(e: CodexEvent): string {
+  return String(e.type ?? e.event ?? '').toLowerCase()
+}
+
+function getSessionLogMsgType(e: CodexEvent): string {
+  return String(e.msg_type ?? e.payload?.msg?.type ?? '').toLowerCase()
+}
+
+function classifySessionLogStatus(msgType: string): 'running' | 'needs_input' | 'idle' | null {
+  if (!msgType) return null
+  if (msgType.includes('approval_request') || msgType.includes('permission_request')) return 'needs_input'
+  if (
+    msgType.includes('task_started') ||
+    msgType.includes('exec_command_begin') ||
+    msgType.includes('command_started') ||
+    msgType.includes('turn_started')
+  ) return 'running'
+  if (
+    msgType.includes('task_complete') ||
+    msgType.includes('task_completed') ||
+    msgType.includes('task_finished') ||
+    msgType.includes('turn_complete')
+  ) return 'idle'
+  return null
 }
 
 // ---------------------------------------------------------------------------
@@ -272,15 +299,17 @@ export const codexAdapter: AgentAdapter = {
 
     // Session log events (from our JSONL watcher)
     if (e.source === 'session_log') {
-      if (e.msg_type === 'task_started') return 'Working...'
-      if (e.msg_type === 'task_complete') return 'Turn complete'
-      if (e.msg_type === 'exec_command_begin') return 'Running command'
-      if (e.msg_type?.includes('approval_request')) return 'Needs permission'
+      const msgType = getSessionLogMsgType(e)
+      if (msgType.includes('approval_request') || msgType.includes('permission_request')) return 'Needs permission'
+      if (msgType.includes('exec_command_begin') || msgType.includes('command_started')) return 'Running command'
+      if (msgType.includes('task_started') || msgType.includes('turn_started')) return 'Working...'
+      if (msgType.includes('task_complete') || msgType.includes('task_completed') || msgType.includes('task_finished') || msgType.includes('turn_complete')) return 'Turn complete'
       return null
     }
 
     // Notify events — codex uses `type` field (not `event`)
-    if (e.type === 'agent-turn-complete') {
+    const eventName = getEventName(e)
+    if (eventName === 'agent-turn-complete' || eventName === 'agent_turn_complete') {
       const msg = e['last-assistant-message']
       if (!msg) return 'Turn complete'
 
@@ -299,14 +328,33 @@ export const codexAdapter: AgentAdapter = {
 
     // Session log events (from our JSONL watcher)
     if (e.source === 'session_log') {
-      if (e.msg_type === 'task_started' || e.msg_type === 'exec_command_begin') return 'running'
-      if (e.msg_type === 'task_complete') return 'idle'
-      if (e.msg_type?.includes('approval_request')) return 'needs_input'
-      return null
+      return classifySessionLogStatus(getSessionLogMsgType(e))
     }
 
     // Notify events — codex uses `type` field (not `event`)
-    if (e.type === 'agent-turn-complete') return 'idle'
+    const eventName = getEventName(e)
+    if (eventName === 'agent-turn-complete' || eventName === 'agent_turn_complete') return 'idle'
+    return null
+  },
+
+  parseTitle(title: string): { status: 'running' | 'needs_input' | 'idle'; name?: string } | null {
+    const firstChar = title.codePointAt(0) ?? 0
+    const lower = title.toLowerCase()
+
+    // Spinner-like prefixes
+    const isBrailleSpinner = firstChar >= 0x2800 && firstChar <= 0x28ff
+    const isHourglass = firstChar === 0x23f3 // ⏳
+    const isNeedsInput = firstChar === 0x270b || lower.includes('needs permission') || lower.includes('awaiting approval')
+    const isIdle = firstChar === 0x2705 || lower.includes('turn complete') || lower.includes('completed')
+
+    const name = title
+      .replace(/^[\u2800-\u28ff\u23f3\u270b\u2705]\s*/, '')
+      .replace(/\s*\(.*\)\s*$/, '')
+      .trim() || undefined
+
+    if (isNeedsInput) return { status: 'needs_input', name }
+    if (isBrailleSpinner || isHourglass || lower.includes('running') || lower.includes('working')) return { status: 'running', name }
+    if (isIdle) return { status: 'idle', name }
     return null
   },
 }
