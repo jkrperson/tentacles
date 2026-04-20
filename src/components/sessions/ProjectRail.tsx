@@ -33,9 +33,9 @@ function RailTooltip({ label, anchorRef, visible }: {
       className="fixed z-[9999] pointer-events-none whitespace-nowrap"
       style={{ top: pos.top, left: pos.left, transform: 'translateY(-50%)' }}
     >
-      <div className="relative px-3 py-1.5 bg-zinc-900 text-zinc-100 text-[12px] font-semibold rounded-md shadow-lg border border-zinc-700/50">
+      <div className="relative px-2.5 py-1 text-[11px] font-medium shadow-lg border bg-[var(--t-bg-elevated)] border-[var(--t-border)] text-[var(--t-text-secondary)]">
         {label}
-        <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-2 h-2 bg-zinc-900 border-l border-b border-zinc-700/50 rotate-45" />
+        <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-2 h-2 bg-[var(--t-bg-elevated)] border-l border-b border-[var(--t-border)] rotate-45" />
       </div>
     </div>,
     document.body,
@@ -121,7 +121,6 @@ export function ProjectRail() {
           return (
             <ProjectIcon
               key={path}
-              path={path}
               letter={letter}
               color={project.color}
               name={project.name}
@@ -181,7 +180,7 @@ export function ProjectRail() {
         hovered={hoveredId === '__add'}
         onHover={(h) => setHoveredId(h ? '__add' : null)}
         onClick={handleAddProject}
-        className="text-[var(--t-text-muted)] hover:text-white hover:bg-[#57F287] hover:rounded-2xl bg-[var(--t-bg-elevated)]"
+        className="text-[var(--t-text-muted)] hover:text-[var(--t-text-primary)] hover:bg-[var(--t-bg-hover)] border border-transparent hover:border-[var(--t-border)] bg-[var(--t-bg-elevated)]"
       >
         <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
           <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
@@ -194,7 +193,7 @@ export function ProjectRail() {
         hovered={hoveredId === '__settings'}
         onHover={(h) => setHoveredId(h ? '__settings' : null)}
         onClick={toggleSettings}
-        className="text-[var(--t-text-muted)] hover:text-white hover:bg-[var(--t-bg-hover)] hover:rounded-2xl"
+        className="text-[var(--t-text-muted)] hover:text-[var(--t-text-primary)] hover:bg-[var(--t-bg-hover)] border border-transparent hover:border-[var(--t-border)]"
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
           <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
@@ -206,7 +205,7 @@ export function ProjectRail() {
       {ctxMenu && createPortal(
         <div
           ref={ctxRef}
-          className="fixed bg-[var(--t-bg-elevated)] border border-[var(--t-border)] rounded-lg shadow-xl z-[9999] py-1 min-w-[160px]"
+          className="fixed bg-[var(--t-bg-elevated)] border border-[var(--t-border)] shadow-xl z-[9999] py-1 min-w-[160px]"
           style={{ top: ctxMenu.y, left: ctxMenu.x }}
         >
           {/* Color picker */}
@@ -215,7 +214,7 @@ export function ProjectRail() {
             className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-[var(--t-text-secondary)] hover:bg-[var(--t-bg-hover)] transition-colors"
           >
             <div
-              className="w-3 h-3 rounded-full"
+              className="w-3 h-3"
               style={{ backgroundColor: projects.get(ctxMenu.projectId)?.color }}
             />
             Change color
@@ -234,9 +233,9 @@ export function ProjectRail() {
                     setCtxMenu(null)
                     setColorPickerOpen(false)
                   }}
-                  className={`w-5 h-5 rounded-full transition-transform hover:scale-110 ${
+                  className={`w-5 h-5 transition-transform hover:scale-110 ${
                     projects.get(ctxMenu.projectId)?.color === color
-                      ? 'ring-2 ring-white ring-offset-1 ring-offset-[var(--t-bg-elevated)]'
+                      ? 'ring-2 ring-[var(--t-accent)] ring-offset-1 ring-offset-[var(--t-bg-elevated)]'
                       : ''
                   }`}
                   style={{ backgroundColor: color }}
@@ -259,7 +258,7 @@ export function ProjectRail() {
                 onConfirm: () => removeProject(project.path),
               })
             }}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-red-400 hover:bg-[var(--t-bg-hover)] transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-[var(--t-status-errored)] hover:bg-[var(--t-bg-hover)] transition-colors"
           >
             <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
               <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
@@ -276,7 +275,6 @@ export function ProjectRail() {
 // --- Sub-components ---
 
 interface ProjectIconProps {
-  path: string
   letter: string
   color: string
   name: string
@@ -312,20 +310,25 @@ function ProjectIcon({
     >
       {/* Drop indicator */}
       {dropPosition === 'above' && (
-        <div className="absolute top-0 left-2 right-2 h-0.5 bg-[var(--t-accent)] rounded-full" />
+        <div className="absolute top-0 left-2 right-2 h-0.5 bg-[var(--t-accent)]" />
       )}
       {dropPosition === 'below' && (
-        <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-[var(--t-accent)] rounded-full" />
+        <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-[var(--t-accent)]" />
       )}
 
       {/* Active / unread indicator pill */}
-      <div className={`absolute left-0 w-1 rounded-r-full transition-all duration-200 ${
-        isActive
-          ? 'h-8 bg-white'
-          : hasUnread
-            ? 'h-2 bg-white group-hover:h-4'
-            : 'h-0 group-hover:h-4 bg-white/60'
-      }`} />
+      <div
+        className="absolute left-0 w-[2px] transition-all duration-150"
+        style={{
+          height: isActive ? 22 : (hasUnread || hovered ? 8 : 0),
+          backgroundColor: isActive
+            ? 'var(--t-text-secondary)'
+            : hasUnread
+              ? 'var(--t-accent)'
+              : 'var(--t-text-faint)',
+          opacity: isActive || hasUnread || hovered ? 1 : 0,
+        }}
+      />
 
       {/* Icon button */}
       <button
@@ -334,14 +337,13 @@ function ProjectIcon({
         onContextMenu={onContextMenu}
         onMouseEnter={() => onHover(true)}
         onMouseLeave={() => onHover(false)}
-        className={`w-10 h-10 flex items-center justify-center text-sm font-bold transition-all duration-200 ${
-          isActive
-            ? 'rounded-2xl'
-            : 'rounded-[22px] hover:rounded-2xl'
-        } ${isDragging ? 'opacity-40' : ''}`}
+        className={`w-10 h-10 flex items-center justify-center text-sm font-semibold border transition-colors duration-150 ${
+          isDragging ? 'opacity-40' : ''
+        }`}
         style={{
-          backgroundColor: color,
-          color: getContrastColor(color),
+          backgroundColor: withAlpha(color, isActive ? 0.22 : 0.12),
+          borderColor: withAlpha(color, isActive ? 0.5 : 0.3),
+          color: isActive ? color : withAlpha(color, 0.85),
         }}
       >
         {letter}
@@ -349,7 +351,10 @@ function ProjectIcon({
 
       {/* Running session count badge */}
       {runningCount > 0 && (
-        <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#57F287] text-[9px] font-bold text-black flex items-center justify-center border-2 border-[var(--t-bg-base)]">
+        <div
+          className="absolute -bottom-0.5 -right-0.5 min-w-4 h-4 px-1 text-[9px] font-semibold flex items-center justify-center border bg-[var(--t-bg-elevated)] text-[var(--t-status-running)]"
+          style={{ borderColor: withAlpha(color, 0.35) }}
+        >
           {runningCount}
         </div>
       )}
@@ -377,7 +382,7 @@ function RailButton({ label, hovered, onHover, onClick, className, children }: {
         onClick={onClick}
         onMouseEnter={() => onHover(true)}
         onMouseLeave={() => onHover(false)}
-        className={`w-10 h-10 rounded-[22px] flex items-center justify-center transition-all duration-200 ${className ?? ''}`}
+        className={`w-10 h-10 flex items-center justify-center transition-colors duration-150 ${className ?? ''}`}
       >
         {children}
       </button>
@@ -386,11 +391,11 @@ function RailButton({ label, hovered, onHover, onClick, className, children }: {
   )
 }
 
-/** Returns black or white depending on background luminance */
-function getContrastColor(hex: string): string {
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-  return luminance > 0.6 ? '#1a1a1a' : '#ffffff'
+function withAlpha(hex: string, alpha: number): string {
+  const normalized = hex.replace('#', '')
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return hex
+  const r = parseInt(normalized.slice(0, 2), 16)
+  const g = parseInt(normalized.slice(2, 4), 16)
+  const b = parseInt(normalized.slice(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
