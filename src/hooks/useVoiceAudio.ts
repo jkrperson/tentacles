@@ -1,142 +1,41 @@
 import { useEffect, useRef } from 'react'
 import { useVoiceCommandStore } from '../stores/voiceCommandStore'
 import { useSettingsStore } from '../stores/settingsStore'
-import { trpc } from '../trpc'
+import { createStreamTranscriber, type StreamTranscriber } from '../utils/streamTranscriber'
 
 /** Base silence threshold — scaled by micSensitivity setting */
 const BASE_SILENCE_THRESHOLD = 0.01
-/** How long silence must last before we finalize a chunk (ms) */
-const SILENCE_DURATION_MS = 450
-/** Minimum speech duration before sending to server (ms) */
-const MIN_CHUNK_DURATION_MS = 500
-/** Maximum chunk length before force-sending (ms) */
-const MAX_CHUNK_DURATION_MS = 10000
-/** How often to check audio levels (ms) */
-const VAD_CHECK_INTERVAL_MS = 50
-/** Max concurrent transcription calls */
-const MAX_CONCURRENT_SENDS = 3
-/** How long silence must last after speech to auto-submit the transcript (ms) */
+/** How long silence must last after we have transcript content before auto-submitting (ms) */
 const AUTO_SUBMIT_SILENCE_MS = 1200
-/** Max wait for VAD flush during finalize (ms) */
-const FLUSH_WAIT_TIMEOUT_MS = 2000
-/** Max wait for recorder stop during finalize (ms) */
-const RECORDER_STOP_TIMEOUT_MS = 5000
-/** Max wait for in-flight transcriptions to drain (ms) */
-const DRAIN_TIMEOUT_MS = 15000
+/** Max time to wait for AWS to flush remaining finals after we signal end-of-stream (ms) */
+const DRAIN_TIMEOUT_MS = 2500
 
+/**
+ * Voice command audio pipeline — streaming version.
+ *
+ * Opens an AWS Transcribe Streaming session via the backend and pumps PCM
+ * directly to AWS. Partial transcripts flow into voiceCommandStore.partialTranscript
+ * as they arrive; finalized segments accumulate into transcript. Silence after
+ * any committed/partial content triggers auto-submit to the agent.
+ */
 export function useVoiceAudio() {
   const isOpen = useVoiceCommandStore((s) => s.isOpen)
   const phase = useVoiceCommandStore((s) => s.phase)
   const inputMode = useVoiceCommandStore((s) => s.inputMode)
   const appendTranscript = useVoiceCommandStore((s) => s.appendTranscript)
+  const setPartialTranscript = useVoiceCommandStore((s) => s.setPartialTranscript)
   const setAudioLevel = useVoiceCommandStore((s) => s.setAudioLevel)
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  const chunksRef = useRef<Blob[]>([])
-  const audioContextRef = useRef<AudioContext | null>(null)
-  const analyserRef = useRef<AnalyserNode | null>(null)
-  const vadIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const controllerRef = useRef<StreamTranscriber | null>(null)
   const silenceStartRef = useRef<number | null>(null)
-  const chunkStartRef = useRef<number>(0)
-  const hadSpeechRef = useRef(false)
-  const activeSendsRef = useRef(0)
-  const mimeTypeRef = useRef('audio/webm')
-  const isStoppingRef = useRef(false)
-  const sessionIdRef = useRef(0)
-  // Track silence for auto-submit: we auto-submit when there's been sustained
-  // silence (no speech detected by VAD) AND all transcriptions have returned
   const autoSubmitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // Set true once we have at least one transcript chunk
-  const hasTranscriptRef = useRef(false)
+  /** Bumped on each start so stale async handlers can bail out. */
+  const sessionIdRef = useRef(0)
+  /** True while processing_audio finalize is in progress — VAD should pause. */
+  const isFinalizingRef = useRef(false)
 
   const shouldCaptureAudio = isOpen && inputMode === 'voice' && (phase === 'listening' || phase === 'processing_audio')
-
-  const flushAndRestart = () => {
-    const recorder = mediaRecorderRef.current
-    if (!recorder || recorder.state === 'inactive' || isStoppingRef.current) return
-    if (!hadSpeechRef.current) {
-      chunksRef.current = []
-      chunkStartRef.current = Date.now()
-      hadSpeechRef.current = false
-      return
-    }
-    if (activeSendsRef.current >= MAX_CONCURRENT_SENDS) return
-
-    isStoppingRef.current = true
-
-    recorder.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: mimeTypeRef.current })
-      chunksRef.current = []
-      chunkStartRef.current = Date.now()
-      hadSpeechRef.current = false
-      isStoppingRef.current = false
-
-      if (blob.size > 0) {
-        transcribeBlob(blob)
-      }
-
-      // Restart recording on the same stream
-      const stream = streamRef.current
-      const store = useVoiceCommandStore.getState()
-      if (stream && stream.active && store.isOpen && store.phase === 'listening' && store.inputMode === 'voice') {
-        const newRecorder = new MediaRecorder(stream, { mimeType: mimeTypeRef.current })
-        mediaRecorderRef.current = newRecorder
-        newRecorder.ondataavailable = (e) => {
-          if (e.data.size > 0) chunksRef.current.push(e.data)
-        }
-        newRecorder.start(500)
-      }
-    }
-
-    recorder.stop()
-  }
-
-  const transcribeBlob = async (blob: Blob): Promise<boolean> => {
-    activeSendsRef.current++
-    const mySession = sessionIdRef.current
-
-    try {
-      const buffer = await blob.arrayBuffer()
-      const bytes = new Uint8Array(buffer)
-      let binary = ''
-      const CHUNK_SIZE = 0x8000
-      for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
-        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK_SIZE) as unknown as number[])
-      }
-      const base64 = btoa(binary)
-      if (!base64) return false
-
-      const result = await trpc.dictation.transcribe.mutate({
-        audio: base64,
-        mimeType: mimeTypeRef.current,
-      })
-      if (sessionIdRef.current !== mySession) return false
-      if (result.text) {
-        appendTranscript(result.text)
-        hasTranscriptRef.current = true
-      }
-      return true
-    } catch (err) {
-      console.error('[voiceCommand] transcription error:', err)
-      return false
-    } finally {
-      activeSendsRef.current--
-    }
-  }
-
-  /** Called from VAD when sustained silence detected and we have transcript content */
-  const scheduleAutoSubmit = () => {
-    if (autoSubmitTimerRef.current) return // already scheduled
-    autoSubmitTimerRef.current = setTimeout(() => {
-      autoSubmitTimerRef.current = null
-      const store = useVoiceCommandStore.getState()
-      const hasPendingAudio = hadSpeechRef.current || chunksRef.current.length > 0 || activeSendsRef.current > 0
-      if (store.isOpen && store.phase === 'listening' && (store.transcript.trim() || hasPendingAudio)) {
-        store.setPhase('processing_audio')
-      }
-    }, AUTO_SUBMIT_SILENCE_MS)
-  }
 
   const cancelAutoSubmit = () => {
     if (autoSubmitTimerRef.current) {
@@ -145,96 +44,31 @@ export function useVoiceAudio() {
     }
   }
 
-  const waitUntil = async (predicate: () => boolean, timeoutMs: number, pollMs: number): Promise<boolean> => {
-    const start = Date.now()
-    while (!predicate()) {
-      if (Date.now() - start > timeoutMs) return false
-      await new Promise((r) => setTimeout(r, pollMs))
-    }
-    return true
-  }
-
-  const finalizeAndSubmit = async () => {
-    // Wait for any in-progress flush
-    await waitUntil(() => !isStoppingRef.current, FLUSH_WAIT_TIMEOUT_MS, 20)
-
-    // Stop recorder and transcribe final chunk
-    const recorder = mediaRecorderRef.current
-    if (recorder && recorder.state !== 'inactive') {
-      await new Promise<void>((resolve) => {
-        const timeout = setTimeout(() => resolve(), RECORDER_STOP_TIMEOUT_MS)
-        recorder.onstop = async () => {
-          if (chunksRef.current.length > 0) {
-            const blob = new Blob(chunksRef.current, { type: mimeTypeRef.current })
-            chunksRef.current = []
-            if (blob.size > 0) {
-              await transcribeBlob(blob)
-            }
-          }
-          clearTimeout(timeout)
-          resolve()
-        }
-        try { recorder.stop() } catch { clearTimeout(timeout); resolve() }
-      })
-    }
-
-    // Drain in-flight transcriptions
-    await waitUntil(() => activeSendsRef.current === 0, DRAIN_TIMEOUT_MS, 50)
-
-    // Submit the transcript
-    const store = useVoiceCommandStore.getState()
-    if (store.isOpen && store.transcript.trim()) {
-      await store.submitTranscript()
-      return
-    }
-
-    // No usable transcript, return to listening mode.
-    if (store.isOpen && store.phase === 'processing_audio' && store.inputMode === 'voice') {
-      store.setPhase('listening')
-    }
-  }
-
-  const getRMSLevel = (): number => {
-    const analyser = analyserRef.current
-    if (!analyser) return 0
-    const data = new Float32Array(analyser.fftSize)
-    analyser.getFloatTimeDomainData(data)
-    let sum = 0
-    for (let i = 0; i < data.length; i++) {
-      sum += data[i] * data[i]
-    }
-    return Math.sqrt(sum / data.length)
+  const scheduleAutoSubmit = () => {
+    if (autoSubmitTimerRef.current) return
+    autoSubmitTimerRef.current = setTimeout(() => {
+      autoSubmitTimerRef.current = null
+      const store = useVoiceCommandStore.getState()
+      const hasContent = store.transcript.trim() || store.partialTranscript.trim()
+      if (store.isOpen && store.phase === 'listening' && hasContent) {
+        store.setPhase('processing_audio')
+      }
+    }, AUTO_SUBMIT_SILENCE_MS)
   }
 
   const teardown = () => {
-    if (autoSubmitTimerRef.current) {
-      clearTimeout(autoSubmitTimerRef.current)
-      autoSubmitTimerRef.current = null
+    cancelAutoSubmit()
+    if (controllerRef.current) {
+      controllerRef.current.cancel()
+      controllerRef.current = null
     }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop())
       streamRef.current = null
     }
-    if (vadIntervalRef.current) {
-      clearInterval(vadIntervalRef.current)
-      vadIntervalRef.current = null
-    }
-    if (audioContextRef.current) {
-      audioContextRef.current.close()
-      audioContextRef.current = null
-    }
-    analyserRef.current = null
-    const recorder = mediaRecorderRef.current
-    if (recorder && recorder.state !== 'inactive') {
-      recorder.onstop = null
-      try { recorder.stop() } catch { /* ignore */ }
-    }
-    mediaRecorderRef.current = null
-    chunksRef.current = []
-    isStoppingRef.current = false
     silenceStartRef.current = null
-    hadSpeechRef.current = false
     setAudioLevel(0)
+    setPartialTranscript('')
   }
 
   useEffect(() => {
@@ -243,19 +77,48 @@ export function useVoiceAudio() {
       return
     }
 
-    // In processing mode we keep the current recorder alive long enough to
-    // finalize and submit, then transition out to resolving/listening.
+    // Finalize path: stop the controller (flush + drain), promote any leftover
+    // partial to final, then submit.
     if (phase === 'processing_audio') {
+      if (isFinalizingRef.current) return
+      isFinalizingRef.current = true
+
       const runFinalize = async () => {
-        await finalizeAndSubmit()
+        cancelAutoSubmit()
+        const controller = controllerRef.current
+        try {
+          if (controller) {
+            await controller.stop({ drainTimeoutMs: DRAIN_TIMEOUT_MS })
+          }
+        } catch (err) {
+          console.warn('[voiceCommand] stream stop error:', err)
+        }
+        controllerRef.current = null
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach((t) => t.stop())
+          streamRef.current = null
+        }
+
+        // Commit any unfinalized partial so the user's last utterance is submitted.
+        const store = useVoiceCommandStore.getState()
+        if (store.partialTranscript.trim()) {
+          store.appendTranscript(store.partialTranscript.trim())
+          store.setPartialTranscript('')
+        }
+
+        if (store.isOpen && store.transcript.trim()) {
+          await store.submitTranscript()
+        } else if (store.isOpen && store.phase === 'processing_audio' && store.inputMode === 'voice') {
+          store.setPhase('listening')
+        }
+        isFinalizingRef.current = false
       }
       runFinalize()
       return
     }
 
     let cancelled = false
-    sessionIdRef.current++
-    hasTranscriptRef.current = false
+    const mySession = ++sessionIdRef.current
 
     const { micDeviceId, micSensitivity, noiseSuppression } = useSettingsStore.getState().settings.dictation
     const silenceThreshold = BASE_SILENCE_THRESHOLD * Math.pow(0.5, (micSensitivity - 5) / 2.5)
@@ -284,81 +147,73 @@ export function useVoiceAudio() {
       }
     }
 
-    acquireMic()
-      .then((stream) => {
-        if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop())
-          return
-        }
-        streamRef.current = stream
+    void (async () => {
+      let stream: MediaStream
+      try {
+        stream = await acquireMic()
+      } catch (err) {
+        console.error('[voiceCommand] microphone access denied:', err)
+        useVoiceCommandStore.getState().setError('Microphone access denied')
+        return
+      }
+      if (cancelled || sessionIdRef.current !== mySession) {
+        stream.getTracks().forEach((t) => t.stop())
+        return
+      }
+      streamRef.current = stream
 
-        const audioContext = new AudioContext()
-        audioContextRef.current = audioContext
-        const source = audioContext.createMediaStreamSource(stream)
-        const analyser = audioContext.createAnalyser()
-        analyser.fftSize = 1024
-        source.connect(analyser)
-        analyserRef.current = analyser
-
-        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-          ? 'audio/webm;codecs=opus'
-          : 'audio/webm'
-        mimeTypeRef.current = mimeType
-
-        const recorder = new MediaRecorder(stream, { mimeType })
-        mediaRecorderRef.current = recorder
-        recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) chunksRef.current.push(e.data)
-        }
-
-        recorder.start(250)
-        chunkStartRef.current = Date.now()
-        silenceStartRef.current = null
-        hadSpeechRef.current = false
-        isStoppingRef.current = false
-
-        vadIntervalRef.current = setInterval(() => {
-          if (isStoppingRef.current) return
-          const rms = getRMSLevel()
+      const controller = createStreamTranscriber({
+        stream,
+        onPartial: (text) => {
+          if (sessionIdRef.current !== mySession) return
+          setPartialTranscript(text)
+        },
+        onFinalDelta: (text) => {
+          if (sessionIdRef.current !== mySession) return
+          appendTranscript(text)
+        },
+        onError: (err) => {
+          if (sessionIdRef.current !== mySession) return
+          console.error('[voiceCommand] stream error:', err)
+          useVoiceCommandStore.getState().setError(err.message)
+        },
+        onLevel: (rms) => {
+          if (sessionIdRef.current !== mySession) return
           setAudioLevel(Math.min(1, rms * 10))
-          const now = Date.now()
-          const chunkAge = now - chunkStartRef.current
-          const isSilent = rms < silenceThreshold
 
+          // VAD-based auto-submit: sustained silence after we have any text content.
+          const now = Date.now()
+          const isSilent = rms < silenceThreshold
           if (!isSilent) {
-            hadSpeechRef.current = true
             silenceStartRef.current = null
-            // Speech resumed — cancel any pending auto-submit
             cancelAutoSubmit()
             return
           }
-
-          if (silenceStartRef.current === null) {
-            silenceStartRef.current = now
-          }
-          const silenceDuration = now - silenceStartRef.current
-
-          if (hadSpeechRef.current && silenceDuration >= SILENCE_DURATION_MS && chunkAge >= MIN_CHUNK_DURATION_MS) {
-            flushAndRestart()
-            silenceStartRef.current = null
-          }
-
-          if (hadSpeechRef.current && chunkAge >= MAX_CHUNK_DURATION_MS) {
-            flushAndRestart()
-            silenceStartRef.current = null
-          }
-
-          // Auto-submit: if we have transcript content and sustained silence
-          // (no speech for a while after recording), schedule submission
-          if (hasTranscriptRef.current && silenceDuration >= SILENCE_DURATION_MS) {
-            scheduleAutoSubmit()
-          }
-        }, VAD_CHECK_INTERVAL_MS)
+          if (silenceStartRef.current === null) silenceStartRef.current = now
+          const store = useVoiceCommandStore.getState()
+          const hasContent = store.transcript.trim() || store.partialTranscript.trim()
+          if (hasContent) scheduleAutoSubmit()
+        },
+        language: undefined,
       })
-      .catch((err) => {
-        console.error('[voiceCommand] microphone access denied:', err)
-        useVoiceCommandStore.getState().setError('Microphone access denied')
-      })
+      controllerRef.current = controller
+
+      try {
+        await controller.start()
+      } catch (err) {
+        if (sessionIdRef.current !== mySession) return
+        const msg = err instanceof Error ? err.message : 'Failed to start transcription'
+        console.error('[voiceCommand] failed to start stream:', err)
+        useVoiceCommandStore.getState().setError(msg)
+        // Tear down the mic we acquired.
+        if (streamRef.current === stream) {
+          stream.getTracks().forEach((t) => t.stop())
+          streamRef.current = null
+        }
+        controllerRef.current = null
+        return
+      }
+    })()
 
     return () => {
       cancelled = true
