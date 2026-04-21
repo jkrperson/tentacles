@@ -79,5 +79,39 @@ export function createDictationRouter(deps: DictationDeps) {
           periodEnd: string
         }
       }),
+
+    streamSession: t.procedure
+      .input(z.object({
+        language: z.string().min(2).max(20).optional(),
+        sampleRate: z.number().int().positive().max(48000).optional(),
+        sessionHint: z.string().max(120).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const response = await serverFetch(deps, '/v1/transcribe-stream/session', 'POST', input)
+        return (await response.json()) as {
+          sessionId: string
+          streamUrl: string
+          expiresInSeconds: number
+          language: string
+          sampleRate: number
+          mediaEncoding: string
+          partialResultsStability: string
+        }
+      }),
+
+    reportStreamUsage: t.procedure
+      .input(z.object({
+        sessionId: z.uuid(),
+        audioSeconds: z.number().positive().max(7200),
+        startedAt: z.iso.datetime(),
+        endedAt: z.iso.datetime(),
+      }))
+      .mutation(async ({ input }) => {
+        const response = await serverFetch(deps, '/v1/transcribe-stream/usage', 'POST', {
+          ...input,
+          mode: 'streaming' as const,
+        })
+        return (await response.json()) as { ok: boolean }
+      }),
   })
 }
