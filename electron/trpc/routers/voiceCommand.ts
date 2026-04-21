@@ -51,12 +51,58 @@ function isAuthError(err: unknown): boolean {
 }
 
 function trimConversation(messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) {
-  // Keep system message + last N messages
+  // Keep system message + last N messages. Skip leading `tool` messages whose
+  // parent `assistant(tool_calls)` would be dropped — the API rejects orphan tool results.
   if (messages.length <= MAX_CONVERSATION_MESSAGES) return
   const system = messages[0]
-  const recent = messages.slice(-(MAX_CONVERSATION_MESSAGES - 1))
+  let startIdx = messages.length - (MAX_CONVERSATION_MESSAGES - 1)
+  while (startIdx < messages.length && messages[startIdx].role === 'tool') {
+    startIdx++
+  }
+  const recent = messages.slice(startIdx)
   messages.length = 0
   messages.push(system, ...recent)
+}
+
+/**
+ * Return a copy of `messages` that is guaranteed to be valid for the OpenAI Chat Completions API:
+ * every `assistant(tool_calls)` is immediately followed by one `tool` reply per tool_call id.
+ *
+ * Tool replies can legitimately arrive out-of-order (renderer actions report results async via
+ * `reportToolResult` after the user has already spoken again), so we index all tool replies by
+ * `tool_call_id` and splice them back next to their parent. Missing replies get a stub so the
+ * API never rejects the request; orphan tool messages are dropped.
+ */
+function sanitizeForAPI(
+  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
+  const toolReplies = new Map<string, OpenAI.Chat.Completions.ChatCompletionMessageParam>()
+  for (const msg of messages) {
+    if (msg.role === 'tool' && !toolReplies.has(msg.tool_call_id)) {
+      toolReplies.set(msg.tool_call_id, msg)
+    }
+  }
+
+  const result: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = []
+  for (const msg of messages) {
+    if (msg.role === 'tool') continue
+    result.push(msg)
+    if (msg.role === 'assistant' && 'tool_calls' in msg && msg.tool_calls) {
+      for (const tc of msg.tool_calls) {
+        const reply = toolReplies.get(tc.id)
+        if (reply) {
+          result.push(reply)
+        } else {
+          result.push({
+            role: 'tool',
+            tool_call_id: tc.id,
+            content: '{"status":"pending"}',
+          })
+        }
+      }
+    }
+  }
+  return result
 }
 
 export function createVoiceCommandRouter(deps: VoiceCommandDeps) {
@@ -249,7 +295,7 @@ async function streamCompletion(
   const stream = client.chat.completions.stream(
     {
       model: 'gpt-4.1-mini',
-      messages,
+      messages: sanitizeForAPI(messages),
       tools: TOOL_DEFINITIONS,
     },
     { signal: abortController.signal },
@@ -349,6 +395,7 @@ async function streamCompletion(
       tool_calls: assistantToolCalls,
     })
 
+    let hasRendererAction = false
     for (const autoTool of autoApproveQueue) {
       try {
         const result = await executeTool(deps, autoTool.name, autoTool.arguments)
@@ -361,9 +408,10 @@ async function streamCompletion(
           result,
         })
 
-        // For non-renderer results, add to conversation immediately
         const isRendererAction = result && typeof result === 'object' && '_rendererAction' in result
-        if (!isRendererAction) {
+        if (isRendererAction) {
+          hasRendererAction = true
+        } else {
           messages.push({
             role: 'tool',
             tool_call_id: autoTool.id,
@@ -385,9 +433,11 @@ async function streamCompletion(
       }
     }
 
-    // If all tool calls were auto-approved and none are renderer actions, get follow-up
+    // Follow up only when every tool_call already has a matching `tool` reply in messages.
+    // Renderer actions resolve client-side and route their results back through reportToolResult,
+    // which triggers its own follow-up stream once the tool reply is pushed.
     const hasPending = toolCalls.size > autoApproveQueue.length
-    if (!hasPending && autoApproveQueue.length > 0) {
+    if (!hasPending && autoApproveQueue.length > 0 && !hasRendererAction) {
       const followUpId = `vc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
       await streamCompletion(client, deps, conversationId, messages, followUpId, abortController)
     }
