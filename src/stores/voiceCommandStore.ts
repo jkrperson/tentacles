@@ -13,6 +13,8 @@ interface VoiceCommandState {
   isOpen: boolean
   phase: VoiceCommandPhase
   transcript: string
+  /** Current unstable streaming partial — shown in UI, promoted to transcript when finalized by AWS. */
+  partialTranscript: string
   messages: VoiceCommandMessage[]
   isStreaming: boolean
   error: string | null
@@ -26,6 +28,7 @@ interface VoiceCommandState {
   close: () => void
   setPhase: (phase: VoiceCommandPhase) => void
   appendTranscript: (text: string) => void
+  setPartialTranscript: (text: string) => void
   submitTranscript: () => Promise<void>
   submitText: (text: string) => Promise<void>
   setInputMode: (mode: 'voice' | 'text') => void
@@ -93,6 +96,7 @@ export const useVoiceCommandStore = create<VoiceCommandState>((set, get) => ({
   isOpen: false,
   phase: 'idle',
   transcript: '',
+  partialTranscript: '',
   messages: [],
   isStreaming: false,
   error: null,
@@ -121,6 +125,7 @@ export const useVoiceCommandStore = create<VoiceCommandState>((set, get) => ({
       isOpen: true,
       phase: 'listening',
       transcript: '',
+      partialTranscript: '',
       messages: [],
       isStreaming: false,
       error: null,
@@ -140,6 +145,7 @@ export const useVoiceCommandStore = create<VoiceCommandState>((set, get) => ({
       isOpen: false,
       phase: 'idle',
       transcript: '',
+      partialTranscript: '',
       isStreaming: false,
       error: null,
       audioLevel: 0,
@@ -152,14 +158,20 @@ export const useVoiceCommandStore = create<VoiceCommandState>((set, get) => ({
     set((s) => ({ transcript: s.transcript + (s.transcript ? ' ' : '') + text }))
   },
 
+  setPartialTranscript: (text) => {
+    set({ partialTranscript: text })
+  },
+
   submitTranscript: async () => {
-    const { transcript } = get()
-    if (!transcript.trim()) {
-      set({ phase: 'listening' })
+    const { transcript, partialTranscript } = get()
+    // Any partial that didn't get finalized in time should still be submitted.
+    const combined = (transcript + (partialTranscript ? (transcript ? ' ' : '') + partialTranscript : '')).trim()
+    if (!combined) {
+      set({ phase: 'listening', partialTranscript: '' })
       return
     }
-    await get().submitText(transcript)
-    set({ transcript: '' })
+    await get().submitText(combined)
+    set({ transcript: '', partialTranscript: '' })
   },
 
   submitText: async (content: string) => {
@@ -214,7 +226,7 @@ export const useVoiceCommandStore = create<VoiceCommandState>((set, get) => ({
   setInputMode: (mode) => {
     set({ inputMode: mode })
     if (mode === 'voice') {
-      set({ phase: 'listening', transcript: '' })
+      set({ phase: 'listening', transcript: '', partialTranscript: '' })
     }
   },
 
@@ -264,6 +276,7 @@ export const useVoiceCommandStore = create<VoiceCommandState>((set, get) => ({
         // Return to listening so the mic reactivates for follow-up commands
         phase: wasProcessing ? (s.inputMode === 'voice' ? 'listening' : 'result') : s.phase,
         transcript: wasProcessing && s.inputMode === 'voice' ? '' : s.transcript,
+        partialTranscript: wasProcessing && s.inputMode === 'voice' ? '' : s.partialTranscript,
       }
     })
   },

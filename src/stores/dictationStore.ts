@@ -8,6 +8,8 @@ export type DictationPhase = 'idle' | 'recording' | 'processing'
 interface DictationState {
   phase: DictationPhase
   rawTranscript: string
+  /** Current unstable streaming partial — rendered alongside rawTranscript until finalized by AWS. */
+  partialTranscript: string
   transcriptChunks: string[]
   cleanedText: string | null
   error: string | null
@@ -19,6 +21,7 @@ interface DictationState {
   stopRecording: () => void
   finalizeAfterRecording: () => void
   appendTranscript: (text: string) => void
+  setPartialTranscript: (text: string) => void
   runCleanup: () => Promise<void>
   insertIntoAgent: (text: string) => void
   setAudioLevel: (level: number) => void
@@ -29,6 +32,7 @@ interface DictationState {
 export const useDictationStore = create<DictationState>((set, get) => ({
   phase: 'idle',
   rawTranscript: '',
+  partialTranscript: '',
   transcriptChunks: [],
   cleanedText: null,
   error: null,
@@ -47,7 +51,7 @@ export const useDictationStore = create<DictationState>((set, get) => ({
 
   startRecording: () => {
     console.log('[dictation-store] startRecording')
-    set({ phase: 'recording', rawTranscript: '', transcriptChunks: [], cleanedText: null, error: null })
+    set({ phase: 'recording', rawTranscript: '', partialTranscript: '', transcriptChunks: [], cleanedText: null, error: null })
   },
 
   stopRecording: () => {
@@ -77,6 +81,10 @@ export const useDictationStore = create<DictationState>((set, get) => ({
       rawTranscript: s.rawTranscript + (s.rawTranscript ? ' ' : '') + text,
       transcriptChunks: [...s.transcriptChunks, text],
     }))
+  },
+
+  setPartialTranscript: (text: string) => {
+    set({ partialTranscript: text })
   },
 
   runCleanup: async () => {
@@ -114,6 +122,6 @@ export const useDictationStore = create<DictationState>((set, get) => ({
   },
 
   cancel: () => {
-    set({ phase: 'idle', rawTranscript: '', transcriptChunks: [], cleanedText: null, error: null })
+    set({ phase: 'idle', rawTranscript: '', partialTranscript: '', transcriptChunks: [], cleanedText: null, error: null })
   },
 }))
