@@ -57,6 +57,7 @@ export function DictationOverlay() {
 
   const phase = useDictationStore((s) => s.phase)
   const rawTranscript = useDictationStore((s) => s.rawTranscript)
+  const partialTranscript = useDictationStore((s) => s.partialTranscript)
   const error = useDictationStore((s) => s.error)
   const audioLevel = useDictationStore((s) => s.audioLevel)
   const cancel = useDictationStore((s) => s.cancel)
@@ -112,7 +113,8 @@ export function DictationOverlay() {
   const isRecording = phase === 'recording'
   const isProcessing = phase === 'processing'
   const isError = phase === 'idle' && !!error
-  const hasTranscript = !!rawTranscript
+  const hasTranscript = !!rawTranscript || !!partialTranscript
+  const displayText = rawTranscript + (partialTranscript ? (rawTranscript ? ' ' : '') + partialTranscript : '')
 
   return createPortal(
     <div
@@ -144,8 +146,13 @@ export function DictationOverlay() {
               <p className="text-base text-[var(--t-fg-muted)]">Speak now...</p>
             )}
             {isRecording && hasTranscript && (
-              <p className="text-base text-[var(--t-fg-base)] leading-relaxed whitespace-pre-wrap line-clamp-1">
-                {rawTranscript}
+              <p className="text-base leading-relaxed whitespace-pre-wrap line-clamp-1">
+                <span className="text-[var(--t-fg-base)]">{rawTranscript}</span>
+                {partialTranscript && (
+                  <span className="text-[var(--t-fg-muted)]">
+                    {rawTranscript ? ' ' : ''}{partialTranscript}
+                  </span>
+                )}
               </p>
             )}
             {isProcessing && (
@@ -158,10 +165,15 @@ export function DictationOverlay() {
         </div>
 
         {/* Expanded transcript when text overflows one line */}
-        {isRecording && hasTranscript && rawTranscript.length > 70 && (
+        {isRecording && hasTranscript && displayText.length > 70 && (
           <div className="border-t border-[var(--t-border)] px-5 py-3 max-h-32 overflow-y-auto">
-            <p className="text-sm text-[var(--t-fg-base)] leading-relaxed whitespace-pre-wrap">
-              {rawTranscript}
+            <p className="text-sm leading-relaxed whitespace-pre-wrap">
+              <span className="text-[var(--t-fg-base)]">{rawTranscript}</span>
+              {partialTranscript && (
+                <span className="text-[var(--t-fg-muted)]">
+                  {rawTranscript ? ' ' : ''}{partialTranscript}
+                </span>
+              )}
             </p>
           </div>
         )}

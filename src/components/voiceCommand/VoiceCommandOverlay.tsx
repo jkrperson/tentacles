@@ -181,6 +181,7 @@ export function VoiceCommandOverlay() {
   const isOpen = useVoiceCommandStore((s) => s.isOpen)
   const phase = useVoiceCommandStore((s) => s.phase)
   const transcript = useVoiceCommandStore((s) => s.transcript)
+  const partialTranscript = useVoiceCommandStore((s) => s.partialTranscript)
   const messages = useVoiceCommandStore((s) => s.messages)
   const audioLevel = useVoiceCommandStore((s) => s.audioLevel)
   const inputMode = useVoiceCommandStore((s) => s.inputMode)
@@ -313,13 +314,20 @@ export function VoiceCommandOverlay() {
               {isStreaming && phase !== 'resolving' && phase !== 'processing_audio' && <Spinner />}
 
               <div className="flex-1 min-w-0">
-                {isListening && !transcript && (
+                {isListening && !transcript && !partialTranscript && (
                   <p className="text-sm text-[var(--t-fg-muted)]">
                     {hasMessages ? 'Listening...' : 'Speak a command...'}
                   </p>
                 )}
-                {isListening && transcript && (
-                  <p className="text-sm text-[var(--t-fg-base)] truncate">{transcript}</p>
+                {isListening && (transcript || partialTranscript) && (
+                  <p className="text-sm truncate">
+                    <span className="text-[var(--t-fg-base)]">{transcript}</span>
+                    {partialTranscript && (
+                      <span className="text-[var(--t-fg-muted)]">
+                        {transcript ? ' ' : ''}{partialTranscript}
+                      </span>
+                    )}
+                  </p>
                 )}
                 {isProcessingAudio && (
                   <p className="text-sm text-[var(--t-fg-muted)]">Transcribing...</p>
