@@ -18,6 +18,7 @@ function buildDaemon() {
     '--bundle', '--platform=node', '--format=esm',
     '--outfile=dist-electron/daemon.mjs',
     '--external:node-pty',
+    '--loader:.sql=text',
   ], { cwd: __dirname, stdio: 'inherit' })
 }
 

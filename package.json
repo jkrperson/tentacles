@@ -19,12 +19,14 @@
     "predev": "bun run generate:icons",
     "dev": "vite",
     "prebuild": "bun run generate:icons",
-    "build:daemon": "esbuild electron/daemon/daemon.ts --bundle --platform=node --format=esm --outfile=dist-electron/daemon.mjs --external:node-pty",
+    "build:daemon": "esbuild electron/daemon/daemon.ts --bundle --platform=node --format=esm --outfile=dist-electron/daemon.mjs --external:node-pty --loader:.sql=text",
     "build": "tsc && vite build && bun run build:daemon && electron-builder",
     "build:notarized": "tsc && vite build && bun run build:daemon && electron-builder -c.mac.notarize=true",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "pretypecheck": "bun run generate:icons",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "preview": "vite preview"
   },
   "dependencies": {

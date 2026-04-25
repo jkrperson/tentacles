@@ -33,4 +33,9 @@ describe('daemon db', () => {
     const db2 = openDb(dbPath)
     expect(currentSchemaVersion(db2)).toBe(1)
   })
+
+  it('throws when reopened with a different path before closing', () => {
+    openDb(path.join(tmpDir, 'a.db'))
+    expect(() => openDb(path.join(tmpDir, 'b.db'))).toThrow(/different path/)
+  })
 })
