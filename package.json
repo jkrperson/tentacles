@@ -27,6 +27,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "verify:daemon-sqlite": "bun scripts/verify-daemon-sqlite.ts",
     "preview": "vite preview"
   },
   "dependencies": {
