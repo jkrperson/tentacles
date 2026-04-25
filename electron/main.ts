@@ -213,6 +213,10 @@ daemonClient.on('compatibilityDeferred', () => {
   startDeferredDaemonMigrationWatcher()
 })
 
+daemonClient.on('sessionsChanged', () => {
+  ee.emit('session:listChanged', {})
+})
+
 function createWindow() {
   const settings = loadSettings()
   const resolvedTheme = settings.theme === 'system'

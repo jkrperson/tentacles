@@ -141,6 +141,7 @@ interface SessionState {
   reorderSessions: (fromIndex: number, toIndex: number, projectPath: string) => void
   reorderTabs: (fromIndex: number, toIndex: number, projectPath: string) => void
   loadSessions: () => Promise<void>
+  refreshFromDaemon: () => Promise<void>
 
   // Session creation
   createSession: (opts?: CreateSessionOpts) => Promise<void>
@@ -175,24 +176,21 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     useUIStore.getState().setActiveWorkspaceId(session.workspaceId)
   },
 
-  removeSession: (id) =>
-    set((state) => {
-      const session = state.sessions.get(id)
-      if (!session) return state
-
-      capture('session_killed', { agent_type: session.agentType })
-
-      const sessions = new Map(state.sessions)
-      sessions.delete(id)
-      const sessionOrder = state.sessionOrder.filter((sid) => sid !== id)
-      const tabOrder = state.tabOrder.filter((sid) => sid !== id)
-      const activeSessionId =
-        state.activeSessionId === id
-          ? sessionOrder[sessionOrder.length - 1] ?? null
-          : state.activeSessionId
-
-      return { sessions, sessionOrder, tabOrder, activeSessionId }
-    }),
+  removeSession: (id) => {
+    const session = useSessionStore.getState().sessions.get(id)
+    if (!session) return
+    capture('session_killed', { agent_type: session.agentType })
+    trpc.session.kill.mutate({ id }).catch((err) =>
+      console.error('[sessionStore] kill failed:', err))
+    // Optimistic tab close so the user gets immediate feedback;
+    // the actual session-list update arrives via the listChanged subscription.
+    set((state) => ({
+      tabOrder: state.tabOrder.filter((sid) => sid !== id),
+      activeSessionId: state.activeSessionId === id
+        ? state.tabOrder.filter((sid) => sid !== id).slice(-1)[0] ?? null
+        : state.activeSessionId,
+    }))
+  },
 
   closeTab: (id) =>
     set((state) => {
@@ -422,6 +420,41 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       }
     } catch (err) {
       console.error('[sessionStore] Failed to load sessions:', err)
+    }
+  },
+
+  refreshFromDaemon: async () => {
+    if (!storeReady) return
+    try {
+      const daemonSessions = await trpc.session.snapshot.query()
+      set((state) => {
+        const next = new Map<string, Session>()
+        for (const ds of daemonSessions) {
+          const existing = state.sessions.get(ds.id)
+          next.set(ds.id, {
+            id: ds.id,
+            name: ds.name,
+            cwd: ds.cwd,
+            status: ds.status,
+            createdAt: ds.createdAt,
+            agentType: ds.agentType,
+            workspaceId: ds.workspaceId,
+            pid: ds.pid,
+            exitCode: ds.exitCode ?? undefined,
+            hookId: ds.hookId ?? undefined,
+            hasUnread: existing?.hasUnread ?? false,
+            statusDetail: existing?.statusDetail,
+          })
+        }
+        const sessionOrder = daemonSessions.map((s) => s.id)
+        const tabOrder = state.tabOrder.filter((id) => next.has(id))
+        const activeSessionId = state.activeSessionId && next.has(state.activeSessionId)
+          ? state.activeSessionId
+          : sessionOrder[sessionOrder.length - 1] ?? null
+        return { sessions: next, sessionOrder, tabOrder, activeSessionId }
+      })
+    } catch (err) {
+      console.error('[sessionStore] refreshFromDaemon failed:', err)
     }
   },
 }))

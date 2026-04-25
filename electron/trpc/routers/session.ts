@@ -85,5 +85,6 @@ export function createSessionRouter(deps: SessionDeps) {
     onTitle: createSubscription('session:title'),
     onStatusDetail: createSubscription('session:statusDetail'),
     onAgentStatus: createSubscription('session:agentStatus'),
+    onListChanged: createSubscription('session:listChanged'),
   })
 }

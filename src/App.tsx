@@ -88,6 +88,14 @@ function App() {
     return () => sub.unsubscribe()
   }, [])
 
+  // Live-update sessions when the daemon's session list changes
+  useEffect(() => {
+    const sub = trpc.session.onListChanged.subscribe(undefined, {
+      onData: () => { void useSessionStore.getState().refreshFromDaemon() },
+    })
+    return () => sub.unsubscribe()
+  }, [])
+
   useEffect(() => {
     loadSettings()
     loadSavedSessions()
