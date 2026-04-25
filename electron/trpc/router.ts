@@ -38,7 +38,7 @@ export interface RouterDeps {
   getWindow: () => BrowserWindow | null
   checkForUpdates: () => Promise<void>
   restartAndInstall: () => void
-  spawnAgent: (name: string, cwd: string, agentType: AgentType, resumeId?: string) => Promise<{ id: string; pid: number; hookId: string }>
+  spawnAgent: (name: string, cwd: string, workspaceId: string, agentType: AgentType) => Promise<{ id: string; pid: number; hookId: string }>
   reattachAgent: (sessionId: string, hookId: string, name: string, cwd: string, agentType?: AgentType) => Promise<{ id: string; scrollbackAvailable: boolean; initialStatus?: SessionStatus; initialStatusDetail?: string | null; recoveredClaudeSessionId?: string } | null>
   daemonClient: DaemonClient
   authManager: AuthManager

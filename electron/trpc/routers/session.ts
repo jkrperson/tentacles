@@ -8,7 +8,7 @@ import type { SessionStatus } from '../../../src/types'
 
 interface SessionDeps {
   ptyManager: PtyManager
-  spawnAgent: (name: string, cwd: string, agentType: AgentType) => Promise<{ id: string; pid: number; hookId: string }>
+  spawnAgent: (name: string, cwd: string, workspaceId: string, agentType: AgentType) => Promise<{ id: string; pid: number; hookId: string }>
   reattachAgent: (sessionId: string, hookId: string, name: string, cwd: string, agentType?: AgentType) => Promise<{ id: string; scrollbackAvailable: boolean; initialStatus?: SessionStatus; initialStatusDetail?: string | null } | null>
   daemonClient: DaemonClient
 }
@@ -16,10 +16,18 @@ interface SessionDeps {
 export function createSessionRouter(deps: SessionDeps) {
   return t.router({
     create: t.procedure
-      .input(z.object({ name: z.string(), cwd: z.string(), agentType: z.string().optional() }))
+      .input(z.object({
+        name: z.string(),
+        cwd: z.string(),
+        workspaceId: z.string(),
+        agentType: z.string().optional(),
+      }))
       .mutation(async ({ input }) => {
         try {
-          return await deps.spawnAgent(input.name, input.cwd, (input.agentType as AgentType) ?? 'claude')
+          return await deps.spawnAgent(
+            input.name, input.cwd, input.workspaceId,
+            (input.agentType as AgentType) ?? 'claude',
+          )
         } catch (err) {
           console.error('[session.create] error:', err)
           throw err

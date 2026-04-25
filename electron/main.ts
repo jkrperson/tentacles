@@ -444,11 +444,6 @@ app.whenReady().then(async () => {
   await reconcileSessions()
   startDeferredDaemonMigrationWatcher()
 
-  // Clear the cached daemon session IDs after a short delay so that any
-  // subsequent reattach calls (e.g. macOS window close/reopen) query the
-  // daemon directly instead of relying on a stale startup snapshot.
-  setTimeout(() => spawner.clearCachedDaemonSessionIds(), 15_000)
-
   // Prune ghost worktree entries left by crashes or manual cleanup
   gitManager.pruneAllWorktrees().catch((err: unknown) => {
     console.warn('[tentacles] Failed to prune worktrees on startup:', err)
@@ -487,6 +482,5 @@ async function reconcileSessions() {
   // the user can reattach if it reappears in the persisted list, or it'll be
   // cleaned up when the agent exits.
 
-  spawner.setCachedDaemonSessionIds(daemonSessionIds)
   hookManager.cleanupAllHookFiles(activeHookIds)
 }

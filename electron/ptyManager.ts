@@ -124,25 +124,33 @@ export class PtyManager {
   }
 
   /** Create an agent session via the daemon. */
-  async create(name: string, cwd: string, command = 'claude', args: string[] = [], env?: Record<string, string>): Promise<{ id: string; pid: number }> {
+  async create(
+    metadata: { name: string; agentType: string; workspaceId: string; hookId: string | null },
+    cwd: string,
+    command = 'claude',
+    args: string[] = [],
+    env?: Record<string, string>,
+  ): Promise<{ id: string; pid: number }> {
     const safeCwd = existsSync(cwd) ? cwd : homedir()
 
     if (this.daemonClient?.isConnected()) {
       const id = randomUUID()
       try {
-        const { pid } = await this.daemonClient.spawn(id, command, args, safeCwd, env ?? {})
+        const { pid } = await this.daemonClient.spawn(
+          id, command, args, safeCwd, env ?? {}, metadata,
+        )
         this.daemonSessions.add(id)
-        console.log(`[ptyManager] daemon spawn ok id="${id}" pid=${pid}`)
+        console.log(`[ptyManager] daemon spawn ok id="${id}" pid=${pid} name="${metadata.name}"`)
         return { id, pid }
       } catch (err) {
-        console.error(`[ptyManager] daemon spawn FAILED command="${command}" args=${JSON.stringify(args)} cwd="${safeCwd}"`, err)
+        console.error(`[ptyManager] daemon spawn FAILED command="${command}" cwd="${safeCwd}"`, err)
         throw err
       }
     }
 
     console.log(`[ptyManager] daemon not connected, falling back to local spawn command="${command}"`)
     // Fallback to local spawn if daemon is not connected
-    return this._spawn(name, safeCwd, command, args, 'agent', env)
+    return this._spawn(metadata.name, safeCwd, command, args, 'agent', env)
   }
 
   /** Register an existing daemon session (for reattach after app restart). */

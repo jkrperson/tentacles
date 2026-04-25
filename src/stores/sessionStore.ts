@@ -432,7 +432,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
     const sessionName = opts.name || generateRandomName()
     try {
-      const { id, pid, hookId } = await trpc.session.create.mutate({ name: sessionName, cwd, agentType: resolvedAgent })
+      const { id, pid, hookId } = await trpc.session.create.mutate({
+        name: sessionName,
+        cwd,
+        workspaceId: workspace.id,
+        agentType: resolvedAgent,
+      })
       get().addSession({
         id, name: sessionName, cwd, status: initialStatusForAgent(resolvedAgent), createdAt: Date.now(),
         hasUnread: false, agentType: resolvedAgent, pid, hookId,
