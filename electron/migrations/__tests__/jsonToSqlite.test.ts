@@ -84,4 +84,13 @@ describe('migrateSessionsJsonToDaemon', () => {
     expect(result).toBeNull()
     expect(fs.existsSync(markerPath)).toBe(false)
   })
+
+  it('writes the marker and skips when sessions.json is malformed', async () => {
+    fs.writeFileSync(sessionsPath, '{not valid json')
+    const result = await migrateSessionsJsonToDaemon({ sessionsPath, markerPath, daemonClient: fakeClient() })
+    expect(result).toEqual({ migrated: 0 })
+    expect(fs.existsSync(markerPath)).toBe(true)
+    // Original malformed file is left as-is; we don't touch it on the parse-error path.
+    expect(fs.readFileSync(sessionsPath, 'utf-8')).toBe('{not valid json')
+  })
 })
