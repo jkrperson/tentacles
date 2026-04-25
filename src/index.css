@@ -1,5 +1,30 @@
 @import "tailwindcss";
 
+/* ── Motion + materiality tokens ─────────────────────────────────────────
+   Layered on top of theme color tokens (set by themes.ts). Custom-eased
+   transitions and tinted shadows give the chrome a "flowing" tactile feel
+   without bolting on a motion library. */
+:root {
+  /* Cubic-bezier eases tuned for UI snap. Use --t-ease-out for entries,
+     --t-ease-spring for tactile press/active states. */
+  --t-ease-out: cubic-bezier(0.32, 0.72, 0, 1);
+  --t-ease-spring: cubic-bezier(0.5, 1.6, 0.4, 1);
+  --t-dur-fast: 120ms;
+  --t-dur-base: 180ms;
+  --t-dur-slow: 320ms;
+
+  /* Tinted hairlines (compose with theme background hue). */
+  --t-hairline: color-mix(in srgb, var(--t-text-primary, #e4e4e7) 8%, transparent);
+  --t-hairline-strong: color-mix(in srgb, var(--t-text-primary, #e4e4e7) 14%, transparent);
+
+  /* Tinted, diffused elevated shadow — picks up the theme background hue
+     instead of pure-black drop. */
+  --t-shadow-elevated:
+    0 1px 0 0 color-mix(in srgb, var(--t-text-primary, #fff) 6%, transparent) inset,
+    0 8px 24px -10px color-mix(in srgb, var(--t-bg-base, #000) 80%, transparent),
+    0 2px 6px -2px color-mix(in srgb, var(--t-bg-base, #000) 60%, transparent);
+}
+
 html, body, #root {
   height: 100%;
   margin: 0;
@@ -7,10 +32,28 @@ html, body, #root {
   overflow: hidden;
   background-color: var(--t-bg-base, #0e0e10);
   color: var(--t-text-primary, #e4e4e7);
-  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  font-family:
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Text",
+    "Helvetica Neue",
+    "Segoe UI",
+    system-ui,
+    sans-serif;
+  font-feature-settings: "ss01", "ss03", "cv11", "cv05";
+  letter-spacing: -0.005em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
+
+/* Discipline numerics for any element opted-in via class. */
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* Scrollbar suppression for tight rails (e.g. ProjectRail). */
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
 
 @keyframes slide-in-right {
   from { transform: translateX(100%); opacity: 0; }
@@ -23,7 +66,7 @@ html, body, #root {
 }
 
 .animate-slide-in {
-  animation: slide-in-right 0.15s ease-out;
+  animation: slide-in-right var(--t-dur-base) var(--t-ease-out);
 }
 
 .animate-fade-out {
@@ -38,6 +81,13 @@ html, body, #root {
 .animate-onboarding-fade-in {
   animation: onboarding-fade-in 0.25s ease-out;
 }
+
+/* Tooltip / dropdown lift — tinted instead of pure-black drop shadow. */
+@keyframes lift-in {
+  from { opacity: 0; transform: translateY(-2px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-lift-in { animation: lift-in var(--t-dur-base) var(--t-ease-out); }
 
 /* xterm */
 .xterm { padding: 4px; background: var(--t-bg-base) !important; }
