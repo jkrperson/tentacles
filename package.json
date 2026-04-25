@@ -14,7 +14,7 @@
   "author": "jkrperson",
   "type": "module",
   "scripts": {
-    "postinstall": "CXXFLAGS='-Wno-missing-field-initializers' electron-rebuild -f -w node-pty",
+    "postinstall": "CXXFLAGS='-Wno-missing-field-initializers' electron-rebuild -f -w node-pty,better-sqlite3",
     "generate:icons": "bun scripts/generate-file-icons.ts",
     "predev": "bun run generate:icons",
     "dev": "vite",
