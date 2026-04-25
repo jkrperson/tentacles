@@ -30,12 +30,15 @@ function RailTooltip({ label, anchorRef, visible }: {
 
   return createPortal(
     <div
-      className="fixed z-[9999] pointer-events-none whitespace-nowrap"
+      className="fixed z-[9999] pointer-events-none whitespace-nowrap animate-lift-in"
       style={{ top: pos.top, left: pos.left, transform: 'translateY(-50%)' }}
     >
-      <div className="relative px-2.5 py-1 text-[11px] font-medium shadow-lg border bg-[var(--t-bg-elevated)] border-[var(--t-border)] text-[var(--t-text-secondary)]">
+      <div
+        className="relative px-2.5 py-1 text-[11px] font-medium border bg-[var(--t-bg-elevated)] border-[var(--t-hairline-strong)] text-[var(--t-text-secondary)]"
+        style={{ boxShadow: 'var(--t-shadow-elevated)' }}
+      >
         {label}
-        <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-2 h-2 bg-[var(--t-bg-elevated)] border-l border-b border-[var(--t-border)] rotate-45" />
+        <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-2 h-2 bg-[var(--t-bg-elevated)] border-l border-b border-[var(--t-hairline-strong)] rotate-45" />
       </div>
     </div>,
     document.body,
@@ -205,8 +208,8 @@ export function ProjectRail() {
       {ctxMenu && createPortal(
         <div
           ref={ctxRef}
-          className="fixed bg-[var(--t-bg-elevated)] border border-[var(--t-border)] shadow-xl z-[9999] py-1 min-w-[160px]"
-          style={{ top: ctxMenu.y, left: ctxMenu.x }}
+          className="fixed bg-[var(--t-bg-elevated)] border border-[var(--t-hairline-strong)] z-[9999] py-1 min-w-[160px] animate-lift-in"
+          style={{ top: ctxMenu.y, left: ctxMenu.x, boxShadow: 'var(--t-shadow-elevated)' }}
         >
           {/* Color picker */}
           <button
@@ -316,17 +319,18 @@ function ProjectIcon({
         <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-[var(--t-accent)]" />
       )}
 
-      {/* Active / unread indicator pill */}
+      {/* Active / unread indicator pill — springs in on activation */}
       <div
-        className="absolute left-0 w-[2px] transition-all duration-150"
+        className="absolute left-0 w-[2px] rounded-r-full"
         style={{
           height: isActive ? 22 : (hasUnread || hovered ? 8 : 0),
           backgroundColor: isActive
-            ? 'var(--t-text-secondary)'
+            ? 'var(--t-text-primary)'
             : hasUnread
               ? 'var(--t-accent)'
               : 'var(--t-text-faint)',
           opacity: isActive || hasUnread || hovered ? 1 : 0,
+          transition: 'height var(--t-dur-base) var(--t-ease-spring), opacity var(--t-dur-base) var(--t-ease-out), background-color var(--t-dur-base) var(--t-ease-out)',
         }}
       />
 
@@ -337,7 +341,7 @@ function ProjectIcon({
         onContextMenu={onContextMenu}
         onMouseEnter={() => onHover(true)}
         onMouseLeave={() => onHover(false)}
-        className={`w-10 h-10 flex items-center justify-center text-sm font-semibold border transition-colors duration-150 ${
+        className={`w-10 h-10 flex items-center justify-center text-sm font-semibold border transition-[background-color,border-color,color,transform] duration-[var(--t-dur-base)] ease-[var(--t-ease-out)] active:scale-[0.94] ${
           isDragging ? 'opacity-40' : ''
         }`}
         style={{
@@ -382,7 +386,7 @@ function RailButton({ label, hovered, onHover, onClick, className, children }: {
         onClick={onClick}
         onMouseEnter={() => onHover(true)}
         onMouseLeave={() => onHover(false)}
-        className={`w-10 h-10 flex items-center justify-center transition-colors duration-150 ${className ?? ''}`}
+        className={`w-10 h-10 flex items-center justify-center transition-[color,background-color,border-color,transform] duration-[var(--t-dur-base)] ease-[var(--t-ease-out)] active:scale-[0.94] ${className ?? ''}`}
       >
         {children}
       </button>

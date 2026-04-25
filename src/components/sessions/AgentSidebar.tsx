@@ -137,7 +137,7 @@ export function AgentSidebar() {
                   }
                   setMoreOpen(!moreOpen)
                 }}
-                className="flex items-center justify-center text-[var(--t-text-muted)] hover:text-[var(--t-text-secondary)] bg-[var(--t-bg-elevated)] hover:bg-[var(--t-bg-hover)] border border-[var(--t-border)] px-2 py-1.5 transition-all active:scale-[0.95] h-full"
+                className="flex items-center justify-center text-[var(--t-text-muted)] hover:text-[var(--t-text-secondary)] bg-[var(--t-bg-elevated)] hover:bg-[var(--t-bg-hover)] border border-[var(--t-hairline)] hover:border-[var(--t-hairline-strong)] px-2 py-1.5 transition-[color,background-color,border-color,transform] duration-[var(--t-dur-base)] ease-[var(--t-ease-out)] active:scale-[0.94] h-full"
                 title="More agents"
               >
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
@@ -147,8 +147,8 @@ export function AgentSidebar() {
               {moreOpen && createPortal(
                 <div
                   ref={moreDropdownRef}
-                  className="fixed w-48 bg-[var(--t-bg-elevated)] border border-[var(--t-border)] rounded-md shadow-xl z-[9999] py-1"
-                  style={{ top: dropdownPos.top, left: dropdownPos.left }}
+                  className="fixed w-48 bg-[var(--t-bg-elevated)] border border-[var(--t-hairline-strong)] rounded-md z-[9999] py-1 animate-lift-in"
+                  style={{ top: dropdownPos.top, left: dropdownPos.left, boxShadow: 'var(--t-shadow-elevated)' }}
                 >
                   {unpinnedAgents.map((agent) => (
                     <button
@@ -306,7 +306,7 @@ function AgentButton({ agent, onClick }: { agent: AgentConfig; onClick: () => vo
   return (
     <button
       onClick={onClick}
-      className="flex-1 flex items-center justify-center text-[var(--t-text-secondary)] hover:text-[var(--t-text-primary)] bg-[var(--t-bg-elevated)] hover:bg-[var(--t-bg-hover)] border border-[var(--t-border)] px-2.5 py-2 transition-all active:scale-[0.97]"
+      className="flex-1 flex items-center justify-center text-[var(--t-text-secondary)] hover:text-[var(--t-text-primary)] bg-[var(--t-bg-elevated)] hover:bg-[var(--t-bg-hover)] border border-[var(--t-hairline)] hover:border-[var(--t-hairline-strong)] px-2.5 py-2 transition-[color,background-color,border-color,transform] duration-[var(--t-dur-base)] ease-[var(--t-ease-out)] active:scale-[0.94]"
       title={agent.name}
     >
       <AgentIcon icon={agent.icon} size={16} />
