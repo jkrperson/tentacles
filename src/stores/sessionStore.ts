@@ -358,6 +358,28 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         wsStore.setWorkspaces(migrated.workspaces, migrated.order)
       }
 
+      // One-shot migration: copy UI prefs from legacy sessions.json if the new
+      // ui-prefs.json is empty (first launch with the daemon-owned-sessions design).
+      let migratedUiPrefs: typeof uiPrefs | null = null
+      if (
+        !uiPrefs.tabOrder &&
+        uiPrefs.activeSessionId === undefined &&
+        !uiPrefs.hasUnread
+      ) {
+        const legacyHasUnread: Record<string, boolean> = {}
+        for (const s of legacyData.sessions ?? []) {
+          if (s.hasUnread) legacyHasUnread[s.id] = true
+        }
+        if (legacyData.tabOrder?.length || legacyData.activeSessionId || Object.keys(legacyHasUnread).length > 0) {
+          migratedUiPrefs = {
+            tabOrder: legacyData.tabOrder,
+            activeSessionId: legacyData.activeSessionId,
+            hasUnread: legacyHasUnread,
+          }
+        }
+      }
+      const effectiveUiPrefs = migratedUiPrefs ?? uiPrefs
+
       const sessions = new Map<string, Session>()
       const sessionOrder: string[] = []
       for (const ds of daemonSessions) {
@@ -367,7 +389,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           cwd: ds.cwd,
           status: ds.status,
           createdAt: ds.createdAt,
-          hasUnread: uiPrefs.hasUnread?.[ds.id] ?? false,
+          hasUnread: effectiveUiPrefs.hasUnread?.[ds.id] ?? false,
           agentType: ds.agentType,
           workspaceId: ds.workspaceId,
           pid: ds.pid,
@@ -378,10 +400,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         sessionOrder.push(s.id)
       }
 
-      const tabOrder = (uiPrefs.tabOrder ?? []).filter((id: string) => sessions.has(id))
+      const tabOrder = (effectiveUiPrefs.tabOrder ?? []).filter((id: string) => sessions.has(id))
       for (const id of sessionOrder) if (!tabOrder.includes(id)) tabOrder.push(id)
-      const activeSessionId = uiPrefs.activeSessionId && sessions.has(uiPrefs.activeSessionId)
-        ? uiPrefs.activeSessionId
+      const activeSessionId = effectiveUiPrefs.activeSessionId && sessions.has(effectiveUiPrefs.activeSessionId)
+        ? effectiveUiPrefs.activeSessionId
         : sessionOrder[0] ?? null
 
       set({ sessions, sessionOrder, tabOrder, activeSessionId })
@@ -392,6 +414,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       }
 
       storeReady = true
+
+      // If we migrated from legacy, write the new file immediately so this branch
+      // doesn't fire on next launch.
+      if (migratedUiPrefs) {
+        void persistUiNow()
+      }
     } catch (err) {
       console.error('[sessionStore] Failed to load sessions:', err)
     }
@@ -402,17 +430,33 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 // Auto-persist UI prefs (tabs/active/unread) — session truth lives in the daemon
 // ---------------------------------------------------------------------------
 
-function writeUiPrefs() {
+type UiPrefsShape = {
+  tabOrder: string[]
+  activeSessionId: string | null
+  hasUnread: Record<string, boolean>
+}
+
+let lastWrittenUiPrefs: string | null = null
+
+function snapshotUiPrefs(): UiPrefsShape {
   const state = useSessionStore.getState()
   const hasUnread: Record<string, boolean> = {}
   for (const [id, s] of state.sessions) {
     if (s.hasUnread) hasUnread[id] = true
   }
-  trpc.app.saveUiPrefs.mutate({
+  return {
     tabOrder: state.tabOrder,
     activeSessionId: state.activeSessionId,
     hasUnread,
-  }).catch((err) => console.error('[sessionStore] saveUiPrefs failed:', err))
+  }
+}
+
+function writeUiPrefs() {
+  const prefs = snapshotUiPrefs()
+  const serialized = JSON.stringify(prefs)
+  if (serialized === lastWrittenUiPrefs) return
+  lastWrittenUiPrefs = serialized
+  trpc.app.saveUiPrefs.mutate(prefs).catch((err) => console.error('[sessionStore] saveUiPrefs failed:', err))
 }
 
 useSessionStore.subscribe((state, prevState) => {
@@ -420,7 +464,7 @@ useSessionStore.subscribe((state, prevState) => {
   if (
     state.tabOrder !== prevState.tabOrder ||
     state.activeSessionId !== prevState.activeSessionId ||
-    state.sessions !== prevState.sessions  // hasUnread is a per-session field
+    state.sessions !== prevState.sessions
   ) {
     writeUiPrefs()
   }
@@ -429,16 +473,15 @@ useSessionStore.subscribe((state, prevState) => {
 /** Snapshot UI prefs and await the write. Used by the quit-flush handshake. */
 export async function persistUiNow(): Promise<void> {
   if (!storeReady) return
-  const state = useSessionStore.getState()
-  const hasUnread: Record<string, boolean> = {}
-  for (const [id, s] of state.sessions) if (s.hasUnread) hasUnread[id] = true
-  try {
-    await trpc.app.saveUiPrefs.mutate({
-      tabOrder: state.tabOrder,
-      activeSessionId: state.activeSessionId,
-      hasUnread,
-    })
-  } catch (err) {
-    console.error('[sessionStore] persistUiNow failed:', err)
+  const prefs = snapshotUiPrefs()
+  const serialized = JSON.stringify(prefs)
+  // Skip the write if nothing relevant changed since the last persist.
+  if (serialized !== lastWrittenUiPrefs) {
+    lastWrittenUiPrefs = serialized
+    try {
+      await trpc.app.saveUiPrefs.mutate(prefs)
+    } catch (err) {
+      console.error('[sessionStore] persistUiNow failed:', err)
+    }
   }
 }
