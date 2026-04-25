@@ -252,7 +252,7 @@ export function WorkspaceItem({
       onDragOver={isTearingDown ? undefined : onDragOver}
       onDragEnd={isTearingDown ? undefined : onDragEnd}
       onDrop={isTearingDown ? undefined : onDrop}
-      className={`group relative transition-all duration-150 ${
+      className={`group relative transition-[opacity] duration-[var(--t-dur-base)] ease-[var(--t-ease-out)] ${
         isTearingDown ? 'opacity-50 pointer-events-none' : 'cursor-pointer'
       } ${isDragging ? 'opacity-40' : ''}`}
       style={dropPosition ? {
@@ -262,10 +262,10 @@ export function WorkspaceItem({
     >
       {/* Card — border only on active or hover, transparent otherwise */}
       <div
-        className={`relative overflow-hidden border transition-all duration-150 ${
+        className={`relative overflow-hidden border transition-[background-color,border-color] duration-[var(--t-dur-base)] ease-[var(--t-ease-out)] ${
           isActiveWorkspace
             ? 'border-[var(--t-accent)]/30 bg-[var(--t-accent)]/[0.04]'
-            : 'border-transparent hover:border-[var(--t-border)] hover:bg-[var(--t-bg-elevated)]'
+            : 'border-transparent hover:border-[var(--t-hairline-strong)] hover:bg-[var(--t-bg-elevated)]'
         }`}
       >
         <div className="px-3">
@@ -294,12 +294,12 @@ export function WorkspaceItem({
                   <span className="text-[9px] text-zinc-600 italic flex-shrink-0">Removing...</span>
                 )}
                 {!isTearingDown && hasDiff && (
-                  <span className="flex items-center gap-0.5 font-mono text-[9px] flex-shrink-0">
+                  <span className="flex items-center gap-0.5 font-mono tnum text-[9px] flex-shrink-0">
                     {diffStats!.insertions > 0 && (
-                      <span className="text-green-500/80">+{diffStats!.insertions}</span>
+                      <span className="text-[var(--t-git-added)]">+{diffStats!.insertions}</span>
                     )}
                     {diffStats!.deletions > 0 && (
-                      <span className="text-red-400/80">-{diffStats!.deletions}</span>
+                      <span className="text-[var(--t-git-deleted)]">-{diffStats!.deletions}</span>
                     )}
                   </span>
                 )}

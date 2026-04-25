@@ -121,62 +121,53 @@ function App() {
       {authInitialized && !user && loginDialogOpen && onboardingPhase !== 'wizard' && onboardingPhase !== 'tour' && <LoginScreen />}
       {/* macOS traffic light area */}
       <div
-        className="h-10 flex-shrink-0 flex items-center border-b border-[var(--t-border)]"
+        className="h-10 flex-shrink-0 flex items-center border-b border-[var(--t-hairline)]"
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
       >
         <div className="w-20" /> {/* space for traffic lights */}
         <span
-          className="text-[11px] font-medium text-zinc-500 tracking-wide uppercase select-none"
+          className="text-[10px] font-semibold text-[var(--t-text-muted)] tracking-[0.18em] uppercase select-none"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
           Tentacles
         </span>
-        {/* Center tabs */}
+        {/* Center tabs — segmented control with shared track */}
         <div
-          className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1"
+          className="absolute left-1/2 -translate-x-1/2 flex items-center gap-0.5 p-0.5 rounded-md bg-[color-mix(in_srgb,var(--t-text-primary)_4%,transparent)] border border-[var(--t-hairline)]"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
-          <button
+          <TitlebarTab
+            active={centerView !== 'todos' && centerView !== 'agentChat'}
             onClick={openTerminalView}
-            className={`flex items-center gap-1.5 text-[11px] font-medium select-none px-2.5 py-1 rounded transition-colors ${
-              centerView !== 'todos' && centerView !== 'agentChat'
-                ? 'text-zinc-200 bg-zinc-700/60'
-                : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'
-            }`}
-          >
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M2 3.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .354.146L7.707 5H13.5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-9z"/>
-            </svg>
-            Projects
-          </button>
-          <button
-            data-tour="agent-chat"
+            label="Projects"
+            icon={
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M2 3.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .354.146L7.707 5H13.5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-9z"/>
+              </svg>
+            }
+          />
+          <TitlebarTab
+            active={centerView === 'agentChat'}
             onClick={toggleAgentChat}
-            className={`flex items-center gap-1.5 text-[11px] font-medium select-none px-2.5 py-1 rounded transition-colors ${
-              centerView === 'agentChat'
-                ? 'text-zinc-200 bg-zinc-700/60'
-                : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'
-            }`}
-          >
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M2 3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H5l-3 3V3z" />
-            </svg>
-            Agent
-          </button>
-          <button
-            data-tour="tasks"
+            label="Agent"
+            tour="agent-chat"
+            icon={
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M2 3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H5l-3 3V3z" />
+              </svg>
+            }
+          />
+          <TitlebarTab
+            active={centerView === 'todos'}
             onClick={openTodosPage}
-            className={`flex items-center gap-1.5 text-[11px] font-medium select-none px-2.5 py-1 rounded transition-colors ${
-              centerView === 'todos'
-                ? 'text-zinc-200 bg-zinc-700/60'
-                : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'
-            }`}
-          >
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M4 1.5A1.5 1.5 0 0 0 2.5 3v10A1.5 1.5 0 0 0 4 14.5h8a1.5 1.5 0 0 0 1.5-1.5V3A1.5 1.5 0 0 0 12 1.5H4zM5 5h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1 0-1zm0 2.5h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1 0-1zM5 10h3a.5.5 0 0 1 0 1H5a.5.5 0 0 1 0-1z"/>
-            </svg>
-            Tasks
-          </button>
+            label="Tasks"
+            tour="tasks"
+            icon={
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M4 1.5A1.5 1.5 0 0 0 2.5 3v10A1.5 1.5 0 0 0 4 14.5h8a1.5 1.5 0 0 0 1.5-1.5V3A1.5 1.5 0 0 0 12 1.5H4zM5 5h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1 0-1zm0 2.5h6a.5.5 0 0 1 0 1H5a.5.5 0 0 1 0-1zM5 10h3a.5.5 0 0 1 0 1H5a.5.5 0 0 1 0-1z"/>
+              </svg>
+            }
+          />
         </div>
         <div className="flex-1" />
         <div className="pr-3">
@@ -193,6 +184,32 @@ function App() {
         </div>
       </div>
     </div>
+  )
+}
+
+function TitlebarTab({ active, onClick, label, icon, tour }: {
+  active: boolean
+  onClick: () => void
+  label: string
+  icon: React.ReactNode
+  tour?: string
+}) {
+  return (
+    <button
+      onClick={onClick}
+      data-tour={tour}
+      aria-pressed={active}
+      className={`relative flex items-center gap-1.5 select-none px-2.5 py-1 rounded-[5px] text-[11px] font-medium
+        transition-[color,background-color,transform] duration-[var(--t-dur-base)] ease-[var(--t-ease-out)]
+        active:scale-[0.97]
+        ${active
+          ? 'text-[var(--t-text-primary)] bg-[var(--t-bg-elevated)] shadow-[0_1px_0_0_color-mix(in_srgb,var(--t-text-primary)_8%,transparent)_inset]'
+          : 'text-[var(--t-text-muted)] hover:text-[var(--t-text-secondary)] hover:bg-[color-mix(in_srgb,var(--t-text-primary)_4%,transparent)]'
+        }`}
+    >
+      {icon}
+      {label}
+    </button>
   )
 }
 
