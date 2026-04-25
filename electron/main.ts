@@ -427,7 +427,7 @@ app.whenReady().then(async () => {
   // Ensure project config directories exist
   fs.mkdirSync(path.join(projectsConfigDir, 'setup-logs'), { recursive: true })
 
-  await startHookServer()
+  await startHookServer(daemonClient)
 
   if (!VITE_DEV_SERVER_URL) {
     rendererURL = await startRendererServer(RENDERER_DIST)
