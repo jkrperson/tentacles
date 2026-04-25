@@ -12,6 +12,7 @@ const SOUND_EXTENSIONS = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac']
 interface AppDeps {
   settingsPath: string
   sessionsPath: string
+  uiPrefsPath: string
   themesDir: string
   soundsDir: string
   getWindow: () => BrowserWindow | null
@@ -74,6 +75,29 @@ export function createAppRouter(deps: AppDeps) {
       .input(z.record(z.string(), z.unknown()))
       .mutation(({ input }) => {
         fs.writeFileSync(deps.sessionsPath, JSON.stringify(input, null, 2))
+      }),
+
+    loadUiPrefs: t.procedure
+      .query(() => {
+        try {
+          return JSON.parse(fs.readFileSync(deps.uiPrefsPath, 'utf-8')) as {
+            tabOrder?: string[]
+            activeSessionId?: string | null
+            hasUnread?: Record<string, boolean>
+          }
+        } catch { return {} }
+      }),
+
+    saveUiPrefs: t.procedure
+      .input(z.object({
+        tabOrder: z.array(z.string()),
+        activeSessionId: z.string().nullable(),
+        hasUnread: z.record(z.string(), z.boolean()),
+      }))
+      .mutation(({ input }) => {
+        const tmp = `${deps.uiPrefsPath}.tmp`
+        fs.writeFileSync(tmp, JSON.stringify(input, null, 2))
+        fs.renameSync(tmp, deps.uiPrefsPath)
       }),
 
     // Main fires `app:requestFlush` on quit; renderer writes its latest state via

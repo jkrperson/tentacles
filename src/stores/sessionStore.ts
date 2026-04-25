@@ -20,32 +20,7 @@ function initialStatusForAgent(agentType: string): SessionStatus {
   return IDLE_ON_START_AGENTS.has(agentType) ? 'idle' : 'running'
 }
 
-// ---------------------------------------------------------------------------
-// Debounced persist
-// ---------------------------------------------------------------------------
-
-function createDebouncedPersist(ms = 500) {
-  let timer: ReturnType<typeof setTimeout> | null = null
-  let pending: (() => void) | null = null
-  return {
-    trigger(fn: () => void) {
-      pending = fn
-      if (timer) clearTimeout(timer)
-      timer = setTimeout(() => { pending = null; fn() }, ms)
-    },
-    flush() {
-      if (timer) { clearTimeout(timer); timer = null }
-      if (pending) { const fn = pending; pending = null; fn() }
-    },
-  }
-}
-
-const persistDebounce = createDebouncedPersist()
-
-/** Immediately flush any pending debounced persist (e.g. before app quit). */
-export const flushPersist = persistDebounce.flush
-
-// Guard: don't auto-persist until initial load completes (avoids overwriting sessions.json with empty state)
+// Guard: don't auto-persist until initial load completes (avoids overwriting prefs with empty state)
 let storeReady = false
 
 // ---------------------------------------------------------------------------
@@ -80,20 +55,6 @@ function reorderWithinProject(
     next[projectIndices[i]] = projectIds[i]
   }
   return next
-}
-
-// ---------------------------------------------------------------------------
-// Serialization
-// ---------------------------------------------------------------------------
-
-function serializeState(state: SessionState): SessionsFile {
-  const workspaceStore = useWorkspaceStore.getState()
-  return {
-    sessions: state.sessionOrder.map((id) => state.sessions.get(id)!).filter(Boolean),
-    activeSessionId: state.activeSessionId,
-    tabOrder: state.tabOrder,
-    workspaces: workspaceStore.workspaceOrder.map((id) => workspaceStore.workspaces.get(id)!).filter(Boolean),
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -383,8 +344,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   loadSessions: async () => {
     try {
       const daemonSessions = await trpc.session.snapshot.query()
-      // TODO(task10): replace with trpc.app.loadUiPrefs.query() once the endpoint exists
-      const uiPrefs: { tabOrder?: string[]; activeSessionId?: string | null; hasUnread?: Record<string, boolean> } = {}
+      const uiPrefs = await trpc.app.loadUiPrefs.query()
 
       const wsStore = useWorkspaceStore.getState()
       // Workspaces still loaded from userData/sessions.json for now (Phase 2 moves them too).
@@ -439,47 +399,46 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 }))
 
 // ---------------------------------------------------------------------------
-// Auto-persist: subscribe to state changes instead of manual persist() calls
+// Auto-persist UI prefs (tabs/active/unread) — session truth lives in the daemon
 // ---------------------------------------------------------------------------
 
-function writeSessions() {
-  const data = serializeState(useSessionStore.getState())
-  trpc.app.saveSessions.mutate(data as unknown as Record<string, unknown>).catch((err) => {
-    console.error('[sessionStore] Failed to persist sessions:', err)
-  })
-}
-
-/** Cancel any pending debounce, snapshot current state, and await the write.
- *  Used by the quit-flush handshake so main knows the file is on disk. */
-export async function persistNow(): Promise<void> {
-  if (!storeReady) return
-  persistDebounce.flush()
-  const data = serializeState(useSessionStore.getState())
-  try {
-    await trpc.app.saveSessions.mutate(data as unknown as Record<string, unknown>)
-  } catch (err) {
-    console.error('[sessionStore] persistNow failed:', err)
+function writeUiPrefs() {
+  const state = useSessionStore.getState()
+  const hasUnread: Record<string, boolean> = {}
+  for (const [id, s] of state.sessions) {
+    if (s.hasUnread) hasUnread[id] = true
   }
+  trpc.app.saveUiPrefs.mutate({
+    tabOrder: state.tabOrder,
+    activeSessionId: state.activeSessionId,
+    hasUnread,
+  }).catch((err) => console.error('[sessionStore] saveUiPrefs failed:', err))
 }
 
 useSessionStore.subscribe((state, prevState) => {
   if (!storeReady) return
-
-  // Structural changes (add/remove session, tab open/close, active switch) must
-  // persist immediately — losing a write here means the next launch can't reattach.
-  const structural =
-    state.sessionOrder !== prevState.sessionOrder ||
+  if (
     state.tabOrder !== prevState.tabOrder ||
-    state.activeSessionId !== prevState.activeSessionId
-
-  if (structural) {
-    persistDebounce.flush()
-    writeSessions()
-    return
-  }
-
-  // Cosmetic per-session updates (status, hasUnread, statusDetail) can debounce.
-  if (state.sessions !== prevState.sessions) {
-    persistDebounce.trigger(writeSessions)
+    state.activeSessionId !== prevState.activeSessionId ||
+    state.sessions !== prevState.sessions  // hasUnread is a per-session field
+  ) {
+    writeUiPrefs()
   }
 })
+
+/** Snapshot UI prefs and await the write. Used by the quit-flush handshake. */
+export async function persistUiNow(): Promise<void> {
+  if (!storeReady) return
+  const state = useSessionStore.getState()
+  const hasUnread: Record<string, boolean> = {}
+  for (const [id, s] of state.sessions) if (s.hasUnread) hasUnread[id] = true
+  try {
+    await trpc.app.saveUiPrefs.mutate({
+      tabOrder: state.tabOrder,
+      activeSessionId: state.activeSessionId,
+      hasUnread,
+    })
+  } catch (err) {
+    console.error('[sessionStore] persistUiNow failed:', err)
+  }
+}

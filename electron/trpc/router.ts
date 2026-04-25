@@ -32,6 +32,7 @@ export interface RouterDeps {
   lspManager: LspManager
   settingsPath: string
   sessionsPath: string
+  uiPrefsPath: string
   themesDir: string
   soundsDir: string
   projectsConfigDir: string
@@ -78,6 +79,7 @@ export function createRouter(deps: RouterDeps) {
     app: createAppRouter({
       settingsPath: deps.settingsPath,
       sessionsPath: deps.sessionsPath,
+      uiPrefsPath: deps.uiPrefsPath,
       themesDir: deps.themesDir,
       soundsDir: deps.soundsDir,
       getWindow: deps.getWindow,

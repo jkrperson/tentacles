@@ -59,6 +59,7 @@ if (VITE_DEV_SERVER_URL) {
 
 const settingsPath = path.join(app.getPath('userData'), 'settings.json')
 const sessionsPath = path.join(app.getPath('userData'), 'sessions.json')
+const uiPrefsPath = path.join(app.getPath('userData'), 'ui-prefs.json')
 const themesDir = path.join(app.getPath('userData'), 'themes')
 const soundsDir = path.join(app.getPath('userData'), 'sounds')
 const hooksDir = path.join(app.getPath('userData'), 'hooks')
@@ -115,6 +116,7 @@ const appRouter = createRouter({
   lspManager,
   settingsPath,
   sessionsPath,
+  uiPrefsPath,
   themesDir,
   soundsDir,
   getWindow: () => win,
