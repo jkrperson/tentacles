@@ -19,6 +19,7 @@ import { wireEvents } from './eventWiring'
 import { ee } from './trpc/events'
 import { AuthManager } from './authManager'
 import { createRouter } from './trpc/router'
+import { migrateSessionsJsonToDaemon } from './migrations/jsonToSqlite'
 import type { SessionStatus } from '../src/types'
 import type { AgentType } from './agents/types'
 
@@ -444,6 +445,16 @@ app.whenReady().then(async () => {
     await daemonClient.ensureAndConnect()
     ptyManager.setDaemonClient(daemonClient)
     console.log('[tentacles] Connected to terminal daemon')
+
+    const migrationMarker = path.join(app.getPath('userData'), '.sqlite-migrated')
+    const migrationResult = await migrateSessionsJsonToDaemon({
+      sessionsPath,
+      markerPath: migrationMarker,
+      daemonClient,
+    })
+    if (migrationResult) {
+      console.log(`[migration] sessions.json archived (${migrationResult.migrated} legacy entries dropped)`)
+    }
 
     try {
       const sessions = await daemonClient.list()
