@@ -71,4 +71,17 @@ describe('sessionStore', () => {
     expect(row.name).toBe(sample().name)
     expect(row.status).toBe(sample().status)
   })
+
+  it('setStatus returns false when the row does not exist', () => {
+    expect(store.setStatus('missing', 'idle')).toBe(false)
+  })
+
+  it('setStatus returns true when the row exists', () => {
+    store.insert(sample())
+    expect(store.setStatus('s1', 'completed', 0)).toBe(true)
+  })
+
+  it('rename returns false when the row does not exist', () => {
+    expect(store.rename('missing', 'x')).toBe(false)
+  })
 })

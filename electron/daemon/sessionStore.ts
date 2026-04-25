@@ -63,11 +63,11 @@ export function createSessionStore(db: Database.Database) {
       return r ? fromRow(r) : null
     },
     list(): SessionRow[] { return listStmt.all().map(fromRow) },
-    setStatus(id: string, status: SessionStatus, exitCode: number | null = null): void {
-      setStatusStmt.run({ id, status, exitCode, now: Date.now() })
+    setStatus(id: string, status: SessionStatus, exitCode: number | null = null): boolean {
+      return setStatusStmt.run({ id, status, exitCode, now: Date.now() }).changes > 0
     },
-    rename(id: string, name: string): void {
-      setMetadataStmt.run({ id, name, now: Date.now() })
+    rename(id: string, name: string): boolean {
+      return setMetadataStmt.run({ id, name, now: Date.now() }).changes > 0
     },
     touch(id: string): void { touchStmt.run({ id, now: Date.now() }) },
     delete(id: string): void { deleteStmt.run(id) },

@@ -7,7 +7,7 @@ import * as net from 'node:net'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { createRequire } from 'node:module'
-import { ScrollbackWriter, readScrollback } from './scrollback'
+import { ScrollbackWriter, readScrollback, removeScrollback } from './scrollback'
 import {
   DAEMON_PROTOCOL_VERSION,
   DAEMON_REQUIRED_CAPABILITIES,
@@ -80,11 +80,16 @@ function handleRequest(client: net.Socket, tagged: TaggedRequest) {
 
   switch (request.method) {
     case 'spawn': {
-      try {
-        const sessionDir = path.join(SCROLLBACK_DIR, request.id)
-        const scrollback = new ScrollbackWriter(sessionDir, request.cols, request.rows, request.cwd)
+      const sessionDir = path.join(SCROLLBACK_DIR, request.id)
+      let scrollback: ScrollbackWriter | null = null
+      let ptyProcess: PtyProcess | null = null
+      let mapInserted = false
+      let dbInserted = false
 
-        const ptyProcess: PtyProcess = pty.spawn(request.command, request.args, {
+      try {
+        scrollback = new ScrollbackWriter(sessionDir, request.cols, request.rows, request.cwd)
+
+        ptyProcess = pty.spawn(request.command, request.args, {
           name: 'xterm-256color',
           cols: request.cols,
           rows: request.rows,
@@ -94,7 +99,7 @@ function handleRequest(client: net.Socket, tagged: TaggedRequest) {
             ...request.env,
             TERM: 'xterm-256color',
           },
-        })
+        }) as PtyProcess
 
         const session: ManagedSession = {
           id: request.id,
@@ -104,6 +109,7 @@ function handleRequest(client: net.Socket, tagged: TaggedRequest) {
           flushScheduled: false,
         }
         sessions.set(request.id, session)
+        mapInserted = true
 
         const now = Date.now()
         sessionDb.insert({
@@ -119,10 +125,11 @@ function handleRequest(client: net.Socket, tagged: TaggedRequest) {
           exitCode: null,
           lastActivity: now,
         })
-        broadcast({ event: 'sessionsChanged' })
+        dbInserted = true
 
+        // Wire listeners only after both map and DB are populated.
         ptyProcess.onData((data: string) => {
-          scrollback.write(data)
+          scrollback!.write(data)
 
           // Coalesce data and flush via setImmediate
           session.dataBuffer += data
@@ -148,7 +155,7 @@ function handleRequest(client: net.Socket, tagged: TaggedRequest) {
             session.flushScheduled = false
             broadcast(event)
           }
-          scrollback.close()
+          scrollback!.close()
           sessionDb.setStatus(session.id, exitCode === 0 ? 'completed' : 'errored', exitCode)
           sessionDb.delete(session.id)
           sessions.delete(request.id)
@@ -157,8 +164,24 @@ function handleRequest(client: net.Socket, tagged: TaggedRequest) {
           resetIdleTimer()
         })
 
+        broadcast({ event: 'sessionsChanged' })
         sendTo(client, { ok: true, reqId, pid: ptyProcess.pid })
       } catch (err) {
+        // Tear down whatever we managed to create, in reverse order.
+        if (dbInserted) {
+          try { sessionDb.delete(request.id) } catch { /* ignore */ }
+        }
+        if (mapInserted) {
+          sessions.delete(request.id)
+        }
+        if (ptyProcess) {
+          try { ptyProcess.kill() } catch { /* ignore */ }
+        }
+        if (scrollback) {
+          try { scrollback.close() } catch { /* ignore */ }
+          try { removeScrollback(sessionDir) } catch { /* ignore */ }
+        }
+
         const message = err instanceof Error ? err.message : String(err)
         console.error(`[daemon] spawn failed id="${request.id}" command="${request.command}" cwd="${request.cwd}":`, message)
         sendTo(client, { ok: false, reqId, error: `Spawn failed: ${message}` })
@@ -220,15 +243,15 @@ function handleRequest(client: net.Socket, tagged: TaggedRequest) {
     }
 
     case 'setSessionStatus': {
-      sessionDb.setStatus(request.id, request.status, request.exitCode ?? null)
-      broadcast({ event: 'sessionsChanged' })
+      const changed = sessionDb.setStatus(request.id, request.status, request.exitCode ?? null)
+      if (changed) broadcast({ event: 'sessionsChanged' })
       sendTo(client, { ok: true, reqId })
       break
     }
 
     case 'renameSession': {
-      sessionDb.rename(request.id, request.name)
-      broadcast({ event: 'sessionsChanged' })
+      const changed = sessionDb.rename(request.id, request.name)
+      if (changed) broadcast({ event: 'sessionsChanged' })
       sendTo(client, { ok: true, reqId })
       break
     }
