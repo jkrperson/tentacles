@@ -11,11 +11,13 @@ import type {
   DaemonEvent,
   TaggedRequest,
   ListSession,
+  SessionMetadata,
 } from './protocol'
 import {
   DAEMON_REQUIRED_CAPABILITIES as REQUIRED_CAPABILITIES,
   DAEMON_PROTOCOL_VERSION as CLIENT_PROTOCOL_VERSION,
 } from './protocol'
+import type { SessionStatus } from '../../src/types'
 
 type PendingResolve = (response: DaemonResponse) => void
 
@@ -162,8 +164,17 @@ export class DaemonClient extends EventEmitter {
     })
   }
 
-  async spawn(id: string, command: string, args: string[], cwd: string, env: Record<string, string>, cols = 120, rows = 30): Promise<{ pid: number }> {
-    const resp = await this.send({ method: 'spawn', id, command, args, cwd, env, cols, rows })
+  async spawn(
+    id: string,
+    command: string,
+    args: string[],
+    cwd: string,
+    env: Record<string, string>,
+    metadata: SessionMetadata,
+    cols = 120,
+    rows = 30,
+  ): Promise<{ pid: number }> {
+    const resp = await this.send({ method: 'spawn', id, command, args, cwd, env, cols, rows, metadata })
     if (!resp.ok) throw new Error((resp as { error: string }).error)
     return { pid: (resp as { pid: number }).pid }
   }
@@ -180,6 +191,16 @@ export class DaemonClient extends EventEmitter {
 
   async kill(id: string): Promise<void> {
     const resp = await this.send({ method: 'kill', id })
+    if (!resp.ok) throw new Error((resp as { error: string }).error)
+  }
+
+  async setSessionStatus(id: string, status: SessionStatus, exitCode: number | null = null): Promise<void> {
+    const resp = await this.send({ method: 'setSessionStatus', id, status, exitCode })
+    if (!resp.ok) throw new Error((resp as { error: string }).error)
+  }
+
+  async renameSession(id: string, name: string): Promise<void> {
+    const resp = await this.send({ method: 'renameSession', id, name })
     if (!resp.ok) throw new Error((resp as { error: string }).error)
   }
 
@@ -286,9 +307,15 @@ export class DaemonClient extends EventEmitter {
   /** Spawn a short-lived process to verify the daemon can actually create PTYs. */
   async spawnTest(): Promise<void> {
     const testId = `health-check-${Date.now()}`
+    const metadata: SessionMetadata = {
+      name: 'health-check',
+      agentType: 'system',
+      workspaceId: 'system',
+      hookId: null,
+    }
     // Race spawn against a 3s timeout — if the daemon can't spawn, fail fast
     const result = await Promise.race([
-      this.spawn(testId, '/bin/true', [], process.env.HOME || '/tmp', {}),
+      this.spawn(testId, '/bin/true', [], process.env.HOME || '/tmp', {}, metadata),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Spawn health check timed out')), 3000)
       ),
