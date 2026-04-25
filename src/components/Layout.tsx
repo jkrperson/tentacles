@@ -86,7 +86,7 @@ export function Layout() {
       <div className="group relative w-1 flex-shrink-0 cursor-col-resize"
         onMouseDown={leftDrag.onMouseDown}>
         <div className="absolute inset-y-0 -left-2 -right-2" />
-        <div className="absolute inset-y-0 left-0 w-px bg-[var(--t-border)] group-hover:bg-[var(--t-accent)]/50 transition-colors" />
+        <div className="absolute inset-y-0 left-0 w-px bg-[var(--t-hairline)] group-hover:bg-[var(--t-accent)]/60 transition-colors duration-[var(--t-dur-base)] ease-[var(--t-ease-out)]" />
       </div>
 
       {/* Center column: all views rendered, toggled via display:none to preserve state */}
@@ -105,7 +105,7 @@ export function Layout() {
               onMouseDown={bottomDrag.onMouseDown}
             >
               <div className="absolute inset-x-0 -top-2 -bottom-2" />
-              <div className="absolute inset-x-0 top-0 h-px bg-[var(--t-border)] group-hover:bg-[var(--t-accent)]/50 transition-colors" />
+              <div className="absolute inset-x-0 top-0 h-px bg-[var(--t-hairline)] group-hover:bg-[var(--t-accent)]/60 transition-colors duration-[var(--t-dur-base)] ease-[var(--t-ease-out)]" />
             </div>
           )}
 
@@ -154,19 +154,20 @@ export function Layout() {
           <div className="group relative w-1 flex-shrink-0 cursor-col-resize"
             onMouseDown={rightDrag.onMouseDown}>
             <div className="absolute inset-y-0 -left-2 -right-2" />
-            <div className="absolute inset-y-0 right-0 w-px bg-[var(--t-border)] group-hover:bg-[var(--t-accent)]/50 transition-colors" />
+            <div className="absolute inset-y-0 right-0 w-px bg-[var(--t-hairline)] group-hover:bg-[var(--t-accent)]/60 transition-colors duration-[var(--t-dur-base)] ease-[var(--t-ease-out)]" />
           </div>
 
           {/* Right: Tabbed Sidebar */}
           <div data-tour="file-tree" className="flex-shrink-0 overflow-hidden flex flex-col" style={{ width: rightDrag.value }}>
-            {/* Tab bar */}
-            <div className="flex items-center border-b border-[var(--t-border)] flex-shrink-0 bg-[var(--t-bg-surface)]">
+            {/* Tab bar — kinetic indicator slides between tabs */}
+            <div className="relative flex items-center border-b border-[var(--t-hairline)] flex-shrink-0 bg-[var(--t-bg-surface)]">
               <button
                 onClick={() => setRightTab('explorer')}
-                className={`flex items-center justify-center w-9 h-8 transition-colors ${
+                aria-pressed={rightTab === 'explorer'}
+                className={`flex items-center justify-center w-9 h-8 transition-[color,transform] duration-[var(--t-dur-base)] ease-[var(--t-ease-out)] active:scale-[0.92] ${
                   rightTab === 'explorer'
-                    ? 'text-zinc-300 border-b-2 border-zinc-300'
-                    : 'text-zinc-600 hover:text-zinc-400'
+                    ? 'text-[var(--t-text-primary)]'
+                    : 'text-[var(--t-text-faint)] hover:text-[var(--t-text-secondary)]'
                 }`}
                 title="Explorer"
               >
@@ -176,10 +177,11 @@ export function Layout() {
               </button>
               <button
                 onClick={() => setRightTab('git')}
-                className={`flex items-center justify-center w-9 h-8 transition-colors ${
+                aria-pressed={rightTab === 'git'}
+                className={`flex items-center justify-center w-9 h-8 transition-[color,transform] duration-[var(--t-dur-base)] ease-[var(--t-ease-out)] active:scale-[0.92] ${
                   rightTab === 'git'
-                    ? 'text-zinc-300 border-b-2 border-zinc-300'
-                    : 'text-zinc-600 hover:text-zinc-400'
+                    ? 'text-[var(--t-text-primary)]'
+                    : 'text-[var(--t-text-faint)] hover:text-[var(--t-text-secondary)]'
                 }`}
                 title="Source Control"
               >
@@ -191,6 +193,12 @@ export function Layout() {
                   <path d="M9.5 7C8 7 6.5 8 5 9.5" stroke="currentColor" strokeWidth="1.5" fill="none"/>
                 </svg>
               </button>
+              {/* Sliding active indicator */}
+              <span
+                aria-hidden
+                className="absolute bottom-0 h-[2px] w-7 bg-[var(--t-text-primary)] transition-transform duration-[var(--t-dur-base)] ease-[var(--t-ease-out)]"
+                style={{ transform: `translateX(${rightTab === 'explorer' ? 4 : 40}px)` }}
+              />
             </div>
 
             {/* Panel content */}
@@ -211,7 +219,7 @@ export function Layout() {
                     onMouseDown={mediaDrag.onMouseDown}
                   >
                     <div className="absolute inset-x-0 -top-2 -bottom-2" />
-                    <div className="absolute inset-x-0 top-0 h-px bg-[var(--t-border)] group-hover:bg-[var(--t-accent)]/50 transition-colors" />
+                    <div className="absolute inset-x-0 top-0 h-px bg-[var(--t-hairline)] group-hover:bg-[var(--t-accent)]/60 transition-colors duration-[var(--t-dur-base)] ease-[var(--t-ease-out)]" />
                   </div>
                 )}
                 <div className="flex-shrink-0 overflow-hidden relative" style={{ height: mediaPanelCollapsed ? undefined : mediaDrag.value }}>
@@ -232,7 +240,7 @@ export function Layout() {
       {!rightVisible && (
         <button
           onClick={() => setRightVisible(true)}
-          className="flex-shrink-0 w-8 flex items-center justify-center text-zinc-600 hover:text-zinc-400 hover:bg-[var(--t-bg-hover)] border-l border-[var(--t-border)] transition-colors"
+          className="flex-shrink-0 w-8 flex items-center justify-center text-[var(--t-text-faint)] hover:text-[var(--t-text-secondary)] hover:bg-[var(--t-bg-hover)] border-l border-[var(--t-hairline)] transition-[color,background-color,transform] duration-[var(--t-dur-base)] ease-[var(--t-ease-out)] active:scale-[0.92]"
           title="Show file explorer"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
