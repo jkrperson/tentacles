@@ -99,7 +99,7 @@ const themeBgMap: Record<string, string> = {
 }
 
 // Wire PTY/shell/file events to the typed event emitter
-wireEvents({ ptyManager, fileWatcher, hookManager, loadSettings })
+wireEvents({ ptyManager, fileWatcher, hookManager, loadSettings, daemonClient })
 
 // Create agent spawner
 const spawner = createAgentSpawner({
