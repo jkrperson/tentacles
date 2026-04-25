@@ -37,13 +37,13 @@ export function GitPanelHeader({
   const currentView = VIEW_MODES.find((v) => v.mode === viewMode) ?? VIEW_MODES[0]
 
   return (
-    <div className="flex flex-col border-b border-[var(--t-border)] flex-shrink-0">
+    <div className="flex flex-col border-b border-[var(--t-hairline)] flex-shrink-0">
       {gitBranch && (
         <div className="flex items-center gap-2 px-3 pt-1.5 pb-1 min-w-0">
           <Tooltip label="Switch branch">
             <button
               onClick={onFetchBranches}
-              className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200 truncate transition-colors"
+              className="flex items-center gap-1 text-[11px] text-[var(--t-text-secondary)] hover:text-[var(--t-text-primary)] truncate transition-[color,transform] duration-[var(--t-dur-base)] ease-[var(--t-ease-out)] active:scale-[0.96]"
             >
               <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" className="flex-shrink-0">
                 <path d="M5 3.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM5 11a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm6-4a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z" opacity="0.6"/>
@@ -52,10 +52,10 @@ export function GitPanelHeader({
             </button>
           </Tooltip>
           {gitAhead > 0 && (
-            <span className="text-[10px] text-zinc-500 flex-shrink-0">↑{gitAhead}</span>
+            <span className="text-[10px] text-[var(--t-text-muted)] tnum flex-shrink-0">↑{gitAhead}</span>
           )}
           {gitBehind > 0 && (
-            <span className="text-[10px] text-zinc-500 flex-shrink-0">↓{gitBehind}</span>
+            <span className="text-[10px] text-[var(--t-text-muted)] tnum flex-shrink-0">↓{gitBehind}</span>
           )}
         </div>
       )}
@@ -63,14 +63,14 @@ export function GitPanelHeader({
         <Tooltip label={currentView.label}>
           <button
             onClick={cycleViewMode}
-            className="text-zinc-400 hover:text-zinc-200 p-1 rounded hover:bg-[var(--t-border)] transition-colors"
+            className="text-[var(--t-text-secondary)] hover:text-[var(--t-text-primary)] p-1 rounded hover:bg-[var(--t-bg-hover)] transition-[color,background-color,transform] duration-[var(--t-dur-base)] ease-[var(--t-ease-out)] active:scale-[0.92]"
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
               <path d={currentView.path} />
             </svg>
           </button>
         </Tooltip>
-        <div className="w-px h-4 bg-[var(--t-border)] mx-0.5" />
+        <div className="w-px h-4 bg-[var(--t-hairline)] mx-0.5" />
         <IconButton onClick={onPush} label={`Push${gitAhead ? ` (${gitAhead})` : ''}`} disabled={loading === 'push'}>
           <path d="M8 12V4M5 6l3-3 3 3" />
         </IconButton>
@@ -107,7 +107,7 @@ function Tooltip({ label, children }: { label: string; children: React.ReactNode
     <div className="relative" onMouseEnter={onEnter} onMouseLeave={onLeave}>
       {children}
       {show && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-2 py-1 text-[11px] text-zinc-200 bg-zinc-800 border border-zinc-700 rounded shadow-lg whitespace-nowrap z-50 pointer-events-none">
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-2 py-1 text-[11px] text-[var(--t-text-primary)] glass rounded whitespace-nowrap z-50 pointer-events-none animate-lift-in">
           {label}
         </div>
       )}
@@ -126,7 +126,7 @@ function IconButton({ onClick, label, disabled, children }: {
       <button
         onClick={onClick}
         disabled={disabled}
-        className="text-zinc-500 hover:text-zinc-300 p-1 rounded hover:bg-[var(--t-border)] transition-colors disabled:opacity-40"
+        className="text-[var(--t-text-muted)] hover:text-[var(--t-text-primary)] p-1 rounded hover:bg-[var(--t-bg-hover)] transition-[color,background-color,transform] duration-[var(--t-dur-base)] ease-[var(--t-ease-out)] active:scale-[0.92] disabled:opacity-40 disabled:active:scale-100"
       >
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
           {children}
