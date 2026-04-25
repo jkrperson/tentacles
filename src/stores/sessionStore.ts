@@ -151,89 +151,6 @@ function migrateSessionsToWorkspaces(sessions: Session[]): { workspaces: Map<str
   return { workspaces, order }
 }
 
-/** Try to reattach each session to the daemon. Returns restored sessions map, order, and id remapping. */
-async function reattachSessions(rawSessions: Session[]): Promise<{
-  sessions: Map<string, Session>
-  sessionOrder: string[]
-  idMap: Map<string, string>
-}> {
-  const sessions = new Map<string, Session>()
-  const sessionOrder: string[] = []
-  const idMap = new Map<string, string>()
-
-  for (const rawSession of rawSessions) {
-    const s = {
-      ...rawSession,
-      agentType: rawSession.agentType ?? 'claude' as const,
-      workspaceId: rawSession.workspaceId || `main:${rawSession.cwd}`,
-    }
-
-    try {
-      const result = await trpc.session.reattach.mutate({
-        sessionId: s.id,
-        hookId: s.hookId || '',
-        name: s.name,
-        cwd: s.cwd,
-        agentType: s.agentType,
-      })
-      if (result) {
-        const restored: Session = {
-          ...s,
-          id: result.id,
-          status: (result.initialStatus as SessionStatus) || 'idle',
-          statusDetail: result.initialStatusDetail ?? undefined,
-          hasUnread: false,
-        }
-        sessions.set(restored.id, restored)
-        sessionOrder.push(restored.id)
-        idMap.set(s.id, restored.id)
-        continue
-      }
-    } catch (err) {
-      console.warn(`[sessionStore] Reattach failed for session ${s.id}:`, err)
-    }
-
-    // Daemon session no longer exists — restore in completed state for scrollback access
-    const completed: Session = {
-      ...s,
-      status: 'completed' as SessionStatus,
-      exitCode: s.exitCode ?? 0,
-      hasUnread: false,
-    }
-    sessions.set(completed.id, completed)
-    sessionOrder.push(completed.id)
-    idMap.set(s.id, completed.id)
-  }
-
-  return { sessions, sessionOrder, idMap }
-}
-
-/** Remap saved tabOrder and activeSessionId using the id map from reattach. */
-function restoreTabsAndActive(
-  data: SessionsFile,
-  sessionOrder: string[],
-  idMap: Map<string, string>,
-): { tabOrder: string[]; activeSessionId: string | null } {
-  const restoredIds = new Set(sessionOrder)
-  const savedTabOrder = data.tabOrder ?? []
-
-  const tabOrder = savedTabOrder
-    .map((oldId) => idMap.get(oldId) ?? oldId)
-    .filter((id) => restoredIds.has(id))
-  for (const id of sessionOrder) {
-    if (!tabOrder.includes(id)) tabOrder.push(id)
-  }
-
-  const remappedActiveId = data.activeSessionId
-    ? (idMap.get(data.activeSessionId) ?? data.activeSessionId)
-    : null
-  const activeSessionId = remappedActiveId && restoredIds.has(remappedActiveId)
-    ? remappedActiveId
-    : sessionOrder[0] ?? null
-
-  return { tabOrder, activeSessionId }
-}
-
 // ---------------------------------------------------------------------------
 // Store interface
 // ---------------------------------------------------------------------------
@@ -465,41 +382,58 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   loadSessions: async () => {
     try {
-      const data = await trpc.app.loadSessions.query() as SessionsFile
-      const wsStore = useWorkspaceStore.getState()
-      const needsMigration = !data.workspaces || data.workspaces.length === 0
+      const daemonSessions = await trpc.session.snapshot.query()
+      // TODO(task10): replace with trpc.app.loadUiPrefs.query() once the endpoint exists
+      const uiPrefs: { tabOrder?: string[]; activeSessionId?: string | null; hasUnread?: Record<string, boolean> } = {}
 
-      // 1. Hydrate workspaces
-      if (!needsMigration) {
-        wsStore.loadWorkspaces(data.workspaces!)
+      const wsStore = useWorkspaceStore.getState()
+      // Workspaces still loaded from userData/sessions.json for now (Phase 2 moves them too).
+      // This call is kept until workspaces also move to the daemon.
+      const legacyData = await trpc.app.loadSessions.query() as SessionsFile
+      if (legacyData.workspaces && legacyData.workspaces.length > 0) {
+        wsStore.loadWorkspaces(legacyData.workspaces)
       } else {
-        const migrated = migrateSessionsToWorkspaces(data.sessions)
+        // Fall back to migration if needed
+        const migrated = migrateSessionsToWorkspaces(legacyData.sessions || [])
         wsStore.setWorkspaces(migrated.workspaces, migrated.order)
       }
 
-      // 2. Reattach sessions to daemon
-      const { sessions, sessionOrder, idMap } = await reattachSessions(data.sessions)
+      const sessions = new Map<string, Session>()
+      const sessionOrder: string[] = []
+      for (const ds of daemonSessions) {
+        const s: Session = {
+          id: ds.id,
+          name: ds.name,
+          cwd: ds.cwd,
+          status: ds.status,
+          createdAt: ds.createdAt,
+          hasUnread: uiPrefs.hasUnread?.[ds.id] ?? false,
+          agentType: ds.agentType,
+          workspaceId: ds.workspaceId,
+          pid: ds.pid,
+          exitCode: ds.exitCode ?? undefined,
+          hookId: ds.hookId ?? undefined,
+        }
+        sessions.set(s.id, s)
+        sessionOrder.push(s.id)
+      }
 
-      // 3. Restore tab order and active session
-      const { tabOrder, activeSessionId } = restoreTabsAndActive(data, sessionOrder, idMap)
+      const tabOrder = (uiPrefs.tabOrder ?? []).filter((id: string) => sessions.has(id))
+      for (const id of sessionOrder) if (!tabOrder.includes(id)) tabOrder.push(id)
+      const activeSessionId = uiPrefs.activeSessionId && sessions.has(uiPrefs.activeSessionId)
+        ? uiPrefs.activeSessionId
+        : sessionOrder[0] ?? null
 
       set({ sessions, sessionOrder, tabOrder, activeSessionId })
 
-      // 4. Sync activeWorkspaceId in uiStore so sidebar shows correct workspace
-      const activeSession = activeSessionId ? sessions.get(activeSessionId) : null
-      if (activeSession?.workspaceId) {
-        useUIStore.getState().setActiveWorkspaceId(activeSession.workspaceId)
+      if (activeSessionId) {
+        const active = sessions.get(activeSessionId)
+        if (active?.workspaceId) useUIStore.getState().setActiveWorkspaceId(active.workspaceId)
       }
 
-      // Mark store as ready so the auto-persist subscriber starts writing
       storeReady = true
-
-      // Persist immediately if we migrated (to save workspace data)
-      if (needsMigration) {
-        flushPersist()
-      }
     } catch (err) {
-      console.error('[sessionStore] Failed to load saved sessions:', err)
+      console.error('[sessionStore] Failed to load sessions:', err)
     }
   },
 }))

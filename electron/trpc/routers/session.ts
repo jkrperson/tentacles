@@ -73,6 +73,12 @@ export function createSessionRouter(deps: SessionDeps) {
         return deps.ptyManager.list()
       }),
 
+    snapshot: t.procedure
+      .query(async () => {
+        if (!deps.daemonClient.isConnected()) return []
+        return await deps.daemonClient.list()
+      }),
+
     // Subscriptions for main→renderer events
     onData: createSubscription('session:data'),
     onExit: createSubscription('session:exit'),
