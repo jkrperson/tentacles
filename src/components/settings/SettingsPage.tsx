@@ -122,22 +122,23 @@ export function SettingsPage() {
 
   return (
     <div className="h-full flex flex-col bg-[var(--t-bg-base)]">
-      {/* Header */}
-      <div className="flex-shrink-0 flex items-center gap-3 px-6 py-3 border-b border-[var(--t-border)]">
+      {/* Header — frosted chrome */}
+      <div className="flex-shrink-0 flex items-center gap-3 px-6 py-3 border-b border-[var(--t-hairline)] glass-strong">
         <button
           onClick={handleBack}
-          className="flex items-center gap-1.5 text-zinc-400 hover:text-zinc-200 transition-colors"
+          className="flex items-center gap-1.5 text-[var(--t-text-secondary)] hover:text-[var(--t-text-primary)] transition-[color,transform] duration-[var(--t-dur-base)] ease-[var(--t-ease-out)] active:scale-[0.96]"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
             <path d="M11 2L5 8l6 6" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
           <span className="text-[13px]">Back</span>
         </button>
-        <h1 className="text-[15px] font-semibold text-zinc-200">Settings</h1>
+        <h1 className="text-[15px] font-semibold text-[var(--t-text-primary)] tracking-tight">Settings</h1>
         {hasChanges && (
           <button
             onClick={handleSave}
-            className="ml-auto px-3 py-1.5 text-[12px] bg-[var(--t-accent)] hover:bg-[var(--t-accent-hover)] text-white rounded-md transition-colors"
+            className="ml-auto px-3 py-1.5 text-[12px] bg-[var(--t-accent)] hover:bg-[var(--t-accent-hover)] text-white rounded-md transition-[background-color,transform] duration-[var(--t-dur-base)] ease-[var(--t-ease-out)] active:scale-[0.96]"
+            style={{ boxShadow: 'inset 0 1px 0 0 color-mix(in srgb, white 22%, transparent)' }}
           >
             Save Changes
           </button>
@@ -149,7 +150,7 @@ export function SettingsPage() {
         <SettingsNav activeSection={activeSection} onSelect={setActiveSection} />
         <div className="flex-1 overflow-y-auto">
           <div className="max-w-2xl px-8 py-6">
-            <h2 className="text-[13px] font-medium text-zinc-400 uppercase tracking-wider mb-5">
+            <h2 className="text-[10px] font-semibold text-[var(--t-text-muted)] uppercase tracking-[0.18em] mb-5">
               {SECTION_TITLES[activeSection]}
             </h2>
             {renderSection()}
