@@ -37,6 +37,7 @@ export interface RouterDeps {
   projectsConfigDir: string
   getWindow: () => BrowserWindow | null
   checkForUpdates: () => Promise<void>
+  restartAndInstall: () => void
   spawnAgent: (name: string, cwd: string, agentType: AgentType, resumeId?: string) => Promise<{ id: string; pid: number; hookId: string }>
   reattachAgent: (sessionId: string, hookId: string, name: string, cwd: string, agentType?: AgentType) => Promise<{ id: string; scrollbackAvailable: boolean; initialStatus?: SessionStatus; initialStatusDetail?: string | null; recoveredClaudeSessionId?: string } | null>
   daemonClient: DaemonClient
@@ -69,6 +70,7 @@ export function createRouter(deps: RouterDeps) {
     }),
     updater: createUpdaterRouter({
       checkForUpdates: deps.checkForUpdates,
+      restartAndInstall: deps.restartAndInstall,
     }),
     auth: createAuthRouter({
       authManager: deps.authManager,

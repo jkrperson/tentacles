@@ -5,6 +5,7 @@ import type { UpdaterStatus } from '../../../src/types'
 
 interface UpdaterDeps {
   checkForUpdates: () => Promise<void>
+  restartAndInstall: () => void
 }
 
 export function createUpdaterRouter(deps: UpdaterDeps) {
@@ -12,6 +13,11 @@ export function createUpdaterRouter(deps: UpdaterDeps) {
     check: t.procedure
       .mutation(async () => {
         await deps.checkForUpdates()
+      }),
+
+    restartAndInstall: t.procedure
+      .mutation(() => {
+        deps.restartAndInstall()
       }),
 
     onStatus: t.procedure.subscription(() => {

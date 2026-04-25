@@ -11,7 +11,7 @@ import { LspManager } from './lspManager'
 import { DaemonClient } from './daemon/client'
 import { removeScrollback } from './daemon/scrollback'
 import { getScrollbackDir } from './daemon/launcher'
-import { initUpdater, checkForUpdates } from './updater'
+import { initUpdater, checkForUpdates, restartAndInstall } from './updater'
 import { cleanupAllAdapters } from './agents/registry'
 import { startHookServer, stopHookServer } from './hookServer'
 import { startRendererServer } from './rendererServer'
@@ -120,6 +120,7 @@ const appRouter = createRouter({
   soundsDir,
   getWindow: () => win,
   checkForUpdates,
+  restartAndInstall,
   spawnAgent: spawner.spawn,
   reattachAgent: spawner.reattach,
   daemonClient,
@@ -333,7 +334,7 @@ function createWindow() {
     win.webContents.openDevTools()
   } else {
     win.loadURL(rendererURL!)
-    initUpdater(app.getVersion())
+    initUpdater()
   }
 }
 

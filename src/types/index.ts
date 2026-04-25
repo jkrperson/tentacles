@@ -251,8 +251,9 @@ export interface LspServerStatus {
 }
 
 export interface UpdaterStatus {
-  status: 'checking' | 'available' | 'up-to-date' | 'error'
+  status: 'checking' | 'available' | 'downloading' | 'downloaded' | 'up-to-date' | 'error'
   version?: string
+  progress?: number
   downloadUrl?: string
   releaseUrl?: string
   message?: string
