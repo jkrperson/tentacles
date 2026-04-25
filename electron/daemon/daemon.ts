@@ -13,6 +13,8 @@ import {
   DAEMON_REQUIRED_CAPABILITIES,
 } from './protocol'
 import type { TaggedRequest, DaemonResponse, DaemonEvent } from './protocol'
+import { openDb, closeDb } from './db'
+import { createSessionStore } from './sessionStore'
 
 const require = createRequire(import.meta.url)
 const pty = require('node-pty')
@@ -30,19 +32,20 @@ const DAEMON_DIR = process.env.TENTACLES_DAEMON_DIR!
 const SOCKET_PATH = path.join(DAEMON_DIR, 'daemon.sock')
 const PID_FILE = path.join(DAEMON_DIR, 'daemon.pid')
 const SCROLLBACK_DIR = path.join(DAEMON_DIR, 'scrollback')
+const DB_PATH = path.join(DAEMON_DIR, 'state.db')
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
 
 interface ManagedSession {
   id: string
-  pid: number
-  cwd: string
-  createdAt: number
   ptyProcess: PtyProcess
   scrollback: ScrollbackWriter
   // Data coalescing
   dataBuffer: string
   flushScheduled: boolean
 }
+
+const db = openDb(DB_PATH)
+const sessionDb = createSessionStore(db)
 
 const sessions = new Map<string, ManagedSession>()
 const clients = new Set<net.Socket>()
@@ -95,15 +98,28 @@ function handleRequest(client: net.Socket, tagged: TaggedRequest) {
 
         const session: ManagedSession = {
           id: request.id,
-          pid: ptyProcess.pid,
-          cwd: request.cwd,
-          createdAt: Date.now(),
           ptyProcess,
           scrollback,
           dataBuffer: '',
           flushScheduled: false,
         }
         sessions.set(request.id, session)
+
+        const now = Date.now()
+        sessionDb.insert({
+          id: request.id,
+          pid: ptyProcess.pid,
+          cwd: request.cwd,
+          createdAt: now,
+          name: request.metadata.name,
+          agentType: request.metadata.agentType,
+          workspaceId: request.metadata.workspaceId,
+          hookId: request.metadata.hookId,
+          status: 'idle',
+          exitCode: null,
+          lastActivity: now,
+        })
+        broadcast({ event: 'sessionsChanged' })
 
         ptyProcess.onData((data: string) => {
           scrollback.write(data)
@@ -133,8 +149,11 @@ function handleRequest(client: net.Socket, tagged: TaggedRequest) {
             broadcast(event)
           }
           scrollback.close()
+          sessionDb.setStatus(session.id, exitCode === 0 ? 'completed' : 'errored', exitCode)
+          sessionDb.delete(session.id)
           sessions.delete(request.id)
           broadcast({ event: 'exit', id: request.id, exitCode })
+          broadcast({ event: 'sessionsChanged' })
           resetIdleTimer()
         })
 
@@ -184,13 +203,33 @@ function handleRequest(client: net.Socket, tagged: TaggedRequest) {
     }
 
     case 'list': {
-      const list = Array.from(sessions.values()).map((s) => ({
+      const list = sessionDb.list().map((s) => ({
         id: s.id,
         pid: s.pid,
         cwd: s.cwd,
         createdAt: s.createdAt,
+        name: s.name,
+        agentType: s.agentType,
+        workspaceId: s.workspaceId,
+        hookId: s.hookId,
+        status: s.status,
+        exitCode: s.exitCode,
       }))
       sendTo(client, { ok: true, reqId, sessions: list })
+      break
+    }
+
+    case 'setSessionStatus': {
+      sessionDb.setStatus(request.id, request.status, request.exitCode ?? null)
+      broadcast({ event: 'sessionsChanged' })
+      sendTo(client, { ok: true, reqId })
+      break
+    }
+
+    case 'renameSession': {
+      sessionDb.rename(request.id, request.name)
+      broadcast({ event: 'sessionsChanged' })
+      sendTo(client, { ok: true, reqId })
       break
     }
 
@@ -228,6 +267,7 @@ function cleanup() {
     try { session.scrollback.close() } catch { /* ignore */ }
   }
   sessions.clear()
+  try { closeDb() } catch { /* ignore */ }
 
   // Clean up socket and pid file
   try { fs.unlinkSync(SOCKET_PATH) } catch { /* ignore */ }
