@@ -11,7 +11,7 @@ import { LspManager } from './lspManager'
 import { DaemonClient } from './daemon/client'
 import { initUpdater, checkForUpdates, restartAndInstall } from './updater'
 import { cleanupAllAdapters } from './agents/registry'
-import { startHookServer, stopHookServer } from './hookServer'
+import { startHookServer, stopHookServer, registerHookSession } from './hookServer'
 import { startRendererServer } from './rendererServer'
 import { HookManager } from './hookManager'
 import { createAgentSpawner } from './agentSpawner'
@@ -444,7 +444,6 @@ app.whenReady().then(async () => {
       for (const s of sessions) {
         ptyManager.registerDaemonSession(s.id)
         if (s.hookId) {
-          const { registerHookSession } = await import('./hookServer')
           registerHookSession(s.hookId, s.id, s.agentType as AgentType)
           hookManager.register(s.id, { hookId: s.hookId, agentType: s.agentType as AgentType })
         }
