@@ -22,6 +22,8 @@ export interface EventMap {
   'voiceCommand:chunk': { messageId: string; delta: string; done: boolean }
   'voiceCommand:toolCall': { messageId: string; toolCallId: string; name: AgentChatToolName; arguments: Record<string, unknown>; status: ToolCallStatus }
   'voiceCommand:toolCallUpdate': { toolCallId: string; status: ToolCallStatus; result?: unknown; error?: string }
+  'app:requestFlush': Record<string, never>
+  'app:flushed': Record<string, never>
 }
 
 class TypedEventEmitter extends EventEmitter {

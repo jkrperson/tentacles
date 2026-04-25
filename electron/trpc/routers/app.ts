@@ -4,6 +4,8 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { execFile } from 'node:child_process'
 import { t } from '../trpc'
+import { ee } from '../events'
+import { createSubscription } from '../helpers'
 
 const SOUND_EXTENSIONS = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac']
 
@@ -72,6 +74,15 @@ export function createAppRouter(deps: AppDeps) {
       .input(z.record(z.string(), z.unknown()))
       .mutation(({ input }) => {
         fs.writeFileSync(deps.sessionsPath, JSON.stringify(input, null, 2))
+      }),
+
+    // Main fires `app:requestFlush` on quit; renderer writes its latest state via
+    // saveSessions then calls confirmFlushed so main can proceed with shutdown.
+    onRequestFlush: createSubscription('app:requestFlush'),
+
+    confirmFlushed: t.procedure
+      .mutation(() => {
+        ee.emit('app:flushed', {})
       }),
 
     listCustomThemes: t.procedure

@@ -9,8 +9,6 @@ import { FileWatcher } from './fileWatcher'
 import { GitManager } from './gitManager'
 import { LspManager } from './lspManager'
 import { DaemonClient } from './daemon/client'
-import { removeScrollback } from './daemon/scrollback'
-import { getScrollbackDir } from './daemon/launcher'
 import { initUpdater, checkForUpdates, restartAndInstall } from './updater'
 import { cleanupAllAdapters } from './agents/registry'
 import { startHookServer, stopHookServer } from './hookServer'
@@ -341,29 +339,52 @@ function createWindow() {
 // --- Lifecycle ---
 let forceQuit = false
 
+/** Ask the renderer to flush its session state to disk and wait for confirmation.
+ *  Hard-capped at 1.5s so a hung renderer can't block quit indefinitely. */
+function flushRendererState(): Promise<void> {
+  return new Promise((resolve) => {
+    let done = false
+    const finish = () => {
+      if (done) return
+      done = true
+      ee.off('app:flushed', finish)
+      clearTimeout(timer)
+      resolve()
+    }
+    const timer = setTimeout(finish, 1500)
+    ee.once('app:flushed', finish)
+    ee.emit('app:requestFlush', {})
+  })
+}
+
 app.on('before-quit', (event) => {
   if (forceQuit) return
 
-  // Only show confirmation if there are active sessions that would be killed
-  if (!ptyManager.hasActiveSessions()) return
-
   event.preventDefault()
 
-  const focusedWindow = BrowserWindow.getFocusedWindow() ?? win
-  const choice = dialog.showMessageBoxSync(focusedWindow!, {
-    type: 'question',
-    buttons: ['Quit', 'Cancel'],
-    defaultId: 1,
-    cancelId: 1,
-    title: 'Quit Tentacles',
-    message: 'Are you sure you want to quit?',
-    detail: 'Any running sessions will be stopped.',
-  })
-
-  if (choice === 0) {
+  const proceed = async () => {
+    await flushRendererState()
     forceQuit = true
     app.quit()
   }
+
+  // Confirm only if active sessions would be lost in a fallback (local) PTY.
+  // Daemon sessions survive quit, so they don't need a confirmation prompt.
+  if (ptyManager.hasActiveSessions()) {
+    const focusedWindow = BrowserWindow.getFocusedWindow() ?? win
+    const choice = dialog.showMessageBoxSync(focusedWindow!, {
+      type: 'question',
+      buttons: ['Quit', 'Cancel'],
+      defaultId: 1,
+      cancelId: 1,
+      title: 'Quit Tentacles',
+      message: 'Are you sure you want to quit?',
+      detail: 'Local terminals will be stopped. Agent sessions will resume on next launch.',
+    })
+    if (choice !== 0) return
+  }
+
+  void proceed()
 })
 
 app.on('window-all-closed', () => {
@@ -460,15 +481,11 @@ async function reconcileSessions() {
     }
   } catch { /* ignore */ }
 
-  const persistedIds = new Set(persistedSessions.map((s) => s.id))
-  for (const ds of daemonSessions) {
-    if (!persistedIds.has(ds.id)) {
-      try {
-        await daemonClient.kill(ds.id)
-        removeScrollback(path.join(getScrollbackDir(), ds.id))
-      } catch { /* ignore */ }
-    }
-  }
+  // Daemon is the source of truth for live sessions. If a daemon session is
+  // missing from persisted JSON, it means our renderer-side persist lost a
+  // write — don't compound the loss by killing the live PTY. Leave it alone;
+  // the user can reattach if it reappears in the persisted list, or it'll be
+  // cleaned up when the agent exits.
 
   spawner.setCachedDaemonSessionIds(daemonSessionIds)
   hookManager.cleanupAllHookFiles(activeHookIds)

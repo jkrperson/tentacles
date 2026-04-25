@@ -503,19 +503,44 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 // Auto-persist: subscribe to state changes instead of manual persist() calls
 // ---------------------------------------------------------------------------
 
+function writeSessions() {
+  const data = serializeState(useSessionStore.getState())
+  trpc.app.saveSessions.mutate(data as unknown as Record<string, unknown>).catch((err) => {
+    console.error('[sessionStore] Failed to persist sessions:', err)
+  })
+}
+
+/** Cancel any pending debounce, snapshot current state, and await the write.
+ *  Used by the quit-flush handshake so main knows the file is on disk. */
+export async function persistNow(): Promise<void> {
+  if (!storeReady) return
+  persistDebounce.flush()
+  const data = serializeState(useSessionStore.getState())
+  try {
+    await trpc.app.saveSessions.mutate(data as unknown as Record<string, unknown>)
+  } catch (err) {
+    console.error('[sessionStore] persistNow failed:', err)
+  }
+}
+
 useSessionStore.subscribe((state, prevState) => {
   if (!storeReady) return
-  if (
-    state.sessions !== prevState.sessions ||
+
+  // Structural changes (add/remove session, tab open/close, active switch) must
+  // persist immediately — losing a write here means the next launch can't reattach.
+  const structural =
     state.sessionOrder !== prevState.sessionOrder ||
     state.tabOrder !== prevState.tabOrder ||
     state.activeSessionId !== prevState.activeSessionId
-  ) {
-    persistDebounce.trigger(() => {
-      const data = serializeState(useSessionStore.getState())
-      trpc.app.saveSessions.mutate(data as unknown as Record<string, unknown>).catch((err) => {
-        console.error('[sessionStore] Failed to persist sessions:', err)
-      })
-    })
+
+  if (structural) {
+    persistDebounce.flush()
+    writeSessions()
+    return
+  }
+
+  // Cosmetic per-session updates (status, hasUnread, statusDetail) can debounce.
+  if (state.sessions !== prevState.sessions) {
+    persistDebounce.trigger(writeSessions)
   }
 })

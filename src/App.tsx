@@ -6,7 +6,8 @@ import { SettingsPage } from './components/settings/SettingsPage'
 import { LoginScreen } from './components/auth/LoginScreen'
 import { UserAvatar } from './components/auth/UserAvatar'
 import { useAuthStore } from './stores/authStore'
-import { useSessionStore, flushPersist } from './stores/sessionStore'
+import { useSessionStore, flushPersist, persistNow } from './stores/sessionStore'
+import { trpc } from './trpc'
 import { useSettingsStore } from './stores/settingsStore'
 import { useProjectStore } from './stores/projectStore'
 import { applyThemeToDOM } from './themes'
@@ -70,6 +71,21 @@ function App() {
     const handler = () => flushPersist()
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
+  }, [])
+
+  // Main intercepts before-quit and asks the renderer to flush before exit.
+  // We write sessions synchronously and confirm so main can proceed.
+  useEffect(() => {
+    const sub = trpc.app.onRequestFlush.subscribe(undefined, {
+      onData: async () => {
+        try {
+          await persistNow()
+        } finally {
+          await trpc.app.confirmFlushed.mutate().catch(() => { /* main will time out */ })
+        }
+      },
+    })
+    return () => sub.unsubscribe()
   }, [])
 
   useEffect(() => {
