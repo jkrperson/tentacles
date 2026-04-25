@@ -38,6 +38,8 @@ function fromRow(r: Row): SessionRow {
   }
 }
 
+// All UPDATEs are silent no-ops if the row is gone — the daemon may receive
+// late status events for sessions that already exited and were deleted.
 export function createSessionStore(db: Database.Database) {
   const insertStmt = db.prepare(`
     INSERT INTO sessions (id, pid, cwd, created_at, name, agent_type, workspace_id, hook_id, status, exit_code, last_activity)

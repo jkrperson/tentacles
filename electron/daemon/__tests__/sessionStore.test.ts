@@ -54,4 +54,21 @@ describe('sessionStore', () => {
   it('rejects invalid status via CHECK constraint', () => {
     expect(() => store.insert({ ...sample(), status: 'bogus' as never })).toThrow()
   })
+
+  it('rename updates name and bumps lastActivity', () => {
+    store.insert(sample())
+    store.rename('s1', 'new-name')
+    const row = store.get('s1')!
+    expect(row.name).toBe('new-name')
+    expect(row.lastActivity).toBeGreaterThanOrEqual(sample().lastActivity)
+  })
+
+  it('touch bumps lastActivity without changing other fields', () => {
+    store.insert(sample())
+    store.touch('s1')
+    const row = store.get('s1')!
+    expect(row.lastActivity).toBeGreaterThanOrEqual(sample().lastActivity)
+    expect(row.name).toBe(sample().name)
+    expect(row.status).toBe(sample().status)
+  })
 })
