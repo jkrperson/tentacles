@@ -2,9 +2,7 @@ import { create } from 'zustand'
 import { trpc } from '../trpc'
 import type { Project, ProjectFileTreeState, FileNode, GitFileStatus, GitStatusDetailResult, DiffViewState, FileDiffStat } from '../types'
 import { PROJECT_COLORS } from '../types'
-import { useSettingsStore } from './settingsStore'
 import { useUIStore } from './uiStore'
-import { useWorkspaceStore } from './workspaceStore'
 
 interface ProjectState {
   projects: Map<string, Project>
@@ -12,14 +10,14 @@ interface ProjectState {
   projectOrder: string[]
   fileTreeCache: Map<string, ProjectFileTreeState>
 
-  addProject: (path: string) => void
-  removeProject: (path: string) => void
-  setProjectColor: (path: string, color: string) => void
-  setProjectIcon: (path: string, icon: string) => void
-  reorderProjects: (fromIndex: number, toIndex: number) => void
+  addProject: (path: string) => Promise<void>
+  removeProject: (path: string) => Promise<void>
+  setProjectColor: (path: string, color: string) => Promise<void>
+  setProjectIcon: (path: string, icon: string) => Promise<void>
+  reorderProjects: (fromIndex: number, toIndex: number) => Promise<void>
   setActiveProject: (path: string | null) => void
-  loadProjects: () => void
-  persistProjects: () => void
+  loadProjects: () => Promise<void>
+  refreshFromDaemon: () => Promise<void>
 
   // File tree cache actions
   setFileTreeNodes: (projectId: string, nodes: FileNode[]) => void
@@ -83,127 +81,102 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   projectOrder: [],
   fileTreeCache: new Map(),
 
-  setProjectColor: (path: string, color: string) => {
-    const state = get()
-    const project = state.projects.get(path)
-    if (!project) return
-    const projects = new Map(state.projects)
-    projects.set(path, { ...project, color })
-    set({ projects })
-    get().persistProjects()
+  setProjectColor: async (path, color) => {
+    await trpc.project.update.mutate({ id: path, patch: { color } })
   },
 
-  setProjectIcon: (path: string, icon: string) => {
-    const state = get()
-    const project = state.projects.get(path)
-    if (!project) return
-    const projects = new Map(state.projects)
-    projects.set(path, { ...project, icon: icon || undefined })
-    set({ projects })
-    get().persistProjects()
+  setProjectIcon: async (path, icon) => {
+    await trpc.project.update.mutate({ id: path, patch: { icon: icon || null } })
   },
 
-  addProject: (path) => {
-    const state = get()
-    if (state.projects.has(path)) {
-      // Already exists, just activate
+  addProject: async (path) => {
+    const { projects, projectOrder } = get()
+    if (projects.has(path)) {
       set({ activeProjectId: path })
       return
     }
-    const colorIndex = state.projects.size % PROJECT_COLORS.length
-    const projects = new Map(state.projects)
-    projects.set(path, {
-      id: path,
-      path,
-      name: basename(path),
-      addedAt: Date.now(),
-      color: PROJECT_COLORS[colorIndex],
+    const sortOrder = projectOrder.length
+    const color = PROJECT_COLORS[sortOrder % PROJECT_COLORS.length]
+    await trpc.project.add.mutate({
+      id: path, path, name: basename(path), color, icon: null, sortOrder,
     })
-    const fileTreeCache = new Map(state.fileTreeCache)
-    fileTreeCache.set(path, emptyFileTreeState())
-    set({
-      projects,
-      projectOrder: [...state.projectOrder, path],
-      activeProjectId: path,
-      fileTreeCache,
-    })
-    // Auto-create main workspace for new projects
-    useWorkspaceStore.getState().ensureMainWorkspace(path)
-    get().persistProjects()
+    set({ activeProjectId: path })
+    // Live update arrives via project:listChanged subscription.
   },
 
-  removeProject: (path) => {
-    const state = get()
-    const projects = new Map(state.projects)
-    projects.delete(path)
-    const projectOrder = state.projectOrder.filter((p) => p !== path)
-    const fileTreeCache = new Map(state.fileTreeCache)
-    fileTreeCache.delete(path)
-    const activeProjectId =
-      state.activeProjectId === path
-        ? projectOrder[0] ?? null
-        : state.activeProjectId
-    set({ projects, projectOrder, activeProjectId, fileTreeCache })
+  removeProject: async (path) => {
+    await trpc.project.remove.mutate({ id: path })
     trpc.file.unwatchDir.mutate({ dirPath: path }).catch(() => {})
-    get().persistProjects()
   },
 
-  reorderProjects: (fromIndex, toIndex) => {
+  reorderProjects: async (fromIndex, toIndex) => {
     const { projectOrder } = get()
     if (fromIndex < 0 || fromIndex >= projectOrder.length || toIndex < 0 || toIndex >= projectOrder.length) return
     if (fromIndex === toIndex) return
     const next = [...projectOrder]
     const [moved] = next.splice(fromIndex, 1)
     next.splice(toIndex, 0, moved)
-    set({ projectOrder: next })
-    get().persistProjects()
+    await trpc.project.reorder.mutate({ idsInOrder: next })
   },
 
   setActiveProject: (path) => set({ activeProjectId: path }),
 
-  loadProjects: () => {
-    const settings = useSettingsStore.getState().settings
-    const paths = settings.projectPaths?.length
-      ? settings.projectPaths
-      : settings.defaultProjectPath
-        ? [settings.defaultProjectPath]
-        : []
-
-    const projects = new Map<string, Project>()
-    const fileTreeCache = new Map<string, ProjectFileTreeState>()
-    const projectOrder: string[] = []
-
-    for (let i = 0; i < paths.length; i++) {
-      const p = paths[i]
-      projects.set(p, {
-        id: p,
-        path: p,
-        name: basename(p),
-        addedAt: Date.now(),
-        color: PROJECT_COLORS[i % PROJECT_COLORS.length],
+  loadProjects: async () => {
+    try {
+      const daemonProjects = await trpc.project.list.query()
+      const projects = new Map<string, Project>()
+      const fileTreeCache = new Map<string, ProjectFileTreeState>()
+      const projectOrder: string[] = []
+      for (const dp of daemonProjects) {
+        projects.set(dp.id, {
+          id: dp.id,
+          path: dp.path,
+          name: dp.name,
+          addedAt: dp.addedAt,
+          color: dp.color,
+          icon: dp.icon ?? undefined,
+        })
+        fileTreeCache.set(dp.id, emptyFileTreeState())
+        projectOrder.push(dp.id)
+      }
+      set({
+        projects,
+        projectOrder,
+        fileTreeCache,
+        activeProjectId: projectOrder[0] ?? null,
       })
-      fileTreeCache.set(p, emptyFileTreeState())
-      projectOrder.push(p)
-    }
-
-    set({
-      projects,
-      projectOrder,
-      fileTreeCache,
-      activeProjectId: projectOrder[0] ?? null,
-    })
-
-    // Ensure each loaded project has a main workspace so the sidebar
-    // shows it even when there are no sessions yet.
-    const wsStore = useWorkspaceStore.getState()
-    for (const project of projects.values()) {
-      wsStore.ensureMainWorkspace(project.id)
+    } catch (err) {
+      console.error('[projectStore] loadProjects failed:', err)
     }
   },
 
-  persistProjects: () => {
-    const { projectOrder } = get()
-    useSettingsStore.getState().saveSettings({ projectPaths: projectOrder })
+  refreshFromDaemon: async () => {
+    try {
+      const daemonProjects = await trpc.project.list.query()
+      set((state) => {
+        const projects = new Map<string, Project>()
+        const fileTreeCache = new Map(state.fileTreeCache)
+        const projectOrder: string[] = []
+        for (const dp of daemonProjects) {
+          projects.set(dp.id, {
+            id: dp.id, path: dp.path, name: dp.name,
+            addedAt: dp.addedAt, color: dp.color,
+            icon: dp.icon ?? undefined,
+          })
+          if (!fileTreeCache.has(dp.id)) fileTreeCache.set(dp.id, emptyFileTreeState())
+          projectOrder.push(dp.id)
+        }
+        for (const cachedId of [...fileTreeCache.keys()]) {
+          if (!projects.has(cachedId)) fileTreeCache.delete(cachedId)
+        }
+        const activeProjectId = state.activeProjectId && projects.has(state.activeProjectId)
+          ? state.activeProjectId
+          : projectOrder[0] ?? null
+        return { projects, projectOrder, fileTreeCache, activeProjectId }
+      })
+    } catch (err) {
+      console.error('[projectStore] refreshFromDaemon failed:', err)
+    }
   },
 
   // File tree cache actions
