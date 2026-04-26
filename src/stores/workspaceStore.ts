@@ -3,10 +3,6 @@ import { trpc } from '../trpc'
 import { useProjectConfigStore } from './projectConfigStore'
 import type { Workspace, WorkspaceType } from '../types'
 
-// Guard: don't auto-persist until bootstrap completes (avoids overwriting
-// the legacy sessions.json with empty state during initial load).
-let storeReady = false
-
 interface WorkspaceState {
   workspaces: Map<string, Workspace>
   workspaceOrder: string[]
@@ -14,13 +10,12 @@ interface WorkspaceState {
   ensureMainWorkspace: (projectId: string) => Workspace
   createWorktreeWorkspace: (projectId: string, name?: string) => Promise<Workspace>
   deleteWorktreeWorkspace: (id: string) => Promise<void>
-  reorderWorkspaces: (fromIndex: number, toIndex: number, projectId: string) => void
+  reorderWorkspaces: (fromIndex: number, toIndex: number, projectId: string) => Promise<void>
   getProjectWorkspaces: (projectId: string) => Workspace[]
   getWorkspaceCwd: (id: string) => string | null
-  loadWorkspaces: (workspaces: Workspace[]) => void
-  setWorkspaces: (workspaces: Map<string, Workspace>, order: string[]) => void
+  loadFromDaemon: () => Promise<void>
+  refreshFromDaemon: () => Promise<void>
   removeWorkspace: (id: string) => void
-  markReady: () => void
 }
 
 function makeMainId(projectId: string): string {
@@ -31,7 +26,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   workspaces: new Map(),
   workspaceOrder: [],
 
-  ensureMainWorkspace: (projectId: string) => {
+  ensureMainWorkspace: (projectId: string): Workspace => {
     const { workspaces } = get()
     const id = makeMainId(projectId)
     const existing = workspaces.get(id)
@@ -41,48 +36,45 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       id,
       projectId,
       type: 'main' as WorkspaceType,
-      branch: '', // will be filled when git info is available
+      branch: '',
       worktreePath: null,
       status: 'active',
       createdAt: Date.now(),
       name: 'main',
     }
-
+    // Optimistic local insert; daemon mirror via mutate (event will reconcile).
     set((state) => {
       const ws = new Map(state.workspaces)
       ws.set(id, workspace)
       return { workspaces: ws, workspaceOrder: [...state.workspaceOrder, id] }
     })
+    trpc.workspace.add.mutate({
+      id, projectId, type: 'main', branch: '', worktreePath: null,
+      linkedPr: null, linkedIssue: null, status: 'active', name: 'main',
+      sortOrder: get().workspaceOrder.length - 1,
+    }).catch((err) => console.error('[workspaceStore] ensureMainWorkspace add failed:', err))
     return workspace
   },
 
-  createWorktreeWorkspace: async (projectId: string, name?: string) => {
+  createWorktreeWorkspace: async (projectId, name) => {
     const { worktreePath, branch } = await trpc.git.worktree.create.mutate({ repoPath: projectId, name })
     const id = `worktree:${worktreePath}`
     const workspace: Workspace = {
-      id,
-      projectId,
-      type: 'worktree',
-      branch,
-      worktreePath,
-      status: 'active',
-      createdAt: Date.now(),
-      name: name || branch,
+      id, projectId, type: 'worktree',
+      branch, worktreePath, status: 'active',
+      createdAt: Date.now(), name: name || branch,
     }
-
-    set((state) => {
-      const ws = new Map(state.workspaces)
-      ws.set(id, workspace)
-      return { workspaces: ws, workspaceOrder: [...state.workspaceOrder, id] }
+    await trpc.workspace.add.mutate({
+      id, projectId, type: 'worktree', branch, worktreePath,
+      linkedPr: null, linkedIssue: null, status: 'active',
+      name: name || branch, sortOrder: get().workspaceOrder.length,
     })
-
-    // Fire-and-forget: run setup scripts if configured
+    // Setup scripts logic (preserved verbatim from existing code)
     const configStore = useProjectConfigStore.getState()
     const config = configStore.configs.get(projectId)
     if (config && config.setupScripts.some((s) => s.enabled)) {
       configStore.runSetupScripts(projectId, id, worktreePath).catch(() => {})
     } else {
-      // Config might not be loaded yet — load and check
       configStore.loadConfig(projectId).then(() => {
         const loaded = useProjectConfigStore.getState().configs.get(projectId)
         if (loaded && loaded.setupScripts.some((s) => s.enabled)) {
@@ -90,11 +82,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         }
       }).catch(() => {})
     }
-
     return workspace
   },
 
-  deleteWorktreeWorkspace: async (id: string) => {
+  deleteWorktreeWorkspace: async (id) => {
     const { workspaces } = get()
     const ws = workspaces.get(id)
     if (!ws || ws.type !== 'worktree' || !ws.worktreePath) return
@@ -110,37 +101,20 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     try {
       await trpc.git.worktree.remove.mutate({ repoPath: ws.projectId, worktreePath: ws.worktreePath, branch: ws.branch })
     } finally {
-      // Remove from store whether removal succeeded or failed
-      set((state) => {
-        const next = new Map(state.workspaces)
-        next.delete(id)
-        return { workspaces: next, workspaceOrder: state.workspaceOrder.filter((wid) => wid !== id) }
-      })
+      await trpc.workspace.remove.mutate({ id }).catch((err) =>
+        console.error('[workspaceStore] remove from daemon failed:', err))
+      // Live update arrives via workspace:listChanged subscription.
     }
   },
 
-  reorderWorkspaces: (fromIndex, toIndex, projectId) => {
-    const { workspaceOrder, workspaces } = get()
-    // Get project-scoped worktree indices (skip main — it stays first)
-    const worktreeIndices: number[] = []
-    for (let i = 0; i < workspaceOrder.length; i++) {
-      const ws = workspaces.get(workspaceOrder[i])
-      if (ws && ws.projectId === projectId && ws.type !== 'main') {
-        worktreeIndices.push(i)
-      }
-    }
-    if (fromIndex < 0 || fromIndex >= worktreeIndices.length || toIndex < 0 || toIndex >= worktreeIndices.length) return
-    if (fromIndex === toIndex) return
-
-    const worktreeIds = worktreeIndices.map((i) => workspaceOrder[i])
-    const [moved] = worktreeIds.splice(fromIndex, 1)
-    worktreeIds.splice(toIndex, 0, moved)
-
-    const next = [...workspaceOrder]
-    for (let i = 0; i < worktreeIndices.length; i++) {
-      next[worktreeIndices[i]] = worktreeIds[i]
-    }
-    set({ workspaceOrder: next })
+  reorderWorkspaces: async (fromIndex, toIndex, projectId) => {
+    const projectWorkspaces = get().getProjectWorkspaces(projectId)
+    if (fromIndex < 0 || fromIndex >= projectWorkspaces.length) return
+    if (toIndex < 0 || toIndex >= projectWorkspaces.length) return
+    const ids = projectWorkspaces.map((w) => w.id)
+    const [moved] = ids.splice(fromIndex, 1)
+    ids.splice(toIndex, 0, moved)
+    await trpc.workspace.reorder.mutate({ projectId, idsInOrder: ids })
   },
 
   getProjectWorkspaces: (projectId: string) => {
@@ -163,18 +137,56 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     return ws.worktreePath ?? ws.projectId
   },
 
-  loadWorkspaces: (workspaceList: Workspace[]) => {
-    const workspaces = new Map<string, Workspace>()
-    const workspaceOrder: string[] = []
-    for (const ws of workspaceList) {
-      workspaces.set(ws.id, ws)
-      workspaceOrder.push(ws.id)
+  loadFromDaemon: async () => {
+    try {
+      const daemonWorkspaces = await trpc.workspace.list.query()
+      const workspaces = new Map<string, Workspace>()
+      const workspaceOrder: string[] = []
+      for (const dw of daemonWorkspaces) {
+        workspaces.set(dw.id, {
+          id: dw.id,
+          projectId: dw.projectId,
+          type: dw.type,
+          branch: dw.branch,
+          worktreePath: dw.worktreePath,
+          linkedPR: dw.linkedPr ?? undefined,
+          linkedIssue: dw.linkedIssue ?? undefined,
+          status: dw.status,
+          createdAt: dw.createdAt,
+          name: dw.name,
+        })
+        workspaceOrder.push(dw.id)
+      }
+      set({ workspaces, workspaceOrder })
+    } catch (err) {
+      console.error('[workspaceStore] loadFromDaemon failed:', err)
     }
-    set({ workspaces, workspaceOrder })
   },
 
-  setWorkspaces: (workspaces, order) => {
-    set({ workspaces, workspaceOrder: order })
+  refreshFromDaemon: async () => {
+    try {
+      const daemonWorkspaces = await trpc.workspace.list.query()
+      const workspaces = new Map<string, Workspace>()
+      const workspaceOrder: string[] = []
+      for (const dw of daemonWorkspaces) {
+        workspaces.set(dw.id, {
+          id: dw.id,
+          projectId: dw.projectId,
+          type: dw.type,
+          branch: dw.branch,
+          worktreePath: dw.worktreePath,
+          linkedPR: dw.linkedPr ?? undefined,
+          linkedIssue: dw.linkedIssue ?? undefined,
+          status: dw.status,
+          createdAt: dw.createdAt,
+          name: dw.name,
+        })
+        workspaceOrder.push(dw.id)
+      }
+      set({ workspaces, workspaceOrder })
+    } catch (err) {
+      console.error('[workspaceStore] refreshFromDaemon failed:', err)
+    }
   },
 
   removeWorkspace: (id: string) => {
@@ -184,44 +196,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       return { workspaces: ws, workspaceOrder: state.workspaceOrder.filter((wid) => wid !== id) }
     })
   },
-
-  markReady: () => { storeReady = true },
 }))
-
-// ---------------------------------------------------------------------------
-// Auto-persist workspaces — bridge state until Phase 2 moves them to SQLite.
-// sessions.json holds workspaces only; sessions live in the daemon DB and UI
-// prefs (tab/active/unread) live in ui-prefs.json.
-// ---------------------------------------------------------------------------
-
-let lastWrittenWorkspaces: string | null = null
-
-function writeWorkspaces() {
-  if (!storeReady) return
-  const state = useWorkspaceStore.getState()
-  const workspaces = state.workspaceOrder
-    .map((id) => state.workspaces.get(id))
-    .filter((w): w is Workspace => w !== undefined)
-  const serialized = JSON.stringify(workspaces)
-  if (serialized === lastWrittenWorkspaces) return
-  lastWrittenWorkspaces = serialized
-  trpc.app.saveSessions.mutate({
-    sessions: [],
-    activeSessionId: null,
-    tabOrder: [],
-    workspaces,
-  } as unknown as Record<string, unknown>).catch((err) =>
-    console.error('[workspaceStore] saveWorkspaces failed:', err))
-}
-
-useWorkspaceStore.subscribe((state, prevState) => {
-  if (
-    state.workspaces !== prevState.workspaces ||
-    state.workspaceOrder !== prevState.workspaceOrder
-  ) {
-    writeWorkspaces()
-  }
-})
 
 /** Check if a session belongs to a given project via its workspace */
 export function sessionBelongsToProject(
