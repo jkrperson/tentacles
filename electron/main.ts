@@ -116,7 +116,6 @@ const appRouter = createRouter({
   gitManager,
   lspManager,
   settingsPath,
-  sessionsPath,
   uiPrefsPath,
   themesDir,
   soundsDir,

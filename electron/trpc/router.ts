@@ -33,7 +33,6 @@ export interface RouterDeps {
   gitManager: GitManager
   lspManager: LspManager
   settingsPath: string
-  sessionsPath: string
   uiPrefsPath: string
   themesDir: string
   soundsDir: string
@@ -80,7 +79,6 @@ export function createRouter(deps: RouterDeps) {
     }),
     app: createAppRouter({
       settingsPath: deps.settingsPath,
-      sessionsPath: deps.sessionsPath,
       uiPrefsPath: deps.uiPrefsPath,
       themesDir: deps.themesDir,
       soundsDir: deps.soundsDir,
@@ -110,15 +108,15 @@ export function createRouter(deps: RouterDeps) {
     agentChat: createAgentChatRouter({
       keyManager: deps.agentChatKeyManager,
       settingsPath: deps.settingsPath,
-      sessionsPath: deps.sessionsPath,
       ptyManager: deps.ptyManager,
+      daemonClient: deps.daemonClient,
       spawnAgent: deps.spawnAgent,
     }),
     voiceCommand: createVoiceCommandRouter({
       keyManager: deps.agentChatKeyManager,
       settingsPath: deps.settingsPath,
-      sessionsPath: deps.sessionsPath,
       ptyManager: deps.ptyManager,
+      daemonClient: deps.daemonClient,
       spawnAgent: deps.spawnAgent,
     }),
     project: createProjectRouter({ daemonClient: deps.daemonClient }),
