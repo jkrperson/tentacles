@@ -376,6 +376,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         }
       }
 
+      // Workspace bootstrap done — allow workspace mutations to persist.
+      wsStore.markReady()
+
       // One-shot migration: copy UI prefs from legacy sessions.json if the new
       // ui-prefs.json is empty (first launch with the daemon-owned-sessions design).
       let migratedUiPrefs: typeof uiPrefs | null = null
