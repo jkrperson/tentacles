@@ -50,14 +50,6 @@ export interface Session {
   pid?: number
   exitCode?: number | null
   hookId?: string
-  /** @deprecated Use workspaceId — kept for migration */
-  isWorktree?: boolean
-  /** @deprecated Use workspaceId — kept for migration */
-  worktreePath?: string
-  /** @deprecated Use workspaceId — kept for migration */
-  worktreeBranch?: string
-  /** @deprecated Use workspaceId — kept for migration */
-  originalRepo?: string
 }
 
 export interface SessionsFile {
