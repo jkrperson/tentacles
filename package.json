@@ -14,17 +14,20 @@
   "author": "jkrperson",
   "type": "module",
   "scripts": {
-    "postinstall": "CXXFLAGS='-Wno-missing-field-initializers' electron-rebuild -f -w node-pty",
+    "postinstall": "CXXFLAGS='-Wno-missing-field-initializers' electron-rebuild -f -w node-pty,better-sqlite3",
     "generate:icons": "bun scripts/generate-file-icons.ts",
     "predev": "bun run generate:icons",
     "dev": "vite",
     "prebuild": "bun run generate:icons",
-    "build:daemon": "esbuild electron/daemon/daemon.ts --bundle --platform=node --format=esm --outfile=dist-electron/daemon.mjs --external:node-pty",
+    "build:daemon": "esbuild electron/daemon/daemon.ts --bundle --platform=node --format=esm --outfile=dist-electron/daemon.mjs --external:node-pty --external:better-sqlite3 --loader:.sql=text",
     "build": "tsc && vite build && bun run build:daemon && electron-builder",
     "build:notarized": "tsc && vite build && bun run build:daemon && electron-builder -c.mac.notarize=true",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "pretypecheck": "bun run generate:icons",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify:daemon-sqlite": "bun scripts/verify-daemon-sqlite.ts",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -75,7 +78,8 @@
     "typescript": "^5.2.2",
     "vite": "^5.1.6",
     "vite-plugin-electron": "^0.28.6",
-    "vite-plugin-electron-renderer": "^0.14.5"
+    "vite-plugin-electron-renderer": "^0.14.5",
+    "vitest": "^4.1.5"
   },
   "main": "dist-electron/main.cjs"
 }

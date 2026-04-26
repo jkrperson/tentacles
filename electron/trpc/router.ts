@@ -32,13 +32,14 @@ export interface RouterDeps {
   lspManager: LspManager
   settingsPath: string
   sessionsPath: string
+  uiPrefsPath: string
   themesDir: string
   soundsDir: string
   projectsConfigDir: string
   getWindow: () => BrowserWindow | null
   checkForUpdates: () => Promise<void>
   restartAndInstall: () => void
-  spawnAgent: (name: string, cwd: string, agentType: AgentType, resumeId?: string) => Promise<{ id: string; pid: number; hookId: string }>
+  spawnAgent: (name: string, cwd: string, workspaceId: string, agentType: AgentType) => Promise<{ id: string; pid: number; hookId: string }>
   reattachAgent: (sessionId: string, hookId: string, name: string, cwd: string, agentType?: AgentType) => Promise<{ id: string; scrollbackAvailable: boolean; initialStatus?: SessionStatus; initialStatusDetail?: string | null; recoveredClaudeSessionId?: string } | null>
   daemonClient: DaemonClient
   authManager: AuthManager
@@ -78,6 +79,7 @@ export function createRouter(deps: RouterDeps) {
     app: createAppRouter({
       settingsPath: deps.settingsPath,
       sessionsPath: deps.sessionsPath,
+      uiPrefsPath: deps.uiPrefsPath,
       themesDir: deps.themesDir,
       soundsDir: deps.soundsDir,
       getWindow: deps.getWindow,

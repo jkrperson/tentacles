@@ -6,6 +6,8 @@ import { app } from 'electron'
 import { ee } from './trpc/events'
 import { getAdapter } from './agents/registry'
 import type { AgentType } from './agents/types'
+import type { DaemonClient } from './daemon/client'
+import type { SessionStatus } from '../src/types'
 
 interface SessionMapping {
   ptyId: string
@@ -51,7 +53,7 @@ function persistPort(p: number) {
   } catch { /* non-critical */ }
 }
 
-function createApp(): ReturnType<typeof express> {
+function createApp(daemonClient: DaemonClient): ReturnType<typeof express> {
   const expressApp = express()
   expressApp.use(express.json())
 
@@ -75,6 +77,7 @@ function createApp(): ReturnType<typeof express> {
     const status = adapter.parseStatus?.(event) ?? null
     if (status && status !== 'errored') {
       ee.emit('session:agentStatus', { id: mapping.ptyId, status: status as 'running' | 'needs_input' | 'completed' | 'idle' })
+      daemonClient.setSessionStatus(mapping.ptyId, status as SessionStatus).catch(() => { /* daemon will reconcile on next list */ })
     }
 
     res.sendStatus(200)
@@ -101,8 +104,8 @@ function tryListen(expressApp: ReturnType<typeof express>, targetPort: number): 
   })
 }
 
-export async function startHookServer(): Promise<number> {
-  const expressApp = createApp()
+export async function startHookServer(daemonClient: DaemonClient): Promise<number> {
+  const expressApp = createApp(daemonClient)
 
   // Try the previously persisted port first (so surviving daemon sessions' hooks still work)
   const savedPort = readPersistedPort()
@@ -117,7 +120,7 @@ export async function startHookServer(): Promise<number> {
   }
 
   // Auto-assign a free port
-  const p = await tryListen(createApp(), 0)
+  const p = await tryListen(createApp(daemonClient), 0)
   persistPort(p)
   console.log(`[hookServer] listening on 127.0.0.1:${p} (new)`)
   return p

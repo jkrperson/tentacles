@@ -7,12 +7,14 @@ import * as net from 'node:net'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { createRequire } from 'node:module'
-import { ScrollbackWriter, readScrollback } from './scrollback'
+import { ScrollbackWriter, readScrollback, removeScrollback } from './scrollback'
 import {
   DAEMON_PROTOCOL_VERSION,
   DAEMON_REQUIRED_CAPABILITIES,
 } from './protocol'
 import type { TaggedRequest, DaemonResponse, DaemonEvent } from './protocol'
+import { openDb, closeDb } from './db'
+import { createSessionStore } from './sessionStore'
 
 const require = createRequire(import.meta.url)
 const pty = require('node-pty')
@@ -30,19 +32,20 @@ const DAEMON_DIR = process.env.TENTACLES_DAEMON_DIR!
 const SOCKET_PATH = path.join(DAEMON_DIR, 'daemon.sock')
 const PID_FILE = path.join(DAEMON_DIR, 'daemon.pid')
 const SCROLLBACK_DIR = path.join(DAEMON_DIR, 'scrollback')
+const DB_PATH = path.join(DAEMON_DIR, 'state.db')
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
 
 interface ManagedSession {
   id: string
-  pid: number
-  cwd: string
-  createdAt: number
   ptyProcess: PtyProcess
   scrollback: ScrollbackWriter
   // Data coalescing
   dataBuffer: string
   flushScheduled: boolean
 }
+
+const db = openDb(DB_PATH)
+const sessionDb = createSessionStore(db)
 
 const sessions = new Map<string, ManagedSession>()
 const clients = new Set<net.Socket>()
@@ -77,11 +80,16 @@ function handleRequest(client: net.Socket, tagged: TaggedRequest) {
 
   switch (request.method) {
     case 'spawn': {
-      try {
-        const sessionDir = path.join(SCROLLBACK_DIR, request.id)
-        const scrollback = new ScrollbackWriter(sessionDir, request.cols, request.rows, request.cwd)
+      const sessionDir = path.join(SCROLLBACK_DIR, request.id)
+      let scrollback: ScrollbackWriter | null = null
+      let ptyProcess: PtyProcess | null = null
+      let mapInserted = false
+      let dbInserted = false
 
-        const ptyProcess: PtyProcess = pty.spawn(request.command, request.args, {
+      try {
+        scrollback = new ScrollbackWriter(sessionDir, request.cols, request.rows, request.cwd)
+
+        ptyProcess = pty.spawn(request.command, request.args, {
           name: 'xterm-256color',
           cols: request.cols,
           rows: request.rows,
@@ -91,22 +99,37 @@ function handleRequest(client: net.Socket, tagged: TaggedRequest) {
             ...request.env,
             TERM: 'xterm-256color',
           },
-        })
+        }) as PtyProcess
 
         const session: ManagedSession = {
           id: request.id,
-          pid: ptyProcess.pid,
-          cwd: request.cwd,
-          createdAt: Date.now(),
           ptyProcess,
           scrollback,
           dataBuffer: '',
           flushScheduled: false,
         }
         sessions.set(request.id, session)
+        mapInserted = true
 
+        const now = Date.now()
+        sessionDb.insert({
+          id: request.id,
+          pid: ptyProcess.pid,
+          cwd: request.cwd,
+          createdAt: now,
+          name: request.metadata.name,
+          agentType: request.metadata.agentType,
+          workspaceId: request.metadata.workspaceId,
+          hookId: request.metadata.hookId,
+          status: 'idle',
+          exitCode: null,
+          lastActivity: now,
+        })
+        dbInserted = true
+
+        // Wire listeners only after both map and DB are populated.
         ptyProcess.onData((data: string) => {
-          scrollback.write(data)
+          scrollback!.write(data)
 
           // Coalesce data and flush via setImmediate
           session.dataBuffer += data
@@ -132,14 +155,33 @@ function handleRequest(client: net.Socket, tagged: TaggedRequest) {
             session.flushScheduled = false
             broadcast(event)
           }
-          scrollback.close()
+          scrollback!.close()
+          sessionDb.setStatus(session.id, exitCode === 0 ? 'completed' : 'errored', exitCode)
+          sessionDb.delete(session.id)
           sessions.delete(request.id)
           broadcast({ event: 'exit', id: request.id, exitCode })
+          broadcast({ event: 'sessionsChanged' })
           resetIdleTimer()
         })
 
+        broadcast({ event: 'sessionsChanged' })
         sendTo(client, { ok: true, reqId, pid: ptyProcess.pid })
       } catch (err) {
+        // Tear down whatever we managed to create, in reverse order.
+        if (dbInserted) {
+          try { sessionDb.delete(request.id) } catch { /* ignore */ }
+        }
+        if (mapInserted) {
+          sessions.delete(request.id)
+        }
+        if (ptyProcess) {
+          try { ptyProcess.kill() } catch { /* ignore */ }
+        }
+        if (scrollback) {
+          try { scrollback.close() } catch { /* ignore */ }
+          try { removeScrollback(sessionDir) } catch { /* ignore */ }
+        }
+
         const message = err instanceof Error ? err.message : String(err)
         console.error(`[daemon] spawn failed id="${request.id}" command="${request.command}" cwd="${request.cwd}":`, message)
         sendTo(client, { ok: false, reqId, error: `Spawn failed: ${message}` })
@@ -184,13 +226,33 @@ function handleRequest(client: net.Socket, tagged: TaggedRequest) {
     }
 
     case 'list': {
-      const list = Array.from(sessions.values()).map((s) => ({
+      const list = sessionDb.list().map((s) => ({
         id: s.id,
         pid: s.pid,
         cwd: s.cwd,
         createdAt: s.createdAt,
+        name: s.name,
+        agentType: s.agentType,
+        workspaceId: s.workspaceId,
+        hookId: s.hookId,
+        status: s.status,
+        exitCode: s.exitCode,
       }))
       sendTo(client, { ok: true, reqId, sessions: list })
+      break
+    }
+
+    case 'setSessionStatus': {
+      const changed = sessionDb.setStatus(request.id, request.status, request.exitCode ?? null)
+      if (changed) broadcast({ event: 'sessionsChanged' })
+      sendTo(client, { ok: true, reqId })
+      break
+    }
+
+    case 'renameSession': {
+      const changed = sessionDb.rename(request.id, request.name)
+      if (changed) broadcast({ event: 'sessionsChanged' })
+      sendTo(client, { ok: true, reqId })
       break
     }
 
@@ -228,6 +290,7 @@ function cleanup() {
     try { session.scrollback.close() } catch { /* ignore */ }
   }
   sessions.clear()
+  try { closeDb() } catch { /* ignore */ }
 
   // Clean up socket and pid file
   try { fs.unlinkSync(SOCKET_PATH) } catch { /* ignore */ }

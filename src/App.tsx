@@ -6,7 +6,7 @@ import { SettingsPage } from './components/settings/SettingsPage'
 import { LoginScreen } from './components/auth/LoginScreen'
 import { UserAvatar } from './components/auth/UserAvatar'
 import { useAuthStore } from './stores/authStore'
-import { useSessionStore, flushPersist, persistNow } from './stores/sessionStore'
+import { useSessionStore, persistUiNow } from './stores/sessionStore'
 import { trpc } from './trpc'
 import { useSettingsStore } from './stores/settingsStore'
 import { useProjectStore } from './stores/projectStore'
@@ -68,7 +68,7 @@ function App() {
 
   // Flush pending session persist on window close to avoid data loss
   useEffect(() => {
-    const handler = () => flushPersist()
+    const handler = () => { void persistUiNow() }
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
   }, [])
@@ -79,11 +79,19 @@ function App() {
     const sub = trpc.app.onRequestFlush.subscribe(undefined, {
       onData: async () => {
         try {
-          await persistNow()
+          await persistUiNow()
         } finally {
           await trpc.app.confirmFlushed.mutate().catch(() => { /* main will time out */ })
         }
       },
+    })
+    return () => sub.unsubscribe()
+  }, [])
+
+  // Live-update sessions when the daemon's session list changes
+  useEffect(() => {
+    const sub = trpc.session.onListChanged.subscribe(undefined, {
+      onData: () => { void useSessionStore.getState().refreshFromDaemon() },
     })
     return () => sub.unsubscribe()
   }, [])

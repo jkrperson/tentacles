@@ -6,15 +6,17 @@ import type { PtyManager } from './ptyManager'
 import type { FileWatcher } from './fileWatcher'
 import type { HookManager } from './hookManager'
 import type { AgentType } from './agents/types'
+import type { DaemonClient } from './daemon/client'
 
 interface WiringDeps {
   ptyManager: PtyManager
   fileWatcher: FileWatcher
   hookManager: HookManager
   loadSettings: () => Record<string, unknown>
+  daemonClient: DaemonClient
 }
 
-export function wireEvents({ ptyManager, fileWatcher, hookManager, loadSettings }: WiringDeps) {
+export function wireEvents({ ptyManager, fileWatcher, hookManager, loadSettings, daemonClient }: WiringDeps) {
   const lastTitleStatus = new Map<string, string>()
   const sessionNames = new Map<string, string>()
 
@@ -55,6 +57,7 @@ export function wireEvents({ ptyManager, fileWatcher, hookManager, loadSettings 
 
       if (parsed.status !== prev) {
         ee.emit('session:agentStatus', { id, status: parsed.status })
+        daemonClient.setSessionStatus(id, parsed.status).catch(() => { /* daemon will reconcile on next list */ })
       }
     }
   })
@@ -85,6 +88,7 @@ export function wireEvents({ ptyManager, fileWatcher, hookManager, loadSettings 
 
     ee.emit('session:statusDetail', { id, detail: null })
     ee.emit('session:exit', { id, exitCode })
+    daemonClient.setSessionStatus(id, exitCode === 0 ? 'completed' : 'errored', exitCode).catch(() => {})
 
     // Desktop notification when agent exits
     if (Notification.isSupported() && loadSettings().desktopNotifications !== false) {

@@ -21,10 +21,12 @@ interface SpawnerDeps {
 export function createAgentSpawner(deps: SpawnerDeps) {
   const { ptyManager, hookManager, daemonClient, loadSettings, hooksDir } = deps
 
-  // Cache daemon session IDs to avoid per-session round-trips during reattach.
-  let cachedDaemonSessionIds: Set<string> | null = null
-
-  async function spawn(name: string, cwd: string, agentType: AgentType): Promise<{ id: string; pid: number; hookId: string }> {
+  async function spawn(
+    name: string,
+    cwd: string,
+    workspaceId: string,
+    agentType: AgentType,
+  ): Promise<{ id: string; pid: number; hookId: string }> {
     const settings = loadSettings()
     const adapter = getAdapter(agentType)
 
@@ -60,7 +62,13 @@ export function createAgentSpawner(deps: SpawnerDeps) {
     const hasEnv = Object.keys(mergedEnv).length > 0
 
     try {
-      const result = await ptyManager.create(name, spawnConfig.cwd, spawnConfig.command, spawnConfig.args, hasEnv ? mergedEnv : undefined)
+      const result = await ptyManager.create(
+        { name, agentType, workspaceId, hookId: hookSetup ? hookId : null },
+        spawnConfig.cwd,
+        spawnConfig.command,
+        spawnConfig.args,
+        hasEnv ? mergedEnv : undefined,
+      )
 
       if (hookSetup) {
         registerHookSession(hookId, result.id, agentType)
@@ -79,17 +87,13 @@ export function createAgentSpawner(deps: SpawnerDeps) {
   async function reattach(sessionId: string, hookId: string, _name: string, _cwd: string, agentType?: AgentType): Promise<{ id: string; scrollbackAvailable: boolean; initialStatus?: SessionStatus; initialStatusDetail?: string | null } | null> {
     if (!daemonClient.isConnected()) return null
 
-    let alive: boolean
-    if (cachedDaemonSessionIds) {
-      alive = cachedDaemonSessionIds.has(sessionId)
-    } else {
-      try {
-        const daemonSessions = await daemonClient.list()
-        alive = daemonSessions.some((s) => s.id === sessionId)
-      } catch {
-        return null
-      }
+    let daemonSessions
+    try {
+      daemonSessions = await daemonClient.list()
+    } catch {
+      return null
     }
+    const alive = daemonSessions.some((s) => s.id === sessionId)
     if (!alive) return null
 
     const resolvedAgentType: AgentType = agentType ?? 'claude'
@@ -134,14 +138,5 @@ export function createAgentSpawner(deps: SpawnerDeps) {
     }
   }
 
-  function setCachedDaemonSessionIds(ids: Set<string> | null) {
-    cachedDaemonSessionIds = ids
-  }
-
-  /** Clear the cached daemon IDs so subsequent reattach calls query the daemon directly. */
-  function clearCachedDaemonSessionIds() {
-    cachedDaemonSessionIds = null
-  }
-
-  return { spawn, reattach, setCachedDaemonSessionIds, clearCachedDaemonSessionIds }
+  return { spawn, reattach }
 }

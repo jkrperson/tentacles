@@ -11,7 +11,7 @@ import { LspManager } from './lspManager'
 import { DaemonClient } from './daemon/client'
 import { initUpdater, checkForUpdates, restartAndInstall } from './updater'
 import { cleanupAllAdapters } from './agents/registry'
-import { startHookServer, stopHookServer } from './hookServer'
+import { startHookServer, stopHookServer, registerHookSession } from './hookServer'
 import { startRendererServer } from './rendererServer'
 import { HookManager } from './hookManager'
 import { createAgentSpawner } from './agentSpawner'
@@ -19,7 +19,9 @@ import { wireEvents } from './eventWiring'
 import { ee } from './trpc/events'
 import { AuthManager } from './authManager'
 import { createRouter } from './trpc/router'
+import { migrateSessionsJsonToDaemon } from './migrations/jsonToSqlite'
 import type { SessionStatus } from '../src/types'
+import type { AgentType } from './agents/types'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -58,6 +60,7 @@ if (VITE_DEV_SERVER_URL) {
 
 const settingsPath = path.join(app.getPath('userData'), 'settings.json')
 const sessionsPath = path.join(app.getPath('userData'), 'sessions.json')
+const uiPrefsPath = path.join(app.getPath('userData'), 'ui-prefs.json')
 const themesDir = path.join(app.getPath('userData'), 'themes')
 const soundsDir = path.join(app.getPath('userData'), 'sounds')
 const hooksDir = path.join(app.getPath('userData'), 'hooks')
@@ -99,7 +102,7 @@ const themeBgMap: Record<string, string> = {
 }
 
 // Wire PTY/shell/file events to the typed event emitter
-wireEvents({ ptyManager, fileWatcher, hookManager, loadSettings })
+wireEvents({ ptyManager, fileWatcher, hookManager, loadSettings, daemonClient })
 
 // Create agent spawner
 const spawner = createAgentSpawner({
@@ -114,6 +117,7 @@ const appRouter = createRouter({
   lspManager,
   settingsPath,
   sessionsPath,
+  uiPrefsPath,
   themesDir,
   soundsDir,
   getWindow: () => win,
@@ -208,6 +212,10 @@ ee.on('session:exit', ({ id, exitCode }) => {
 
 daemonClient.on('compatibilityDeferred', () => {
   startDeferredDaemonMigrationWatcher()
+})
+
+daemonClient.on('sessionsChanged', () => {
+  ee.emit('session:listChanged', {})
 })
 
 function createWindow() {
@@ -427,7 +435,7 @@ app.whenReady().then(async () => {
   // Ensure project config directories exist
   fs.mkdirSync(path.join(projectsConfigDir, 'setup-logs'), { recursive: true })
 
-  await startHookServer()
+  await startHookServer(daemonClient)
 
   if (!VITE_DEV_SERVER_URL) {
     rendererURL = await startRendererServer(RENDERER_DIST)
@@ -437,17 +445,34 @@ app.whenReady().then(async () => {
     await daemonClient.ensureAndConnect()
     ptyManager.setDaemonClient(daemonClient)
     console.log('[tentacles] Connected to terminal daemon')
+
+    const migrationMarker = path.join(app.getPath('userData'), '.sqlite-migrated')
+    const migrationResult = await migrateSessionsJsonToDaemon({
+      sessionsPath,
+      markerPath: migrationMarker,
+      daemonClient,
+    })
+    if (migrationResult) {
+      console.log(`[migration] sessions.json archived (${migrationResult.migrated} legacy entries dropped)`)
+    }
+
+    try {
+      const sessions = await daemonClient.list()
+      for (const s of sessions) {
+        ptyManager.registerDaemonSession(s.id)
+        if (s.hookId) {
+          registerHookSession(s.hookId, s.id, s.agentType as AgentType)
+          hookManager.register(s.id, { hookId: s.hookId, agentType: s.agentType as AgentType })
+        }
+      }
+    } catch (err) {
+      console.warn('[tentacles] Failed to register daemon sessions on startup:', err)
+    }
   } catch (err) {
     console.warn('[tentacles] Failed to connect to daemon, sessions will not persist:', err)
   }
 
-  await reconcileSessions()
   startDeferredDaemonMigrationWatcher()
-
-  // Clear the cached daemon session IDs after a short delay so that any
-  // subsequent reattach calls (e.g. macOS window close/reopen) query the
-  // daemon directly instead of relying on a stale startup snapshot.
-  setTimeout(() => spawner.clearCachedDaemonSessionIds(), 15_000)
 
   // Prune ghost worktree entries left by crashes or manual cleanup
   gitManager.pruneAllWorktrees().catch((err: unknown) => {
@@ -457,36 +482,3 @@ app.whenReady().then(async () => {
   ipcHandler = createIPCHandler({ router: appRouter })
   createWindow()
 })
-
-/** Reconcile persisted sessions with daemon state on startup. */
-async function reconcileSessions() {
-  const activeHookIds = new Set<string>()
-
-  let daemonSessions: { id: string; pid: number; cwd: string; createdAt: number }[] = []
-  if (daemonClient.isConnected()) {
-    try {
-      daemonSessions = await daemonClient.list()
-    } catch { /* daemon not responding */ }
-  }
-  const daemonSessionIds = new Set(daemonSessions.map((s) => s.id))
-
-  let persistedSessions: { hookId?: string; id?: string }[] = []
-  try {
-    const data = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
-    persistedSessions = data.sessions || []
-    for (const s of persistedSessions) {
-      if (s.hookId && daemonSessionIds.has(s.id!)) {
-        activeHookIds.add(s.hookId)
-      }
-    }
-  } catch { /* ignore */ }
-
-  // Daemon is the source of truth for live sessions. If a daemon session is
-  // missing from persisted JSON, it means our renderer-side persist lost a
-  // write — don't compound the loss by killing the live PTY. Leave it alone;
-  // the user can reattach if it reappears in the persisted list, or it'll be
-  // cleaned up when the agent exits.
-
-  spawner.setCachedDaemonSessionIds(daemonSessionIds)
-  hookManager.cleanupAllHookFiles(activeHookIds)
-}

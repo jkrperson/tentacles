@@ -192,6 +192,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       fileTreeCache,
       activeProjectId: projectOrder[0] ?? null,
     })
+
+    // Ensure each loaded project has a main workspace so the sidebar
+    // shows it even when there are no sessions yet.
+    const wsStore = useWorkspaceStore.getState()
+    for (const project of projects.values()) {
+      wsStore.ensureMainWorkspace(project.id)
+    }
   },
 
   persistProjects: () => {

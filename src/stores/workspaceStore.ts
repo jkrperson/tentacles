@@ -3,6 +3,10 @@ import { trpc } from '../trpc'
 import { useProjectConfigStore } from './projectConfigStore'
 import type { Workspace, WorkspaceType } from '../types'
 
+// Guard: don't auto-persist until bootstrap completes (avoids overwriting
+// the legacy sessions.json with empty state during initial load).
+let storeReady = false
+
 interface WorkspaceState {
   workspaces: Map<string, Workspace>
   workspaceOrder: string[]
@@ -16,6 +20,7 @@ interface WorkspaceState {
   loadWorkspaces: (workspaces: Workspace[]) => void
   setWorkspaces: (workspaces: Map<string, Workspace>, order: string[]) => void
   removeWorkspace: (id: string) => void
+  markReady: () => void
 }
 
 function makeMainId(projectId: string): string {
@@ -179,7 +184,44 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       return { workspaces: ws, workspaceOrder: state.workspaceOrder.filter((wid) => wid !== id) }
     })
   },
+
+  markReady: () => { storeReady = true },
 }))
+
+// ---------------------------------------------------------------------------
+// Auto-persist workspaces — bridge state until Phase 2 moves them to SQLite.
+// sessions.json holds workspaces only; sessions live in the daemon DB and UI
+// prefs (tab/active/unread) live in ui-prefs.json.
+// ---------------------------------------------------------------------------
+
+let lastWrittenWorkspaces: string | null = null
+
+function writeWorkspaces() {
+  if (!storeReady) return
+  const state = useWorkspaceStore.getState()
+  const workspaces = state.workspaceOrder
+    .map((id) => state.workspaces.get(id))
+    .filter((w): w is Workspace => w !== undefined)
+  const serialized = JSON.stringify(workspaces)
+  if (serialized === lastWrittenWorkspaces) return
+  lastWrittenWorkspaces = serialized
+  trpc.app.saveSessions.mutate({
+    sessions: [],
+    activeSessionId: null,
+    tabOrder: [],
+    workspaces,
+  } as unknown as Record<string, unknown>).catch((err) =>
+    console.error('[workspaceStore] saveWorkspaces failed:', err))
+}
+
+useWorkspaceStore.subscribe((state, prevState) => {
+  if (
+    state.workspaces !== prevState.workspaces ||
+    state.workspaceOrder !== prevState.workspaceOrder
+  ) {
+    writeWorkspaces()
+  }
+})
 
 /** Check if a session belongs to a given project via its workspace */
 export function sessionBelongsToProject(

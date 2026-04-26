@@ -11,7 +11,7 @@ export interface AgentToolDeps {
   settingsPath: string
   sessionsPath: string
   ptyManager: PtyManager
-  spawnAgent: (name: string, cwd: string, agentType: AgentType) => Promise<{ id: string; pid: number; hookId: string }>
+  spawnAgent: (name: string, cwd: string, workspaceId: string, agentType: AgentType) => Promise<{ id: string; pid: number; hookId: string }>
 }
 
 export function readSettings(settingsPath: string): Record<string, unknown> {
