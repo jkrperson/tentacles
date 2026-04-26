@@ -9,6 +9,8 @@ export interface EventMap {
   'session:statusDetail': { id: string; detail: string | null }
   'session:agentStatus': { id: string; status: 'running' | 'needs_input' | 'completed' | 'idle' }
   'session:listChanged': Record<string, never>
+  'project:listChanged': Record<string, never>
+  'workspace:listChanged': Record<string, never>
   'terminal:data': { id: string; data: string }
   'terminal:exit': { id: string; exitCode: number }
   'terminal:title': { id: string; title: string }

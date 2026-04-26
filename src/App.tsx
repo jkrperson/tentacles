@@ -10,6 +10,7 @@ import { useSessionStore, persistUiNow } from './stores/sessionStore'
 import { trpc } from './trpc'
 import { useSettingsStore } from './stores/settingsStore'
 import { useProjectStore } from './stores/projectStore'
+import { useWorkspaceStore } from './stores/workspaceStore'
 import { applyThemeToDOM } from './themes'
 import { useResolvedTheme, useCustomThemes } from './hooks/useResolvedTheme'
 import { initDataRouter } from './dataRouter'
@@ -97,6 +98,20 @@ function App() {
   }, [])
 
   useEffect(() => {
+    const sub = trpc.project.onListChanged.subscribe(undefined, {
+      onData: () => { void useProjectStore.getState().refreshFromDaemon() },
+    })
+    return () => sub.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    const sub = trpc.workspace.onListChanged.subscribe(undefined, {
+      onData: () => { void useWorkspaceStore.getState().refreshFromDaemon() },
+    })
+    return () => sub.unsubscribe()
+  }, [])
+
+  useEffect(() => {
     loadSettings()
     loadSavedSessions()
   }, [loadSettings, loadSavedSessions])
@@ -112,7 +127,10 @@ function App() {
   // Load projects and restore UI preferences after settings are loaded
   useEffect(() => {
     if (!settingsLoaded) return
-    loadProjects()
+    void (async () => {
+      await loadProjects()
+      await useWorkspaceStore.getState().loadFromDaemon()
+    })()
     // Restore persisted sidebar view mode
     const saved = useSettingsStore.getState().settings.sidebarViewMode
     if (saved) useUIStore.getState().setSidebarViewMode(saved)

@@ -3,28 +3,21 @@ import type { PtyManager } from '../../../ptyManager'
 import type { AgentChatKeyManager } from '../../../agentChat/keyManager'
 import type { AgentType } from '../../../agents/types'
 import type { AgentChatToolName } from '../../../../src/types/agentChat'
+import type { DaemonClient } from '../../../daemon/client'
 import * as fs from 'node:fs'
 import * as nodePath from 'node:path'
 
 export interface AgentToolDeps {
   keyManager: AgentChatKeyManager
   settingsPath: string
-  sessionsPath: string
   ptyManager: PtyManager
+  daemonClient: DaemonClient
   spawnAgent: (name: string, cwd: string, workspaceId: string, agentType: AgentType) => Promise<{ id: string; pid: number; hookId: string }>
 }
 
 export function readSettings(settingsPath: string): Record<string, unknown> {
   try {
     return JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
-  } catch {
-    return {}
-  }
-}
-
-export function readSessionsFile(sessionsPath: string): Record<string, unknown> {
-  try {
-    return JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'))
   } catch {
     return {}
   }
@@ -129,16 +122,15 @@ export async function executeTool(
 ): Promise<unknown> {
   switch (name) {
     case 'list_projects': {
-      const settings = readSettings(deps.settingsPath)
-      const paths = (settings.projectPaths as string[]) ?? []
-      return paths.map((p: string) => ({ path: p, name: nodePath.basename(p) }))
+      const projects = await deps.daemonClient.listProjects()
+      return projects.map((p) => ({ path: p.path, name: nodePath.basename(p.path) }))
     }
 
     case 'open_project': {
       const projectPath = args.projectPath as string
       if (!projectPath) throw new Error('projectPath is required')
-      const settings = readSettings(deps.settingsPath)
-      const paths = (settings.projectPaths as string[]) ?? []
+      const projects = await deps.daemonClient.listProjects()
+      const paths = projects.map((p) => p.path)
       if (!paths.includes(projectPath)) {
         throw new Error(`Project "${projectPath}" not found. Available: ${paths.join(', ')}`)
       }
@@ -148,11 +140,8 @@ export async function executeTool(
     case 'list_workspaces': {
       const projectPath = args.projectPath as string
       if (!projectPath) throw new Error('projectPath is required')
-      const sessionsData = readSessionsFile(deps.sessionsPath)
-      const workspaces = (sessionsData.workspaces ?? []) as Array<Record<string, unknown>>
-      return workspaces
-        .filter((ws) => ws.projectId === projectPath)
-        .map((ws) => ({ id: ws.id, name: ws.name, type: ws.type, branch: ws.branch, status: ws.status }))
+      const workspaces = await deps.daemonClient.listWorkspaces(projectPath)
+      return workspaces.map((ws) => ({ id: ws.id, name: ws.name, type: ws.type, branch: ws.branch, status: ws.status }))
     }
 
     case 'create_workspace': {
@@ -168,8 +157,7 @@ export async function executeTool(
     }
 
     case 'list_sessions': {
-      const sessionsData = readSessionsFile(deps.sessionsPath)
-      const sessions = (sessionsData.sessions ?? []) as Array<Record<string, unknown>>
+      const sessions = await deps.daemonClient.list()
       return sessions.map((s) => ({
         id: s.id,
         name: s.name,

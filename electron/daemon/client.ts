@@ -12,6 +12,13 @@ import type {
   TaggedRequest,
   ListSession,
   SessionMetadata,
+  ListedProject,
+  ListProjectsResponse,
+  ProjectMetadata,
+  ListedWorkspace,
+  ListWorkspacesResponse,
+  WorkspaceMetadata,
+  WorkspaceStatus,
 } from './protocol'
 import {
   DAEMON_REQUIRED_CAPABILITIES as REQUIRED_CAPABILITIES,
@@ -201,6 +208,69 @@ export class DaemonClient extends EventEmitter {
 
   async renameSession(id: string, name: string): Promise<void> {
     const resp = await this.send({ method: 'renameSession', id, name })
+    if (!resp.ok) throw new Error((resp as { error: string }).error)
+  }
+
+  // --- Projects ---
+
+  async listProjects(): Promise<ListedProject[]> {
+    const resp = await this.send({ method: 'listProjects' })
+    if (!resp.ok) throw new Error((resp as { error: string }).error)
+    return (resp as ListProjectsResponse).projects
+  }
+
+  async addProject(id: string, metadata: ProjectMetadata, sortOrder: number): Promise<void> {
+    const resp = await this.send({ method: 'addProject', id, metadata, sortOrder })
+    if (!resp.ok) throw new Error((resp as { error: string }).error)
+  }
+
+  async updateProject(id: string, patch: { name?: string; color?: string; icon?: string | null }): Promise<void> {
+    const resp = await this.send({ method: 'updateProject', id, patch })
+    if (!resp.ok) throw new Error((resp as { error: string }).error)
+  }
+
+  async removeProject(id: string): Promise<void> {
+    const resp = await this.send({ method: 'removeProject', id })
+    if (!resp.ok) throw new Error((resp as { error: string }).error)
+  }
+
+  async reorderProjects(idsInOrder: string[]): Promise<void> {
+    const resp = await this.send({ method: 'reorderProjects', idsInOrder })
+    if (!resp.ok) throw new Error((resp as { error: string }).error)
+  }
+
+  // --- Workspaces ---
+
+  async listWorkspaces(projectId?: string): Promise<ListedWorkspace[]> {
+    const resp = await this.send({ method: 'listWorkspaces', projectId })
+    if (!resp.ok) throw new Error((resp as { error: string }).error)
+    return (resp as ListWorkspacesResponse).workspaces
+  }
+
+  async addWorkspace(id: string, metadata: WorkspaceMetadata, sortOrder: number): Promise<void> {
+    const resp = await this.send({ method: 'addWorkspace', id, metadata, sortOrder })
+    if (!resp.ok) throw new Error((resp as { error: string }).error)
+  }
+
+  async updateWorkspace(id: string, patch: {
+    branch?: string
+    worktreePath?: string | null
+    linkedPr?: string | null
+    linkedIssue?: string | null
+    status?: WorkspaceStatus
+    name?: string
+  }): Promise<void> {
+    const resp = await this.send({ method: 'updateWorkspace', id, patch })
+    if (!resp.ok) throw new Error((resp as { error: string }).error)
+  }
+
+  async removeWorkspace(id: string): Promise<void> {
+    const resp = await this.send({ method: 'removeWorkspace', id })
+    if (!resp.ok) throw new Error((resp as { error: string }).error)
+  }
+
+  async reorderWorkspaces(projectId: string, idsInOrder: string[]): Promise<void> {
+    const resp = await this.send({ method: 'reorderWorkspaces', projectId, idsInOrder })
     if (!resp.ok) throw new Error((resp as { error: string }).error)
   }
 

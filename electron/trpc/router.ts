@@ -15,6 +15,8 @@ import { createDictationRouter } from './routers/dictation'
 import { createTodoRouter } from './routers/todo'
 import { createAgentChatRouter } from './routers/agentChat'
 import { createVoiceCommandRouter } from './routers/voiceCommand'
+import { createProjectRouter } from './routers/project'
+import { createWorkspaceRouter } from './routers/workspace'
 import type { PtyManager } from '../ptyManager'
 import type { FileWatcher } from '../fileWatcher'
 import type { GitManager } from '../gitManager'
@@ -31,7 +33,6 @@ export interface RouterDeps {
   gitManager: GitManager
   lspManager: LspManager
   settingsPath: string
-  sessionsPath: string
   uiPrefsPath: string
   themesDir: string
   soundsDir: string
@@ -78,7 +79,6 @@ export function createRouter(deps: RouterDeps) {
     }),
     app: createAppRouter({
       settingsPath: deps.settingsPath,
-      sessionsPath: deps.sessionsPath,
       uiPrefsPath: deps.uiPrefsPath,
       themesDir: deps.themesDir,
       soundsDir: deps.soundsDir,
@@ -108,17 +108,19 @@ export function createRouter(deps: RouterDeps) {
     agentChat: createAgentChatRouter({
       keyManager: deps.agentChatKeyManager,
       settingsPath: deps.settingsPath,
-      sessionsPath: deps.sessionsPath,
       ptyManager: deps.ptyManager,
+      daemonClient: deps.daemonClient,
       spawnAgent: deps.spawnAgent,
     }),
     voiceCommand: createVoiceCommandRouter({
       keyManager: deps.agentChatKeyManager,
       settingsPath: deps.settingsPath,
-      sessionsPath: deps.sessionsPath,
       ptyManager: deps.ptyManager,
+      daemonClient: deps.daemonClient,
       spawnAgent: deps.spawnAgent,
     }),
+    project: createProjectRouter({ daemonClient: deps.daemonClient }),
+    workspace: createWorkspaceRouter({ daemonClient: deps.daemonClient }),
   })
 }
 

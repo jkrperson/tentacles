@@ -15,6 +15,8 @@ import {
 import type { TaggedRequest, DaemonResponse, DaemonEvent } from './protocol'
 import { openDb, closeDb } from './db'
 import { createSessionStore } from './sessionStore'
+import { createProjectStore } from './projectStore'
+import { createWorkspaceStore } from './workspaceStore'
 
 const require = createRequire(import.meta.url)
 const pty = require('node-pty')
@@ -46,6 +48,8 @@ interface ManagedSession {
 
 const db = openDb(DB_PATH)
 const sessionDb = createSessionStore(db)
+const projectDb = createProjectStore(db)
+const workspaceDb = createWorkspaceStore(db)
 
 const sessions = new Map<string, ManagedSession>()
 const clients = new Set<net.Socket>()
@@ -275,6 +279,107 @@ function handleRequest(client: net.Socket, tagged: TaggedRequest) {
         protocolVersion: DAEMON_PROTOCOL_VERSION,
         capabilities: [...DAEMON_REQUIRED_CAPABILITIES],
       })
+      break
+    }
+
+    case 'listProjects': {
+      const list = projectDb.list().map((p) => ({
+        id: p.id, path: p.path, name: p.name,
+        color: p.color, icon: p.icon,
+        addedAt: p.addedAt, sortOrder: p.sortOrder,
+      }))
+      sendTo(client, { ok: true, reqId, projects: list })
+      break
+    }
+
+    case 'addProject': {
+      projectDb.insert({
+        id: request.id,
+        path: request.metadata.path,
+        name: request.metadata.name,
+        color: request.metadata.color,
+        icon: request.metadata.icon,
+        addedAt: Date.now(),
+        sortOrder: request.sortOrder,
+      })
+      broadcast({ event: 'projectsChanged' })
+      sendTo(client, { ok: true, reqId })
+      break
+    }
+
+    case 'updateProject': {
+      const changed = projectDb.update(request.id, request.patch)
+      if (changed) broadcast({ event: 'projectsChanged' })
+      sendTo(client, { ok: true, reqId })
+      break
+    }
+
+    case 'removeProject': {
+      const changed = projectDb.delete(request.id)
+      if (changed) {
+        // FK cascade removes workspaces too — emit both events.
+        broadcast({ event: 'workspacesChanged' })
+        broadcast({ event: 'projectsChanged' })
+      }
+      sendTo(client, { ok: true, reqId })
+      break
+    }
+
+    case 'reorderProjects': {
+      projectDb.reorder(request.idsInOrder)
+      broadcast({ event: 'projectsChanged' })
+      sendTo(client, { ok: true, reqId })
+      break
+    }
+
+    case 'listWorkspaces': {
+      const list = (request.projectId ? workspaceDb.listByProject(request.projectId) : workspaceDb.listAll())
+        .map((w) => ({
+          id: w.id, projectId: w.projectId, type: w.type, branch: w.branch,
+          worktreePath: w.worktreePath, linkedPr: w.linkedPr, linkedIssue: w.linkedIssue,
+          status: w.status, name: w.name, createdAt: w.createdAt, sortOrder: w.sortOrder,
+        }))
+      sendTo(client, { ok: true, reqId, workspaces: list })
+      break
+    }
+
+    case 'addWorkspace': {
+      workspaceDb.insert({
+        id: request.id,
+        projectId: request.metadata.projectId,
+        type: request.metadata.type,
+        branch: request.metadata.branch,
+        worktreePath: request.metadata.worktreePath,
+        linkedPr: request.metadata.linkedPr,
+        linkedIssue: request.metadata.linkedIssue,
+        status: request.metadata.status,
+        name: request.metadata.name,
+        createdAt: Date.now(),
+        sortOrder: request.sortOrder,
+      })
+      broadcast({ event: 'workspacesChanged' })
+      sendTo(client, { ok: true, reqId })
+      break
+    }
+
+    case 'updateWorkspace': {
+      const changed = workspaceDb.update(request.id, request.patch)
+      if (changed) broadcast({ event: 'workspacesChanged' })
+      sendTo(client, { ok: true, reqId })
+      break
+    }
+
+    case 'removeWorkspace': {
+      const changed = workspaceDb.delete(request.id)
+      if (changed) broadcast({ event: 'workspacesChanged' })
+      sendTo(client, { ok: true, reqId })
+      break
+    }
+
+    case 'reorderWorkspaces': {
+      workspaceDb.reorder(request.projectId, request.idsInOrder)
+      broadcast({ event: 'workspacesChanged' })
+      sendTo(client, { ok: true, reqId })
       break
     }
 

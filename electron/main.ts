@@ -20,6 +20,7 @@ import { ee } from './trpc/events'
 import { AuthManager } from './authManager'
 import { createRouter } from './trpc/router'
 import { migrateSessionsJsonToDaemon } from './migrations/jsonToSqlite'
+import { migrateProjectsAndWorkspacesToDaemon } from './migrations/jsonToSqliteV2'
 import type { SessionStatus } from '../src/types'
 import type { AgentType } from './agents/types'
 
@@ -116,7 +117,6 @@ const appRouter = createRouter({
   gitManager,
   lspManager,
   settingsPath,
-  sessionsPath,
   uiPrefsPath,
   themesDir,
   soundsDir,
@@ -216,6 +216,14 @@ daemonClient.on('compatibilityDeferred', () => {
 
 daemonClient.on('sessionsChanged', () => {
   ee.emit('session:listChanged', {})
+})
+
+daemonClient.on('projectsChanged', () => {
+  ee.emit('project:listChanged', {})
+})
+
+daemonClient.on('workspacesChanged', () => {
+  ee.emit('workspace:listChanged', {})
 })
 
 function createWindow() {
@@ -454,6 +462,17 @@ app.whenReady().then(async () => {
     })
     if (migrationResult) {
       console.log(`[migration] sessions.json archived (${migrationResult.migrated} legacy entries dropped)`)
+    }
+
+    const v2MigrationMarker = path.join(app.getPath('userData'), '.sqlite-migrated-v2')
+    const v2Result = await migrateProjectsAndWorkspacesToDaemon({
+      settingsPath,
+      sessionsPath,
+      markerPath: v2MigrationMarker,
+      daemonClient,
+    })
+    if (v2Result) {
+      console.log(`[migration v2] imported ${v2Result.projects} projects + ${v2Result.workspaces} workspaces from JSON`)
     }
 
     try {

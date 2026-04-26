@@ -7,7 +7,7 @@ import { useUIStore } from './uiStore'
 import { getErrorMessage } from '../utils/errors'
 import { generateRandomName } from '../utils/randomName'
 import { capture } from '../lib/posthog'
-import type { Session, SessionStatus, SessionsFile, AgentType, Workspace } from '../types'
+import type { Session, SessionStatus, AgentType } from '../types'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -55,61 +55,6 @@ function reorderWithinProject(
     next[projectIndices[i]] = projectIds[i]
   }
   return next
-}
-
-// ---------------------------------------------------------------------------
-// loadSessions helpers
-// ---------------------------------------------------------------------------
-
-/** Migrate pre-workspace session data into workspace objects. Mutates sessions in place. */
-function migrateSessionsToWorkspaces(sessions: Session[]): { workspaces: Map<string, Workspace>; order: string[] } {
-  const workspaces = new Map<string, Workspace>()
-  const order: string[] = []
-
-  for (const s of sessions) {
-    if (s.isWorktree && s.worktreePath && s.originalRepo) {
-      const wsId = `worktree:${s.worktreePath}`
-      if (!workspaces.has(wsId)) {
-        workspaces.set(wsId, {
-          id: wsId,
-          projectId: s.originalRepo,
-          type: 'worktree',
-          branch: s.worktreeBranch || '',
-          worktreePath: s.worktreePath,
-          status: 'active',
-          createdAt: s.createdAt,
-          name: s.worktreeBranch || 'worktree',
-        })
-        order.push(wsId)
-      }
-      const mutable = s as Session
-      mutable.workspaceId = wsId
-    } else {
-      const mainId = `main:${s.cwd}`
-      if (!workspaces.has(mainId)) {
-        workspaces.set(mainId, {
-          id: mainId,
-          projectId: s.cwd,
-          type: 'main',
-          branch: '',
-          worktreePath: null,
-          status: 'active',
-          createdAt: s.createdAt,
-          name: 'main',
-        })
-        order.push(mainId)
-      }
-      const mutable = s as Session
-      mutable.workspaceId = mainId
-    }
-    // Strip deprecated fields
-    delete (s as Session).isWorktree
-    delete (s as Session).worktreePath
-    delete (s as Session).worktreeBranch
-    delete (s as Session).originalRepo
-  }
-
-  return { workspaces, order }
 }
 
 // ---------------------------------------------------------------------------
@@ -345,61 +290,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const uiPrefs = await trpc.app.loadUiPrefs.query()
 
       const wsStore = useWorkspaceStore.getState()
-      // Workspaces still loaded from userData/sessions.json for now (Phase 2 moves them too).
-      // This call is kept until workspaces also move to the daemon.
-      const legacyData = await trpc.app.loadSessions.query() as SessionsFile
-      if (legacyData.workspaces && legacyData.workspaces.length > 0) {
-        wsStore.loadWorkspaces(legacyData.workspaces)
-      } else {
-        // Fall back to migration if needed
-        const migrated = migrateSessionsToWorkspaces(legacyData.sessions || [])
-        wsStore.setWorkspaces(migrated.workspaces, migrated.order)
-      }
+      await wsStore.loadFromDaemon()
 
-      // Re-ensure main workspaces for every loaded project. The legacy
-      // sessions.json never gets re-written under the daemon-owned-sessions
-      // design, so its workspace list is stale (often empty). Without this,
-      // the load above wipes any main workspaces that loadProjects created,
-      // and the sidebar shows the project but no workspaces under it.
-      const projectIds = Array.from(useProjectStore.getState().projects.keys())
-      for (const pid of projectIds) {
-        wsStore.ensureMainWorkspace(pid)
-      }
-      // Also ensure a workspace exists for any daemon session pointing at a
-      // main workspace whose project hasn't been loaded yet (e.g. session
-      // created before the project was added). projectId is the suffix after
-      // the "main:" prefix.
-      for (const ds of daemonSessions) {
-        if (ds.workspaceId.startsWith('main:')) {
-          const projectId = ds.workspaceId.slice('main:'.length)
-          wsStore.ensureMainWorkspace(projectId)
-        }
-      }
-
-      // Workspace bootstrap done — allow workspace mutations to persist.
-      wsStore.markReady()
-
-      // One-shot migration: copy UI prefs from legacy sessions.json if the new
-      // ui-prefs.json is empty (first launch with the daemon-owned-sessions design).
-      let migratedUiPrefs: typeof uiPrefs | null = null
-      if (
-        !uiPrefs.tabOrder &&
-        uiPrefs.activeSessionId === undefined &&
-        !uiPrefs.hasUnread
-      ) {
-        const legacyHasUnread: Record<string, boolean> = {}
-        for (const s of legacyData.sessions ?? []) {
-          if (s.hasUnread) legacyHasUnread[s.id] = true
-        }
-        if (legacyData.tabOrder?.length || legacyData.activeSessionId || Object.keys(legacyHasUnread).length > 0) {
-          migratedUiPrefs = {
-            tabOrder: legacyData.tabOrder,
-            activeSessionId: legacyData.activeSessionId,
-            hasUnread: legacyHasUnread,
-          }
-        }
-      }
-      const effectiveUiPrefs = migratedUiPrefs ?? uiPrefs
+      const effectiveUiPrefs = uiPrefs
 
       const sessions = new Map<string, Session>()
       const sessionOrder: string[] = []
@@ -435,12 +328,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       }
 
       storeReady = true
-
-      // If we migrated from legacy, write the new file immediately so this branch
-      // doesn't fire on next launch.
-      if (migratedUiPrefs) {
-        void persistUiNow()
-      }
     } catch (err) {
       console.error('[sessionStore] Failed to load sessions:', err)
     }

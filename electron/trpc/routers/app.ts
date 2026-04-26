@@ -11,7 +11,6 @@ const SOUND_EXTENSIONS = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac']
 
 interface AppDeps {
   settingsPath: string
-  sessionsPath: string
   uiPrefsPath: string
   themesDir: string
   soundsDir: string
@@ -60,21 +59,6 @@ export function createAppRouter(deps: AppDeps) {
     getHomePath: t.procedure
       .query(() => {
         return app.getPath('home')
-      }),
-
-    loadSessions: t.procedure
-      .query(() => {
-        try {
-          return JSON.parse(fs.readFileSync(deps.sessionsPath, 'utf-8'))
-        } catch {
-          return { sessions: [], activeSessionId: null }
-        }
-      }),
-
-    saveSessions: t.procedure
-      .input(z.record(z.string(), z.unknown()))
-      .mutation(({ input }) => {
-        fs.writeFileSync(deps.sessionsPath, JSON.stringify(input, null, 2))
       }),
 
     loadUiPrefs: t.procedure
