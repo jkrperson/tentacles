@@ -15,6 +15,8 @@ import { createDictationRouter } from './routers/dictation'
 import { createTodoRouter } from './routers/todo'
 import { createAgentChatRouter } from './routers/agentChat'
 import { createVoiceCommandRouter } from './routers/voiceCommand'
+import { createProjectRouter } from './routers/project'
+import { createWorkspaceRouter } from './routers/workspace'
 import type { PtyManager } from '../ptyManager'
 import type { FileWatcher } from '../fileWatcher'
 import type { GitManager } from '../gitManager'
@@ -119,6 +121,8 @@ export function createRouter(deps: RouterDeps) {
       ptyManager: deps.ptyManager,
       spawnAgent: deps.spawnAgent,
     }),
+    project: createProjectRouter({ daemonClient: deps.daemonClient }),
+    workspace: createWorkspaceRouter({ daemonClient: deps.daemonClient }),
   })
 }
 
