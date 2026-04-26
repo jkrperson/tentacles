@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { app, powerMonitor, BrowserWindow } from 'electron'
 import pkg from 'electron-updater'
 import { ee } from './trpc/events'
 
@@ -6,9 +6,12 @@ const { autoUpdater } = pkg
 
 const GITHUB_OWNER = 'jkrperson'
 const GITHUB_REPO = 'tentacles'
-const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000 // 4 hours
+const CHECK_INTERVAL_MS = 30 * 60 * 1000 // 30 minutes
+const MIN_CHECK_GAP_MS = 5 * 60 * 1000 // throttle focus/resume re-checks
 
 let initialized = false
+let lastCheckAt = 0
+let pendingVersion: string | undefined
 
 function releaseUrlFor(version?: string): string | undefined {
   if (!version) return undefined
@@ -21,6 +24,7 @@ export async function checkForUpdates(): Promise<void> {
     return
   }
   try {
+    lastCheckAt = Date.now()
     await autoUpdater.checkForUpdates()
   } catch (err) {
     ee.emit('updater:status', {
@@ -28,6 +32,12 @@ export async function checkForUpdates(): Promise<void> {
       message: err instanceof Error ? err.message : 'Failed to check for updates',
     })
   }
+}
+
+function maybeCheckForUpdates(): void {
+  if (!initialized) return
+  if (Date.now() - lastCheckAt < MIN_CHECK_GAP_MS) return
+  void checkForUpdates()
 }
 
 export function restartAndInstall(): void {
@@ -47,6 +57,7 @@ export function initUpdater() {
     ee.emit('updater:status', { status: 'checking' })
   })
   autoUpdater.on('update-available', (info) => {
+    pendingVersion = info.version
     ee.emit('updater:status', {
       status: 'available',
       version: info.version,
@@ -60,9 +71,12 @@ export function initUpdater() {
     ee.emit('updater:status', {
       status: 'downloading',
       progress: Math.round(p.percent),
+      version: pendingVersion,
+      releaseUrl: releaseUrlFor(pendingVersion),
     })
   })
   autoUpdater.on('update-downloaded', (info) => {
+    pendingVersion = info.version
     ee.emit('updater:status', {
       status: 'downloaded',
       version: info.version,
@@ -78,4 +92,12 @@ export function initUpdater() {
 
   setTimeout(() => { void checkForUpdates() }, 5000)
   setInterval(() => { void checkForUpdates() }, CHECK_INTERVAL_MS)
+
+  powerMonitor.on('resume', () => { maybeCheckForUpdates() })
+
+  app.on('browser-window-focus', () => { maybeCheckForUpdates() })
+
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.on('focus', () => { maybeCheckForUpdates() })
+  }
 }
