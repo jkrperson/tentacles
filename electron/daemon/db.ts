@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import sql001 from './migrations/001_sessions.sql'
+import sql002 from './migrations/002_projects_workspaces.sql'
 
 let db: Database.Database | null = null
 let openedPath: string | null = null
@@ -9,6 +10,7 @@ let openedPath: string | null = null
 const MIGRATIONS: ReadonlyArray<{ version: number; sql: string }> = [
   // Index 0 → applies on transition from user_version 0 → 1
   { version: 1, sql: sql001 },
+  { version: 2, sql: sql002 },
 ]
 
 export function openDb(dbPath: string): Database.Database {
