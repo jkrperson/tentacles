@@ -4,7 +4,10 @@
   "appId": "com.tentacles.app",
   "asar": true,
   "asarUnpack": [
-    "node_modules/node-pty/**/*"
+    "node_modules/node-pty/**/*",
+    "node_modules/better-sqlite3/**/*",
+    "node_modules/bindings/**/*",
+    "node_modules/file-uri-to-path/**/*"
   ],
   "npmRebuild": false,
   "productName": "Tentacles",
@@ -14,7 +17,10 @@
   "files": [
     "dist",
     "dist-electron",
-    "node_modules/node-pty/**/*"
+    "node_modules/node-pty/**/*",
+    "node_modules/better-sqlite3/**/*",
+    "node_modules/bindings/**/*",
+    "node_modules/file-uri-to-path/**/*"
   ],
   "publish": {
     "provider": "github",
