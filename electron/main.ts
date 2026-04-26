@@ -218,6 +218,14 @@ daemonClient.on('sessionsChanged', () => {
   ee.emit('session:listChanged', {})
 })
 
+daemonClient.on('projectsChanged', () => {
+  ee.emit('project:listChanged', {})
+})
+
+daemonClient.on('workspacesChanged', () => {
+  ee.emit('workspace:listChanged', {})
+})
+
 function createWindow() {
   const settings = loadSettings()
   const resolvedTheme = settings.theme === 'system'
