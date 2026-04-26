@@ -356,6 +356,26 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         wsStore.setWorkspaces(migrated.workspaces, migrated.order)
       }
 
+      // Re-ensure main workspaces for every loaded project. The legacy
+      // sessions.json never gets re-written under the daemon-owned-sessions
+      // design, so its workspace list is stale (often empty). Without this,
+      // the load above wipes any main workspaces that loadProjects created,
+      // and the sidebar shows the project but no workspaces under it.
+      const projectIds = Array.from(useProjectStore.getState().projects.keys())
+      for (const pid of projectIds) {
+        wsStore.ensureMainWorkspace(pid)
+      }
+      // Also ensure a workspace exists for any daemon session pointing at a
+      // main workspace whose project hasn't been loaded yet (e.g. session
+      // created before the project was added). projectId is the suffix after
+      // the "main:" prefix.
+      for (const ds of daemonSessions) {
+        if (ds.workspaceId.startsWith('main:')) {
+          const projectId = ds.workspaceId.slice('main:'.length)
+          wsStore.ensureMainWorkspace(projectId)
+        }
+      }
+
       // One-shot migration: copy UI prefs from legacy sessions.json if the new
       // ui-prefs.json is empty (first launch with the daemon-owned-sessions design).
       let migratedUiPrefs: typeof uiPrefs | null = null
