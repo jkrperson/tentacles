@@ -51,6 +51,51 @@ const sessionDb = createSessionStore(db)
 const projectDb = createProjectStore(db)
 const workspaceDb = createWorkspaceStore(db)
 
+function mainWorkspaceId(projectId: string): string {
+  return `main:${projectId}`
+}
+
+// Default main workspace row for a project. Branch/worktreePath are blank —
+// they get filled in by the renderer when git info becomes available.
+function defaultMainWorkspace(projectId: string, createdAt: number) {
+  return {
+    id: mainWorkspaceId(projectId),
+    projectId,
+    type: 'main' as const,
+    branch: '',
+    worktreePath: null,
+    linkedPr: null,
+    linkedIssue: null,
+    status: 'active' as const,
+    name: 'main',
+    createdAt,
+    sortOrder: 0,
+  }
+}
+
+// Project + main workspace insert as a single transaction. Workspace insert
+// is OR IGNORE so legacy migrations (which separately insert a main row from
+// sessions.json) don't conflict.
+const insertProjectWithMain = db.transaction((projectRow: Parameters<typeof projectDb.insert>[0]) => {
+  projectDb.insert(projectRow)
+  workspaceDb.insertIfMissing(defaultMainWorkspace(projectRow.id, projectRow.addedAt))
+})
+
+// Backfill: ensure every existing project has a main workspace. Idempotent.
+// Fixes users who migrated to v3 before the auto-insert was added.
+function backfillMainWorkspaces(): void {
+  const now = Date.now()
+  let inserted = 0
+  for (const p of projectDb.list()) {
+    if (workspaceDb.insertIfMissing(defaultMainWorkspace(p.id, now))) inserted++
+  }
+  if (inserted > 0) {
+    console.log(`[daemon] Backfilled ${inserted} missing main workspace(s)`)
+  }
+}
+
+backfillMainWorkspaces()
+
 const sessions = new Map<string, ManagedSession>()
 const clients = new Set<net.Socket>()
 let idleTimer: ReturnType<typeof setTimeout> | null = null
@@ -293,7 +338,7 @@ function handleRequest(client: net.Socket, tagged: TaggedRequest) {
     }
 
     case 'addProject': {
-      projectDb.insert({
+      insertProjectWithMain({
         id: request.id,
         path: request.metadata.path,
         name: request.metadata.name,
@@ -303,6 +348,7 @@ function handleRequest(client: net.Socket, tagged: TaggedRequest) {
         sortOrder: request.sortOrder,
       })
       broadcast({ event: 'projectsChanged' })
+      broadcast({ event: 'workspacesChanged' })
       sendTo(client, { ok: true, reqId })
       break
     }
@@ -344,7 +390,7 @@ function handleRequest(client: net.Socket, tagged: TaggedRequest) {
     }
 
     case 'addWorkspace': {
-      workspaceDb.insert({
+      const row = {
         id: request.id,
         projectId: request.metadata.projectId,
         type: request.metadata.type,
@@ -356,7 +402,15 @@ function handleRequest(client: net.Socket, tagged: TaggedRequest) {
         name: request.metadata.name,
         createdAt: Date.now(),
         sortOrder: request.sortOrder,
-      })
+      }
+      // Main workspaces are auto-created by addProject + backfill, so any
+      // separate addWorkspace for type='main' (renderer's ensureMainWorkspace,
+      // legacy migration) must be idempotent. Worktrees fail loudly on dup.
+      if (row.type === 'main') {
+        workspaceDb.insertIfMissing(row)
+      } else {
+        workspaceDb.insert(row)
+      }
       broadcast({ event: 'workspacesChanged' })
       sendTo(client, { ok: true, reqId })
       break

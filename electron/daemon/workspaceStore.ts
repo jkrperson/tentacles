@@ -57,6 +57,10 @@ export function createWorkspaceStore(db: Database.Database) {
     INSERT INTO workspaces (id, project_id, type, branch, worktree_path, linked_pr, linked_issue, status, name, created_at, sort_order)
     VALUES (@id, @projectId, @type, @branch, @worktreePath, @linkedPr, @linkedIssue, @status, @name, @createdAt, @sortOrder)
   `)
+  const insertIfMissingStmt = db.prepare(`
+    INSERT OR IGNORE INTO workspaces (id, project_id, type, branch, worktree_path, linked_pr, linked_issue, status, name, created_at, sort_order)
+    VALUES (@id, @projectId, @type, @branch, @worktreePath, @linkedPr, @linkedIssue, @status, @name, @createdAt, @sortOrder)
+  `)
   const getStmt = db.prepare<[string], Row>('SELECT * FROM workspaces WHERE id = ?')
   const listAllStmt = db.prepare<[], Row>('SELECT * FROM workspaces ORDER BY project_id, sort_order ASC')
   const listByProjectStmt = db.prepare<[string], Row>(
@@ -87,6 +91,9 @@ export function createWorkspaceStore(db: Database.Database) {
 
   return {
     insert(row: WorkspaceRow): void { insertStmt.run(row) },
+    insertIfMissing(row: WorkspaceRow): boolean {
+      return insertIfMissingStmt.run(row).changes > 0
+    },
     get(id: string): WorkspaceRow | null {
       const r = getStmt.get(id)
       return r ? fromRow(r) : null
